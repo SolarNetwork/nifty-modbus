@@ -1,0 +1,171 @@
+// the following is included to work with local Ivy repo during SN development
+// see https://docs.gradle.org/current/userguide/variant_model.html#sub:ivy-mapping-to-variants
+abstract class IvyVariantDerivationRule implements ComponentMetadataRule {
+	@Inject abstract ObjectFactory getObjects()
+
+	void execute(ComponentMetadataContext context) {
+		// This filters out any non Ivy module
+		if(context.getDescriptor(IvyModuleDescriptor) == null) {
+			return
+		}
+
+		context.details.addVariant("runtimeElements", "runtime") {
+			attributes {
+				attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements, LibraryElements.JAR))
+				attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category, Category.LIBRARY))
+				attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage, Usage.JAVA_RUNTIME))
+			}
+		}
+		context.details.addVariant("apiElements", "compile") {
+			attributes {
+				attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements, LibraryElements.JAR))
+				attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category, Category.LIBRARY))
+				attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage, Usage.JAVA_API))
+			}
+		}
+	}
+}
+
+buildscript {
+	repositories {
+		mavenLocal()
+		mavenCentral()
+		maven { url "https://plugins.gradle.org/m2/" }
+	}
+}
+
+subprojects {
+	//apply plugin: "checkstyle"
+	apply plugin: "java"
+
+	group = "net.solarnetwork.common"
+
+	sourceCompatibility = 1.8
+	targetCompatibility = 1.8
+
+	repositories {
+		mavenCentral()
+		maven { url "https://dev.solarnetwork.net/archive/repository/solarnetwork-stage" }
+	}
+
+	[
+		compileJava,
+		compileTestJava
+	].each() {
+		it.options.compilerArgs += [
+			"-Xlint:all",
+			"-Xlint:-options",
+			"-Xlint:-path",
+			"-Xlint:-try"
+		]
+		it.options.encoding = "UTF-8"
+		if (rootProject.hasProperty('failOnWarnings') && rootProject.failOnWarnings.toBoolean()) {
+			it.options.compilerArgs += ["-Werror"]
+		}
+	}
+
+	compileTestJava {
+		options.compilerArgs += [
+			"-Xlint:-serial"
+		]
+	}
+
+	jar.manifest {
+		attributes('Implementation-Title': name,
+		'Implementation-Version': version,
+		'Built-By': System.getProperty('user.name'),
+		'Built-JDK': System.getProperty('java.version'),
+		'Source-Compatibility': sourceCompatibility,
+		'Target-Compatibility': targetCompatibility)
+	}
+
+	javadoc.options {
+		encoding = 'UTF-8'
+		use = true
+		links 'https://docs.oracle.com/javase/8/docs/api/'
+		source = "1.8"
+	}
+
+	ext {
+		checkstyleVersion = '8.34'
+		nettyVersion = '4.1.63.Final'
+		slf4jVersion = '1.7.36'
+		
+
+		libraries = [
+			// Test dependencies.
+			hamcrest: 'org.hamcrest:hamcrest-library:2.2',
+			junit: 'org.junit.jupiter:junit-jupiter:5.8.0',
+			mockito: 'org.mockito:mockito-core:3.9.0',
+			mockitoJupiter: 'org.mockito:mockito-junit-jupiter:3.9.0'
+		]
+	}
+
+	dependencies {
+		components { all(IvyVariantDerivationRule) }
+		testImplementation libraries.junit,
+				libraries.hamcrest,
+				libraries.mockito,
+				libraries.mockitoJupiter
+	}
+
+	// Disable JavaDoc doclint on Java 8. It's annoying.
+	if (JavaVersion.current().isJava8Compatible()) {
+		allprojects {
+			tasks.withType(Javadoc) {
+				options.addStringOption('Xdoclint:none', '-quiet')
+			}
+		}
+	}
+
+	// For jdk10 we must explicitly choose between html4 and html5, otherwise we get a warning
+	if (JavaVersion.current().isJava10Compatible()) {
+		allprojects {
+			tasks.withType(Javadoc) {
+				options.addBooleanOption('html5', true)
+			}
+		}
+	}
+
+	/*checkstyle {
+		toolVersion = "8.34"
+		configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+		ignoreFailures = false
+		if (rootProject.hasProperty("checkstyle.ignoreFailures")) {
+			ignoreFailures = rootProject.properties["checkstyle.ignoreFailures"].toBoolean()
+		}
+	}*/
+
+	//checkstyleMain {
+	//	  source = fileTree(dir: "src/main", include: "**/*.java")
+	//}
+
+	//checkstyleTest {
+	//	  source = fileTree(dir: "src/test", include: "**/*.java")
+	//}
+
+	task javadocJar(type: Jar) {
+		from javadoc
+		classifier = 'javadoc'
+		archiveClassifier = 'javadoc'
+	}
+
+	task sourcesJar(type: Jar) {
+		from sourceSets.main.allSource
+		classifier = 'sources'
+		archiveClassifier = 'sources'
+	}
+
+	// At a test failure, log the stack trace to the console so that we don't
+	// have to open the HTML in a browser.
+	test {
+		testLogging {
+			exceptionFormat = 'full'
+			showExceptions true
+			showCauses true
+			showStackTraces true
+		}
+		maxHeapSize = '1500m'
+	}
+	
+}

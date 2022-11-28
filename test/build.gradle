@@ -1,0 +1,27 @@
+plugins {
+    id 'java-library'
+    id 'eclipse'
+}
+
+apply plugin: 'java-library'
+
+description = 'Netty Modbus: Core Test'
+version = '1.0.0'
+archivesBaseName = 'netty-codec-modbus-test'
+
+dependencies {
+	api "org.slf4j:slf4j-api:${slf4jVersion}"
+	api 'ch.qos.logback:logback-classic:1.2.11'
+	api 'org.hamcrest:hamcrest-library:2.2'
+	api 'org.junit.jupiter:junit-jupiter-api:5.9.1'
+}
+
+jar.manifest {
+    attributes('Implementation-Version': version)
+}
+
+eclipse {
+	jdt {
+		javaRuntimeName 'JavaSE-17'
+	}
+}

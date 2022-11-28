@@ -1,0 +1,11 @@
+rootProject.name = 'netty-codec-modbus'
+
+include('core')
+include('rtu')
+include('tcp')
+include('test')
+
+project(':core').name = 'netty-codec-modbus-core'
+project(':rtu').name = 'netty-codec-modbus-rtu'
+project(':tcp').name = 'netty-codec-modbus-tcp'
+project(':test').name = 'netty-codec-modbus-test'
