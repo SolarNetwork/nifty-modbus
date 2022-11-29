@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.nullValue;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
+import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 
 /**
@@ -71,7 +72,7 @@ public class BaseModbusMessageTests {
 	public void error_functionOffset() {
 		// WHEN
 		int unitId = 1;
-		byte fn = READ_COILS + ModbusFunctionCode.ERROR_OFFSET;
+		byte fn = READ_COILS + ModbusFunctionCodes.ERROR_OFFSET;
 		byte err = ILLEGAL_DATA_ADDRESS;
 		BaseModbusMessage msg = new BaseModbusMessage(unitId, fn, err);
 

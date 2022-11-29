@@ -30,6 +30,9 @@ package net.solarnetwork.io.modbus;
  */
 public final class ModbusFunctionCodes {
 
+	/** The error function code offset. */
+	public static final byte ERROR_OFFSET = (byte) 0x80;
+
 	private ModbusFunctionCodes() {
 		// not available
 	}

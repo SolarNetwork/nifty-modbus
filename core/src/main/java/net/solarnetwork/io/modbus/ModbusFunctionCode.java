@@ -132,9 +132,6 @@ public enum ModbusFunctionCode {
 		OPPOSITES = Collections.unmodifiableMap(m);
 	}
 
-	/** The error function code offset. */
-	public static final byte ERROR_OFFSET = (byte) 0x80;
-
 	private final byte code;
 	private final ModbusBlockType blockType;
 	private final boolean read;

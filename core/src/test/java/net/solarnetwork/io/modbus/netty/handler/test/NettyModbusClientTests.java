@@ -45,6 +45,8 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.solarnetwork.io.modbus.ModbusClientConfig;
+import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.handler.ModbusMessageDecoder;
@@ -188,6 +190,51 @@ public class NettyModbusClientTests {
 		net.solarnetwork.io.modbus.RegistersModbusMessage respReg = resp
 				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
 		assertThat("Response is Registers", respReg, is(notNullValue()));
+	}
+
+	@Test
+	public void send_recvError() throws InterruptedException, ExecutionException {
+		// GIVEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+
+		// provide response
+		// @formatter:off
+		final byte[] responseData = new byte[] {
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS + ModbusFunctionCodes.ERROR_OFFSET,
+				ModbusErrorCodes.ILLEGAL_DATA_ADDRESS,
+		};
+		ByteBuf response = Unpooled.copiedBuffer(responseData);
+		// @formatter:on
+		channel.writeOneInbound(response).sync();
+
+		// THEN
+		assertThat("Future returned", f, is(notNullValue()));
+		assertThat("Request should no longer be pending", pending.keySet(), hasSize(0));
+
+		ByteBuf requestData = channel.readOutbound();
+		assertThat("Request bytes produced", requestData, is(notNullValue()));
+
+		// @formatter:off
+		assertThat("Request message encoded", byteObjectArray(ByteBufUtil.getBytes(requestData)), arrayContaining(
+				byteObjectArray(new byte[] {
+						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+						(byte)(addr >>> 8 & 0xFF),
+						(byte)(addr & 0xFF),
+						(byte)(count >>> 8 & 0xFF),
+						(byte)(count & 0xFF),
+				})));
+		// @formatter:on
+
+		assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
+		ModbusMessage resp = f.get();
+		assertThat("Response is an error", resp.getError(), is(ModbusErrorCode.IllegalDataAddress));
 	}
 
 }
