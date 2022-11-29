@@ -1,5 +1,5 @@
 /* ==================================================================
- * MaskWriteRegisterMessage.java - 27/11/2022 2:45:51 pm
+ * MaskWriteRegisterModbusMessage.java - 27/11/2022 2:45:51 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -31,14 +31,13 @@ import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
 /**
- * A addressed Modbus message for bit-related blocks, like coils and discrete
- * input registers.
+ * An addressed Modbus message for holding mask write register.
  *
  * @author matt
  * @version 1.0
  */
-public class MaskWriteRegisterMessage extends RegistersModbusMessage
-		implements net.solarnetwork.io.modbus.MaskWriteRegisterMessage {
+public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
+		implements net.solarnetwork.io.modbus.MaskWriteRegisterModbusMessage {
 
 	/**
 	 * Constructor.
@@ -56,7 +55,7 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 	 * @throws IllegalArgumentException
 	 *         if {@code function} is not valid
 	 */
-	public MaskWriteRegisterMessage(int unitId, byte function, int address) {
+	public MaskWriteRegisterModbusMessage(int unitId, byte function, int address) {
 		this(unitId, ModbusFunctionCode.forCode(function), null, address, null);
 	}
 
@@ -75,7 +74,7 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 	 * @throws IllegalArgumentException
 	 *         if {@code function} is not valid
 	 */
-	public MaskWriteRegisterMessage(int unitId, byte function, int address, byte[] data) {
+	public MaskWriteRegisterModbusMessage(int unitId, byte function, int address, byte[] data) {
 		this(unitId, ModbusFunctionCode.forCode(function), null, address, data);
 	}
 
@@ -96,7 +95,7 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 	 * @throws IllegalArgumentException
 	 *         if {@code function} or {@code error} are not valid
 	 */
-	public MaskWriteRegisterMessage(int unitId, byte function, byte error, int address, byte[] data) {
+	public MaskWriteRegisterModbusMessage(int unitId, byte function, byte error, int address, byte[] data) {
 		this(unitId, ModbusFunctionCode.forCode(function), ModbusErrorCode.forCode(error), address,
 				data);
 	}
@@ -119,7 +118,7 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 	 *         if {@code function} is {@literal null}, or if {@code data} does
 	 *         not have an even length (divisible by 2)
 	 */
-	public MaskWriteRegisterMessage(int unitId, ModbusFunctionCode function, ModbusErrorCode error,
+	public MaskWriteRegisterModbusMessage(int unitId, ModbusFunctionCode function, ModbusErrorCode error,
 			int address, byte[] data) {
 		super(unitId, function, error, address, 1, data);
 	}
@@ -137,12 +136,12 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 	 *        the 16-bit or mask
 	 * @return the new message
 	 */
-	public static MaskWriteRegisterMessage maskWriteRequest(int unitId, int address, int andMask,
+	public static MaskWriteRegisterModbusMessage maskWriteRequest(int unitId, int address, int andMask,
 			int orMask) {
 		byte[] data = new byte[4];
 		ModbusByteUtils.encode16(data, 0, andMask);
 		ModbusByteUtils.encode16(data, 2, orMask);
-		return new MaskWriteRegisterMessage(unitId, ModbusFunctionCode.MaskWriteHoldingRegister, null,
+		return new MaskWriteRegisterModbusMessage(unitId, ModbusFunctionCode.MaskWriteHoldingRegister, null,
 				address, data);
 	}
 
@@ -159,7 +158,7 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 	 *        the 16-bit or mask
 	 * @return the new message
 	 */
-	public static MaskWriteRegisterMessage maskWriteResponse(int unitId, int address, int andMask,
+	public static MaskWriteRegisterModbusMessage maskWriteResponse(int unitId, int address, int andMask,
 			int orMask) {
 		return maskWriteRequest(unitId, address, andMask, orMask);
 	}
@@ -184,6 +183,9 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 			final int address, final int count, final ByteBuf in) {
 		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
 		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		if ( error != null ) {
+			return new BaseModbusMessage(unitId, function, error);
+		}
 		int addr = address;
 		byte[] data = null;
 		if ( error == null ) {
@@ -198,7 +200,7 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 					return null;
 			}
 		}
-		return new MaskWriteRegisterMessage(unitId, function, error, addr, data);
+		return new MaskWriteRegisterModbusMessage(unitId, function, error, addr, data);
 	}
 
 	/**
@@ -221,6 +223,9 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 			final int address, final int count, final ByteBuf in) {
 		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
 		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		if ( error != null ) {
+			return new BaseModbusMessage(unitId, function, error);
+		}
 		int addr = address;
 		byte[] data = null;
 		if ( error == null ) {
@@ -235,7 +240,7 @@ public class MaskWriteRegisterMessage extends RegistersModbusMessage
 					return null;
 			}
 		}
-		return new MaskWriteRegisterMessage(unitId, function, error, addr, data);
+		return new MaskWriteRegisterModbusMessage(unitId, function, error, addr, data);
 	}
 
 	@Override

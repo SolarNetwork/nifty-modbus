@@ -1,5 +1,5 @@
 /* ==================================================================
- * ModbusFunctionDecoder.java - 27/11/2022 10:49:38 am
+ * ModbusMessageEncoder.java - 29/11/2022 7:26:32 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -25,20 +25,34 @@ package net.solarnetwork.io.modbus.netty.handler;
 import java.util.List;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageEncoder;
+import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.msg.ModbusPayloadEncoder;
 
 /**
- * Decode Modbus message payloads.
+ * Encoder of {@link ModbusMessage} to {@link ByteBuf}.
+ * 
+ * <p>
+ * The message must implement {@link ModbusPayloadEncoder} to be encoded.
+ * </p>
  *
  * @author matt
  * @version 1.0
  */
-public class ModbusFunctionDecoder extends ByteToMessageDecoder {
+public class ModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessage> {
 
 	@Override
-	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-		// TODO Auto-generated method stub
-
+	protected void encode(ChannelHandlerContext ctx, ModbusMessage msg, List<Object> out)
+			throws Exception {
+		ModbusPayloadEncoder enc = (msg instanceof ModbusPayloadEncoder ? (ModbusPayloadEncoder) msg
+				: null);
+		if ( enc != null ) {
+			int len = enc.payloadLength();
+			ByteBuf buf = ctx.alloc().buffer(len);
+			enc.encodeModbusPayload(buf);
+			out.add(buf);
+			ctx.channel().attr(NettyModbusClient.LAST_ENCODED_MESSAGE).set(msg);
+		}
 	}
 
 }

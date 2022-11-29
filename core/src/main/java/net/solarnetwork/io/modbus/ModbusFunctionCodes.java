@@ -55,8 +55,8 @@ public final class ModbusFunctionCodes {
 	/** Read exception status. */
 	public static final byte READ_EXCEPTION_STATUS = 0x07;
 
-	/** Diagnostic. */
-	public static final byte DIAGNOSTIC = 0x08;
+	/** Diagnostics. */
+	public static final byte DIAGNOSTICS = 0x08;
 
 	/** Get the communication event counter. */
 	public static final byte GET_COMM_EVENT_COUNTER = 0x0B;

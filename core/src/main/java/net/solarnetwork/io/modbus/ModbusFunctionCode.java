@@ -22,7 +22,7 @@
 
 package net.solarnetwork.io.modbus;
 
-import static net.solarnetwork.io.modbus.ModbusFunctionCodes.DIAGNOSTIC;
+import static net.solarnetwork.io.modbus.ModbusFunctionCodes.DIAGNOSTICS;
 import static net.solarnetwork.io.modbus.ModbusFunctionCodes.ENCAPSULATED_INTERFACE_TRANSPORT;
 import static net.solarnetwork.io.modbus.ModbusFunctionCodes.GET_COMM_EVENT_COUNTER;
 import static net.solarnetwork.io.modbus.ModbusFunctionCodes.GET_COMM_EVENT_LOG;
@@ -95,8 +95,8 @@ public enum ModbusFunctionCode {
 	/** Read exception status. */
 	ReadExceptionStatus(READ_EXCEPTION_STATUS, ModbusBlockType.Diagnostic, true),
 
-	/** Diagnostic info. */
-	Diagnostic(DIAGNOSTIC, ModbusBlockType.Diagnostic, false),
+	/** Diagnostics info. */
+	Diagnostics(DIAGNOSTICS, ModbusBlockType.Diagnostic, false),
 
 	/** Get the communication event counter. */
 	GetCommEventCounter(GET_COMM_EVENT_COUNTER, ModbusBlockType.Diagnostic, true),
@@ -248,8 +248,8 @@ public enum ModbusFunctionCode {
 			case READ_EXCEPTION_STATUS:
 				return ModbusFunctionCode.ReadExceptionStatus;
 
-			case DIAGNOSTIC:
-				return ModbusFunctionCode.Diagnostic;
+			case DIAGNOSTICS:
+				return ModbusFunctionCode.Diagnostics;
 
 			case GET_COMM_EVENT_COUNTER:
 				return ModbusFunctionCode.GetCommEventCounter;

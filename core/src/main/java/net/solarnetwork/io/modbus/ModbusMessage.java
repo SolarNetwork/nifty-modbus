@@ -64,4 +64,47 @@ public interface ModbusMessage {
 		return (getError() != null);
 	}
 
+	/**
+	 * Unwrap this message as a specific message type, if possible.
+	 * 
+	 * <p>
+	 * This message should be used instead of relying on a direct
+	 * {@code instanceof} operator, because the actual Modbus message may be
+	 * encapsulated in some way. For example, instead of trying this:
+	 * </p>
+	 * 
+	 * <pre>
+	 * <code>
+	 * // WRONG WAY: DO NOT TRY THIS 
+	 * ModbusMessage msg = getMessageFromSomewhere();
+	 * if ( msg instanceof RegistersModbusMessage ) {
+	 *   RegistersModbusMessage r = (RegistersModbusMessage)msg;
+	 *   // do something with registers...
+	 * }
+	 * </code>
+	 * </pre>
+	 * 
+	 * <p>
+	 * try this instead:
+	 * </p>
+	 * 
+	 * <pre>
+	 * <code>
+	 * ModbusMessage msg = getMessageFromSomewhere();
+	 * RegistersModbusMessage r = msg.unwrap(RegistersModbusMessage.class);
+	 * if ( r != null ) {
+	 *   // do something with registers...
+	 * }
+	 * </code>
+	 * </pre>
+	 * 
+	 * @param <T>
+	 *        the message type to unwrap to
+	 * @param msgType
+	 *        the class to unwrap as
+	 * @return the reply message as the given type, or {@literal null} if the
+	 *         reply is not compatible with {@code msgType}
+	 */
+	<T extends ModbusMessage> T unwrap(Class<T> msgType);
+
 }

@@ -38,6 +38,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
+import net.solarnetwork.io.modbus.netty.msg.ReadWriteRegistersModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 
 /**
@@ -351,8 +352,8 @@ public class RegistersModbusMessageTests {
 	@Test
 	public void encode_readWriteRegisters_request() {
 		final short[] values = new short[] { (short) 0x00FF, (short) 0x00FD, (short) 0x00FC };
-		RegistersModbusMessage msg = RegistersModbusMessage.readWriteHoldingsRequest(1, 3, 6, 14,
-				values);
+		ReadWriteRegistersModbusMessage msg = ReadWriteRegistersModbusMessage.readWriteHoldingsRequest(1,
+				3, 6, 14, values);
 
 		// WHEN
 		ByteBuf buf = Unpooled.buffer();
@@ -386,7 +387,8 @@ public class RegistersModbusMessageTests {
 	@Test
 	public void encode_readWriteRegisters_response() {
 		final short[] values = new short[] { (short) 0x1234, (short) 0x2345, (short) 0x3456 };
-		RegistersModbusMessage msg = RegistersModbusMessage.readWriteHoldingsResponse(1, 3, values);
+		ReadWriteRegistersModbusMessage msg = ReadWriteRegistersModbusMessage
+				.readWriteHoldingsResponse(1, 3, values);
 
 		// WHEN
 		ByteBuf buf = Unpooled.buffer();

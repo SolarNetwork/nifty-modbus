@@ -1,5 +1,5 @@
 /* ==================================================================
- * MaskWriteRegisterMessage.java - 27/11/2022 2:43:30 pm
+ * ModbusMessageReply.java - 29/11/2022 8:00:34 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -23,26 +23,22 @@
 package net.solarnetwork.io.modbus;
 
 /**
- * A Modbus message related to a 16-bit register-based (input/holding) register
- * address mask write.
+ * A Modbus request/response pair.
+ * 
+ * <p>
+ * Instances of this API should be used when replying to a Modbus request.
+ * </p>
  *
  * @author matt
  * @version 1.0
  */
-public interface ReadWriteRegisterMessage extends RegistersModbusMessage {
+public interface ModbusMessageReply extends ModbusMessage {
 
 	/**
-	 * Get the 16-bit and mask value.
+	 * Get the original request message this message is a reply to.
 	 * 
-	 * @return the and mask
+	 * @return the request message
 	 */
-	int getAndMask();
-
-	/**
-	 * Get the 16-bit org mask value.
-	 * 
-	 * @return the or mask
-	 */
-	int getOrMask();
+	ModbusMessage getRequest();
 
 }

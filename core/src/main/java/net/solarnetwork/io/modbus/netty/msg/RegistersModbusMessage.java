@@ -56,7 +56,11 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 */
 	public static final int READ_WRITE_RESPONSE_FLAG = 0xFFFF;
 
-	private static final byte READ_WRITE_RESPONSE_FLAG_BYTE = (byte) 0xFF;
+	/**
+	 * A special value used to mark the read/write holding register response
+	 * data.
+	 */
+	public static final byte READ_WRITE_RESPONSE_FLAG_BYTE = (byte) 0xFF;
 
 	private final byte[] data;
 
@@ -318,73 +322,6 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	}
 
 	/**
-	 * Create a read/write holding registers request message.
-	 * 
-	 * @param unitId
-	 *        the unit ID
-	 * @param address
-	 *        the register address to start reading from
-	 * @param count
-	 *        the number of registers to read
-	 * @param writeAddress
-	 *        the address to start writing to
-	 * @param values
-	 *        the values to write
-	 * @return the new message
-	 */
-	public static RegistersModbusMessage readWriteHoldingsRequest(int unitId, int address, int count,
-			int writeAddress, short[] values) {
-		if ( count < 1 ) {
-			throw new IllegalArgumentException("Count to read must be provided.");
-		} else if ( count > MAX_READ_REGISTERS_COUNT ) {
-			throw new IllegalArgumentException(
-					String.format("Can only read up to %d registers, but %d requested.",
-							MAX_READ_REGISTERS_COUNT, count));
-		}
-		final int writeCount = (values != null ? values.length : 0);
-		if ( writeCount < 1 ) {
-			throw new IllegalArgumentException("Values to write must be provided.");
-		} else if ( writeCount > MAX_WRITE_REGISTERS_COUNT ) {
-			throw new IllegalArgumentException(
-					String.format("Can only write up to %d registers, but %d values provided.",
-							MAX_WRITE_REGISTERS_COUNT, count));
-		}
-		byte[] data = new byte[2 + writeCount * 2];
-		ModbusByteUtils.encode16(data, 0, writeAddress);
-		ModbusByteUtils.encode(values, data, 2);
-		return new RegistersModbusMessage(unitId, ModbusFunctionCode.ReadWriteHoldingRegisters, null,
-				address, count, data);
-	}
-
-	/**
-	 * Create a read/write holding registers response message.
-	 * 
-	 * @param unitId
-	 *        the unit ID
-	 * @param address
-	 *        the register address read from
-	 * @param values
-	 *        the values read
-	 * @return the new message
-	 */
-	public static RegistersModbusMessage readWriteHoldingsResponse(int unitId, int address,
-			short[] values) {
-		final int count = (values != null ? values.length : 0);
-		if ( count < 1 ) {
-			throw new IllegalArgumentException("Count read must be provided.");
-		} else if ( count > MAX_READ_REGISTERS_COUNT ) {
-			throw new IllegalArgumentException(
-					String.format("Can only read up to %d registers, but %d provded.",
-							MAX_READ_REGISTERS_COUNT, count));
-		}
-		byte[] data = new byte[2 + count * 2];
-		ModbusByteUtils.encode16(data, 0, READ_WRITE_RESPONSE_FLAG);
-		ModbusByteUtils.encode(values, data, 2);
-		return new RegistersModbusMessage(unitId, ModbusFunctionCode.ReadWriteHoldingRegisters, null,
-				address, count, data);
-	}
-
-	/**
 	 * Create a read FIFO queue request message.
 	 * 
 	 * @param unitId
@@ -443,6 +380,9 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 			final int address, final int count, final ByteBuf in) {
 		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
 		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		if ( error != null ) {
+			return new BaseModbusMessage(unitId, function, error);
+		}
 		int addr = address;
 		int cnt = count;
 		byte[] data = null;
@@ -466,18 +406,6 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 					cnt = in.readUnsignedShort();
 					data = new byte[in.readUnsignedByte()];
 					in.readBytes(data);
-					break;
-
-				case ReadWriteHoldingRegisters: {
-					addr = in.readUnsignedShort();
-					cnt = in.readUnsignedShort();
-					int writeAddr = in.readUnsignedShort();
-					in.skipBytes(2);
-					int len = in.readUnsignedByte();
-					data = new byte[len + 2];
-					ModbusByteUtils.encode16(data, 0, writeAddr);
-					in.readBytes(data, 2, len);
-				}
 					break;
 
 				case ReadFifoQueue:
@@ -512,6 +440,9 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 			final int address, final int count, final ByteBuf in) {
 		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
 		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		if ( error != null ) {
+			return new BaseModbusMessage(unitId, function, error);
+		}
 		int addr = address;
 		int cnt = count;
 		byte[] data = null;
@@ -543,12 +474,6 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 					in.readBytes(data);
 					break;
 
-				case ReadWriteHoldingRegisters:
-					data = new byte[in.readUnsignedByte()];
-					cnt = data.length / 2;
-					in.readBytes(data);
-					break;
-
 				case ReadFifoQueue:
 					data = new byte[in.readUnsignedShort() - 2];
 					cnt = in.readUnsignedShort();
@@ -569,6 +494,32 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 */
 	protected byte[] data() {
 		return data;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("RegistersModbusMessage{");
+		builder.append("unitId=");
+		builder.append(getUnitId());
+		if ( getFunction() != null ) {
+			builder.append(", function=");
+			builder.append(getFunction());
+		}
+		if ( getError() != null ) {
+			builder.append(", error=");
+			builder.append(getError());
+		}
+		builder.append(", address=");
+		builder.append(getAddress());
+		builder.append(", count=");
+		builder.append(getCount());
+		if ( data != null ) {
+			builder.append(", data=");
+			builder.append(ModbusByteUtils.encodeHexString(data, 0, data.length, true));
+		}
+		builder.append("}");
+		return builder.toString();
 	}
 
 	@Override

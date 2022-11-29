@@ -54,7 +54,193 @@ public final class ModbusMessageUtils {
 	}
 
 	/**
+	 * Determine the expected payload length for Modbus request message.
+	 * 
+	 * @param in
+	 *        the input; the reader index is not changed by this method
+	 * @return the expected message payload length, or -1 if not known
+	 */
+	public static int discoverRequestPayloadLength(final ByteBuf in) {
+		if ( in.readableBytes() < 1 ) {
+			return -1;
+		}
+		final int idx = in.readerIndex();
+		final byte fn = in.getByte(idx);
+		ModbusFunctionCode function;
+		try {
+			function = ModbusFunctionCode.forCode(fn);
+		} catch ( IllegalArgumentException e ) {
+			return -1;
+		}
+		if ( fn < 0 ) {
+			// an error message
+			return 2;
+		}
+		switch (function) {
+			case ReadCoils:
+			case ReadDiscreteInputs:
+			case ReadInputRegisters:
+			case ReadHoldingRegisters:
+			case WriteCoil:
+			case WriteHoldingRegister:
+				// fn, addr, count/value
+				return 5;
+
+			case ReadExceptionStatus:
+				return 1;
+
+			case Diagnostics: {
+				if ( in.readableBytes() < 2 ) {
+					return -1;
+				}
+				byte subFn = in.getByte(idx + 1);
+				if ( subFn == (byte) 0 ) {
+					// no pre-determined length! this is a cop-out to just return whatever is available
+					return in.readableBytes();
+				}
+
+				// all published message have single 16-bit value
+				return 5;
+			}
+
+			case GetCommEventCounter:
+			case GetCommEventLog:
+			case ReportServerId:
+				return 1;
+
+			case WriteCoils:
+			case WriteHoldingRegisters:
+				// 6th byte is byte count
+				if ( in.readableBytes() < 6 ) {
+					return -1;
+				}
+				return in.getByte(idx + 5) + 6;
+
+			case ReadFileRecord:
+			case WriteFileRecord:
+				// 2nd byte is byte count
+				if ( in.readableBytes() < 2 ) {
+					return -1;
+				}
+				return in.getByte(idx + 1) + 1;
+
+			case MaskWriteHoldingRegister:
+				// fn, addr, and, or
+				return 7;
+
+			case ReadWriteHoldingRegisters:
+				// 10th byte is byte count
+				if ( in.readableBytes() < 10 ) {
+					return -1;
+				}
+				return in.getByte(idx + 9) + 10;
+
+			case ReadFifoQueue:
+				// fn, addr
+				return 3;
+
+			case EncapsulatedInterfaceTransport:
+				throw new UnsupportedOperationException(
+						"Modbus function [" + function + "] not supported.");
+
+		}
+		return -1;
+	}
+
+	/**
+	 * Determine the expected payload length for Modbus response message.
+	 * 
+	 * @param in
+	 *        the input; the reader index is not changed by this method
+	 * @return the expected message payload length, or -1 if not known
+	 */
+	public static int discoverResponsePayloadLength(final ByteBuf in) {
+		final int idx = in.readerIndex();
+		final byte fn = in.getByte(idx);
+		ModbusFunctionCode function;
+		try {
+			function = ModbusFunctionCode.forCode(fn);
+		} catch ( IllegalArgumentException e ) {
+			return -1;
+		}
+		if ( fn < 0 ) {
+			// an error message
+			return 2;
+		}
+		switch (function) {
+			case ReadCoils:
+			case ReadDiscreteInputs:
+			case ReadInputRegisters:
+			case ReadHoldingRegisters:
+			case GetCommEventLog:
+			case ReadFileRecord:
+			case WriteFileRecord:
+			case ReadWriteHoldingRegisters:
+			case ReadFifoQueue:
+				// 2nd byte is byte count
+				if ( in.readableBytes() < 2 ) {
+					return -1;
+				}
+				return in.getByte(idx + 1) + 1;
+
+			case WriteCoil:
+			case WriteHoldingRegister:
+				// fn, addr, value
+				return 5;
+
+			case ReadExceptionStatus:
+				return 2;
+
+			case Diagnostics: {
+				if ( in.readableBytes() < 2 ) {
+					return -1;
+				}
+				byte subFn = in.getByte(idx + 1);
+				if ( subFn == (byte) 0 ) {
+					// no pre-determined length! this is a cop-out to just return whatever is available
+					return in.readableBytes();
+				}
+				// all published message have single 16-bit value
+				return 5;
+			}
+
+			case GetCommEventCounter:
+				// fn, status, count
+				return 5;
+
+			case WriteCoils:
+			case WriteHoldingRegisters:
+				return 5;
+
+			case ReportServerId:
+				// no pre-determined length! this is a cop-out to just return whatever is available
+				return in.readableBytes();
+
+			case MaskWriteHoldingRegister:
+				// fn, addr, and, or
+				return 7;
+
+			case EncapsulatedInterfaceTransport:
+				throw new UnsupportedOperationException(
+						"Modbus function [" + function + "] not supported.");
+
+		}
+		return -1;
+	}
+
+	/**
 	 * Decode a full Modbus request message.
+	 * 
+	 * @param in
+	 *        the input
+	 * @return the message, or {@literal null} if a message cannot be decoded
+	 */
+	public static ModbusMessage decodeRequestPayload(final ByteBuf in) {
+		return decodeRequestPayload(0, 0, 0, in);
+	}
+
+	/**
+	 * Decode a full Modbus request message with specific attributes.
 	 * 
 	 * @param unitId
 	 *        the unit ID
@@ -70,6 +256,10 @@ public final class ModbusMessageUtils {
 			final int count, final ByteBuf in) {
 		final byte fn = in.readByte();
 		ModbusFunctionCode function = ModbusFunctionCode.forCode(fn);
+		ModbusErrorCode error = decodeErrorCode(fn, in);
+		if ( error != null ) {
+			return new BaseModbusMessage(unitId, function, error);
+		}
 		switch (function) {
 			case ReadCoils:
 			case ReadDiscreteInputs:
@@ -79,21 +269,25 @@ public final class ModbusMessageUtils {
 
 			case ReadInputRegisters:
 			case ReadHoldingRegisters:
-			case ReadWriteHoldingRegisters:
 			case WriteHoldingRegister:
 			case WriteHoldingRegisters:
 			case ReadFifoQueue:
 				return RegistersModbusMessage.decodeRequestPayload(unitId, fn, address, count, in);
 
 			case MaskWriteHoldingRegister:
-				return MaskWriteRegisterMessage.decodeRequestPayload(unitId, fn, address, count, in);
+				return MaskWriteRegisterModbusMessage.decodeRequestPayload(unitId, fn, address, count,
+						in);
+
+			case ReadWriteHoldingRegisters:
+				return ReadWriteRegistersModbusMessage.decodeRequestPayload(unitId, fn, address, count,
+						in);
 
 			case GetCommEventCounter:
 			case GetCommEventLog:
 			case ReadFileRecord:
 			case WriteFileRecord:
 			case ReadExceptionStatus:
-			case Diagnostic:
+			case Diagnostics:
 			case ReportServerId:
 			case EncapsulatedInterfaceTransport:
 				throw new UnsupportedOperationException(
@@ -105,6 +299,17 @@ public final class ModbusMessageUtils {
 
 	/**
 	 * Decode a full Modbus response message.
+	 * 
+	 * @param in
+	 *        the input
+	 * @return the message, or {@literal null} if a message cannot be decoded
+	 */
+	public static ModbusMessage decodeResponsePayload(final ByteBuf in) {
+		return decodeResponsePayload(0, 0, 0, in);
+	}
+
+	/**
+	 * Decode a full Modbus response message with specific attributes.
 	 * 
 	 * @param unitId
 	 *        the unit ID
@@ -120,6 +325,10 @@ public final class ModbusMessageUtils {
 			final int count, final ByteBuf in) {
 		final byte fn = in.readByte();
 		ModbusFunctionCode function = ModbusFunctionCode.forCode(fn);
+		ModbusErrorCode error = decodeErrorCode(fn, in);
+		if ( error != null ) {
+			return new BaseModbusMessage(unitId, function, error);
+		}
 		switch (function) {
 			case ReadCoils:
 			case ReadDiscreteInputs:
@@ -129,21 +338,25 @@ public final class ModbusMessageUtils {
 
 			case ReadInputRegisters:
 			case ReadHoldingRegisters:
-			case ReadWriteHoldingRegisters:
 			case WriteHoldingRegister:
 			case WriteHoldingRegisters:
 			case ReadFifoQueue:
 				return RegistersModbusMessage.decodeResponsePayload(unitId, fn, address, count, in);
 
 			case MaskWriteHoldingRegister:
-				return MaskWriteRegisterMessage.decodeResponsePayload(unitId, fn, address, count, in);
+				return MaskWriteRegisterModbusMessage.decodeResponsePayload(unitId, fn, address, count,
+						in);
+
+			case ReadWriteHoldingRegisters:
+				return ReadWriteRegistersModbusMessage.decodeResponsePayload(unitId, fn, address, count,
+						in);
 
 			case GetCommEventCounter:
 			case GetCommEventLog:
 			case ReadFileRecord:
 			case WriteFileRecord:
 			case ReadExceptionStatus:
-			case Diagnostic:
+			case Diagnostics:
 			case ReportServerId:
 			case EncapsulatedInterfaceTransport:
 				throw new UnsupportedOperationException(

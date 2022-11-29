@@ -41,11 +41,16 @@ public class TcpModbusMessage
 	/** The TCP protocol ID. */
 	public static final int TCP_PROTOCOL_ID = 0;
 
+	private final long timestamp;
 	private final int transactionId;
 	private final ModbusMessage body;
 
 	/**
 	 * Constructor.
+	 * 
+	 * <p>
+	 * The current system time will be used for the timestamp value.
+	 * </p>
 	 * 
 	 * @param transactionId
 	 *        the trasaction ID
@@ -55,7 +60,24 @@ public class TcpModbusMessage
 	 *         if {@code body} does not implement {@link ModbusPayloadEncoder}
 	 */
 	public TcpModbusMessage(int transactionId, ModbusMessage body) {
+		this(System.currentTimeMillis(), transactionId, body);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param timestamp
+	 *        the timestamp
+	 * @param transactionId
+	 *        the trasaction ID
+	 * @param body
+	 *        the message body, must implement {@link ModbusPayloadEncoder}.
+	 * @throws IllegalArgumentException
+	 *         if {@code body} does not implement {@link ModbusPayloadEncoder}
+	 */
+	public TcpModbusMessage(long timestamp, int transactionId, ModbusMessage body) {
 		super();
+		this.timestamp = timestamp;
 		this.transactionId = transactionId;
 		if ( body == null ) {
 			throw new IllegalArgumentException("The body argument must not be null.");
@@ -63,6 +85,20 @@ public class TcpModbusMessage
 			throw new IllegalArgumentException("The body argument must implement ModbusPayloadEncoder.");
 		}
 		this.body = body;
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+		if ( msgType.isAssignableFrom(body.getClass()) ) {
+			return (T) body;
+		}
+		return null;
+	}
+
+	@Override
+	public long getTimestamp() {
+		return timestamp;
 	}
 
 	@Override
@@ -105,6 +141,7 @@ public class TcpModbusMessage
 		encode16(header, 0, transactionId);
 		encode16(header, 4, 1 + ((ModbusPayloadEncoder) body).payloadLength());
 		header[6] = (byte) body.getUnitId();
+		out.writeBytes(header);
 		((ModbusPayloadEncoder) body).encodeModbusPayload(out);
 	}
 

@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusMessage.java - 25/11/2022 3:31:56 pm
+ * TcpModbusClientConfig.java - 29/11/2022 4:52:50 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -22,44 +22,49 @@
 
 package net.solarnetwork.io.modbus.tcp;
 
-import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusClientConfig;
 
 /**
- * TCP specific Modbus message API.
+ * TCP Modbus client configuration.
  *
  * @author matt
  * @version 1.0
  */
-public interface TcpModbusMessage extends ModbusMessage {
+public interface TcpModbusClientConfig extends ModbusClientConfig {
 
-	/** The maximum transaction ID value. */
-	int MAX_TRANSACTION_ID = 0xFFFF;
+	/** The default IP port. */
+	int DEFAULT_PORT = 502;
 
 	/**
-	 * Get a message creation date.
+	 * Get the IP address or host name to connect to.
 	 * 
-	 * @return the message creation date
+	 * @return the host
 	 */
-	long getTimestamp();
+	String getHost();
 
 	/**
-	 * Get the transaction identifier.
+	 * Get the IP port to connect to.
 	 * 
-	 * @return the transaction identifier
+	 * @return the IP port
 	 */
-	int getTransactionId();
+	default int getPort() {
+		return DEFAULT_PORT;
+	}
 
 	/**
-	 * Get the protocol identifier.
+	 * Get the TCP client description.
 	 * 
 	 * <p>
-	 * This implementation returns {@literal 0} for Modbus/TCP.
+	 * This implementation returns a string in the form {@literal host:port}.
 	 * </p>
-	 * 
-	 * @return the protocol identifier
 	 */
-	default int getProtocolId() {
-		return 0;
+	@Override
+	default String getDescription() {
+		String host = getHost();
+		if ( host == null ) {
+			host = "";
+		}
+		return host + ':' + getPort();
 	}
 
 }

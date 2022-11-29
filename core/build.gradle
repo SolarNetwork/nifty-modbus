@@ -12,6 +12,7 @@ archivesBaseName = 'netty-codec-modbus-core'
 dependencies {
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation "io.netty:netty-codec:${nettyVersion}"
+	implementation "io.netty:netty-handler:${nettyVersion}"
 	
 	// Testing
 	testImplementation project(':netty-codec-modbus-test')

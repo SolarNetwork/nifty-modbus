@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusMessage.java - 25/11/2022 3:31:56 pm
+ * ModbusClient.java - 29/11/2022 3:25:52 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,46 +20,34 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.tcp;
+package net.solarnetwork.io.modbus;
 
-import net.solarnetwork.io.modbus.ModbusMessage;
+import java.util.concurrent.Future;
 
 /**
- * TCP specific Modbus message API.
+ * API for a Modbus client application.
  *
  * @author matt
  * @version 1.0
  */
-public interface TcpModbusMessage extends ModbusMessage {
-
-	/** The maximum transaction ID value. */
-	int MAX_TRANSACTION_ID = 0xFFFF;
+public interface ModbusClient {
 
 	/**
-	 * Get a message creation date.
+	 * Send a request and receive a response, synchronously.
 	 * 
-	 * @return the message creation date
+	 * @param request
+	 *        the request to send
+	 * @return the response
 	 */
-	long getTimestamp();
+	ModbusMessage send(ModbusMessage request);
 
 	/**
-	 * Get the transaction identifier.
+	 * Send a request and receive a response, asynchronously.
 	 * 
-	 * @return the transaction identifier
+	 * @param request
+	 *        the request to send
+	 * @return the response future
 	 */
-	int getTransactionId();
-
-	/**
-	 * Get the protocol identifier.
-	 * 
-	 * <p>
-	 * This implementation returns {@literal 0} for Modbus/TCP.
-	 * </p>
-	 * 
-	 * @return the protocol identifier
-	 */
-	default int getProtocolId() {
-		return 0;
-	}
+	Future<ModbusMessage> sendAsync(ModbusMessage request);
 
 }

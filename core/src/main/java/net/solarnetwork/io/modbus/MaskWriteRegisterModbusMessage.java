@@ -1,5 +1,5 @@
 /* ==================================================================
- * MaskWriteRegisterMessage.java - 27/11/2022 2:43:30 pm
+ * MaskWriteRegisterModbusMessage.java - 27/11/2022 2:43:30 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -23,13 +23,12 @@
 package net.solarnetwork.io.modbus;
 
 /**
- * A Modbus message related to a 16-bit register-based (input/holding) register
- * address mask write.
+ * A Modbus message related to a holding register mask write.
  *
  * @author matt
  * @version 1.0
  */
-public interface MaskWriteRegisterMessage extends RegistersModbusMessage {
+public interface MaskWriteRegisterModbusMessage extends RegistersModbusMessage {
 
 	/**
 	 * Get the 16-bit and mask value.

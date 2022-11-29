@@ -91,6 +91,34 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 		this.error = error;
 	}
 
+	@SuppressWarnings("unchecked")
+	@Override
+	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+		if ( msgType.isAssignableFrom(getClass()) ) {
+			return (T) this;
+		}
+		return null;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("BaseModbusMessage{unitId=");
+		builder.append(unitId);
+		builder.append(", ");
+		if ( function != null ) {
+			builder.append("function=");
+			builder.append(function);
+			builder.append(", ");
+		}
+		if ( error != null ) {
+			builder.append("error=");
+			builder.append(error);
+		}
+		builder.append("}");
+		return builder.toString();
+	}
+
 	@Override
 	public int getUnitId() {
 		return unitId;

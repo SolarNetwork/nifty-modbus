@@ -40,6 +40,48 @@ import net.solarnetwork.io.modbus.ModbusByteUtils;
 public class ModbusByteUtilsTests {
 
 	@Test
+	public void encodeHexString_null() {
+		byte[] b = new byte[0];
+		String r = ModbusByteUtils.encodeHexString(b, 0, b.length, false);
+		assertThat("Empty range encodes empty string", r, equalTo(""));
+	}
+
+	@Test
+	public void encodeHexString_basic() {
+		byte[] b = new byte[] { (byte) 0x11, (byte) 0x99, (byte) 0xFF };
+		String r = ModbusByteUtils.encodeHexString(b, 0, b.length, false);
+		assertThat("Bytes encode to hex string", r, equalTo("1199FF"));
+	}
+
+	@Test
+	public void encodeHexString_basicLowerCase() {
+		byte[] b = new byte[] { (byte) 0x11, (byte) 0x99, (byte) 0xFF };
+		String r = ModbusByteUtils.encodeHexString(b, 0, b.length, false, true);
+		assertThat("Bytes encode to hex string", r, equalTo("1199ff"));
+	}
+
+	@Test
+	public void encodeHexString_basicWithSpace() {
+		byte[] b = new byte[] { (byte) 0x11, (byte) 0x99, (byte) 0xFF };
+		String r = ModbusByteUtils.encodeHexString(b, 0, b.length, true);
+		assertThat("Bytes encode to hex string", r, equalTo("11 99 FF"));
+	}
+
+	@Test
+	public void encodeHexString_subset() {
+		byte[] b = new byte[] { (byte) 0x11, (byte) 0x99, (byte) 0xFF };
+		String r = ModbusByteUtils.encodeHexString(b, 1, b.length, false);
+		assertThat("Bytes subrange encode to hex string", r, equalTo("99FF"));
+	}
+
+	@Test
+	public void encodeHexString_subsetWithSpace() {
+		byte[] b = new byte[] { (byte) 0x11, (byte) 0x99, (byte) 0xFF };
+		String r = ModbusByteUtils.encodeHexString(b, 1, b.length, true);
+		assertThat("Bytes subrange encode to hex string", r, equalTo("99 FF"));
+	}
+
+	@Test
 	public void decode_null() {
 		// WHEN
 		short[] r = ModbusByteUtils.decode(null);
@@ -93,6 +135,32 @@ public class ModbusByteUtilsTests {
 	}
 
 	@Test
+	public void decode_range() {
+		// GIVEN
+		// @formatter:off
+		byte[] data = new byte[] {
+				(byte)0xAB,
+				(byte)0xCD,
+				(byte)0x00,
+				(byte)0x12,
+				(byte)0x34,
+				(byte)0x00,
+		};
+		// @formatter:on
+
+		// WHEN
+		short[] r = ModbusByteUtils.decode(data, 2, data.length);
+
+		// THEN
+		// @formatter:off
+		assertThat("Signed data range extracted", Arrays.equals(r, new short[] {
+				(short)0x0012,
+				(short)0x3400,
+		}), is(equalTo(true)));
+		// @formatter:on
+	}
+
+	@Test
 	public void decodeUnsigned_null() {
 		// WHEN
 		int[] r = ModbusByteUtils.decodeUnsigned(null);
@@ -138,6 +206,32 @@ public class ModbusByteUtilsTests {
 		// @formatter:off
 		assertThat("Unsigned data extracted", Arrays.equals(r, new int[] {
 				0xABCD,
+				0x0012,
+				0x3400,
+		}), is(equalTo(true)));
+		// @formatter:on
+	}
+
+	@Test
+	public void decodeUnsigned_range() {
+		// GIVEN
+		// @formatter:off
+		byte[] data = new byte[] {
+				(byte)0xAB,
+				(byte)0xCD,
+				(byte)0x00,
+				(byte)0x12,
+				(byte)0x34,
+				(byte)0x00,
+		};
+		// @formatter:on
+
+		// WHEN
+		int[] r = ModbusByteUtils.decodeUnsigned(data, 2, data.length);
+
+		// THEN
+		// @formatter:off
+		assertThat("Unsigned data range extracted", Arrays.equals(r, new int[] {
 				0x0012,
 				0x3400,
 		}), is(equalTo(true)));

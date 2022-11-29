@@ -32,10 +32,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
-import net.solarnetwork.io.modbus.netty.msg.MaskWriteRegisterMessage;
+import net.solarnetwork.io.modbus.netty.msg.MaskWriteRegisterModbusMessage;
 
 /**
- * Test cases for the {@link MaskWriteRegisterMessage} class.
+ * Test cases for the {@link MaskWriteRegisterModbusMessage} class.
  *
  * @author matt
  * @version 1.0
@@ -44,7 +44,7 @@ public class MaskWriteRegisterMessageTests {
 
 	@Test
 	public void encode_maskWriteRegisters_request() {
-		MaskWriteRegisterMessage msg = MaskWriteRegisterMessage.maskWriteRequest(1, 4, 0x00F2, 0x0025);
+		MaskWriteRegisterModbusMessage msg = MaskWriteRegisterModbusMessage.maskWriteRequest(1, 4, 0x00F2, 0x0025);
 
 		// WHEN
 		ByteBuf buf = Unpooled.buffer();
@@ -68,7 +68,7 @@ public class MaskWriteRegisterMessageTests {
 
 	@Test
 	public void encode_maskWriteRegisters_response() {
-		MaskWriteRegisterMessage msg = MaskWriteRegisterMessage.maskWriteResponse(1, 0x1A, 0x01F3,
+		MaskWriteRegisterModbusMessage msg = MaskWriteRegisterModbusMessage.maskWriteResponse(1, 0x1A, 0x01F3,
 				0x0227);
 
 		// WHEN

@@ -176,7 +176,7 @@ public class ModbusFunctionCodeTests {
 				case ReadFileRecord:
 				case WriteFileRecord:
 				case ReadExceptionStatus:
-				case Diagnostic:
+				case Diagnostics:
 				case GetCommEventCounter:
 				case GetCommEventLog:
 				case ReportServerId:

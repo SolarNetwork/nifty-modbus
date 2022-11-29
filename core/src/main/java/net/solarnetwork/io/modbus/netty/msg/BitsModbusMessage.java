@@ -263,6 +263,9 @@ public class BitsModbusMessage extends AddressedModbusMessage
 			final int address, final int count, final ByteBuf in) {
 		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
 		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		if ( error != null ) {
+			return new BaseModbusMessage(unitId, function, error);
+		}
 		int addr = address;
 		int cnt = count;
 		BigInteger data = null;
@@ -319,6 +322,9 @@ public class BitsModbusMessage extends AddressedModbusMessage
 			final int address, final int count, final ByteBuf in) {
 		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
 		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		if ( error != null ) {
+			return new BaseModbusMessage(unitId, function, error);
+		}
 		int addr = address;
 		int cnt = count;
 		BigInteger data = null;
@@ -356,6 +362,33 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	@Override
 	public BigInteger getBits() {
 		return bits;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("BitsModbusMessage{");
+		builder.append("unitId=");
+		builder.append(getUnitId());
+		if ( getFunction() != null ) {
+			builder.append(", function=");
+			builder.append(getFunction());
+		}
+		if ( getError() != null ) {
+			builder.append(", error=");
+			builder.append(getError());
+		}
+		builder.append(", address=");
+		builder.append(getAddress());
+		builder.append(", count=");
+		builder.append(getCount());
+		if ( bits != null ) {
+			builder.append(", bits=");
+			builder.append(bits.toString(2));
+			builder.append(", ");
+		}
+		builder.append("}");
+		return builder.toString();
 	}
 
 	private static int byteCount(int count) {

@@ -34,10 +34,11 @@ import org.junit.jupiter.api.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import net.solarnetwork.io.modbus.BitsModbusMessage;
-import net.solarnetwork.io.modbus.MaskWriteRegisterMessage;
+import net.solarnetwork.io.modbus.MaskWriteRegisterModbusMessage;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ReadWriteRegistersModbusMessage;
 import net.solarnetwork.io.modbus.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.ModbusMessageUtils;
 
@@ -422,8 +423,9 @@ public class ModbusMessageUtils_RequestTests {
 		assertThat("Not an exception", msg.isException(), is(equalTo(false)));
 		assertThat("No error", msg.getError(), is(nullValue()));
 
-		assertThat("Type is MaskWriteRegisterMessage", msg, instanceOf(MaskWriteRegisterMessage.class));
-		MaskWriteRegisterMessage rmm = (MaskWriteRegisterMessage) msg;
+		assertThat("Type is MaskWriteRegisterModbusMessage", msg,
+				instanceOf(MaskWriteRegisterModbusMessage.class));
+		MaskWriteRegisterModbusMessage rmm = (MaskWriteRegisterModbusMessage) msg;
 		assertThat("Address decoded", rmm.getAddress(), is(equalTo(0x04)));
 		assertThat("Count fixed", rmm.getCount(), is(equalTo(1)));
 		assertThat("And mask decoded", rmm.getAndMask(), is(equalTo(0x01F2)));
@@ -483,29 +485,21 @@ public class ModbusMessageUtils_RequestTests {
 		assertThat("Not an exception", msg.isException(), is(equalTo(false)));
 		assertThat("No error", msg.getError(), is(nullValue()));
 
-		assertThat("Type is Bits", msg, instanceOf(RegistersModbusMessage.class));
-		RegistersModbusMessage rmm = (RegistersModbusMessage) msg;
-		assertThat("Address decoded", rmm.getAddress(), is(equalTo(3)));
-		assertThat("Count decoded", rmm.getCount(), is(equalTo(6)));
+		assertThat("Type is ReadWriteRegisters", msg, instanceOf(ReadWriteRegistersModbusMessage.class));
+		ReadWriteRegistersModbusMessage rwm = (ReadWriteRegistersModbusMessage) msg;
+		assertThat("Address decoded", rwm.getAddress(), is(equalTo(3)));
+		assertThat("Count decoded", rwm.getCount(), is(equalTo(6)));
 		// @formatter:off
-		assertThat("Data decoded", Arrays.equals(rmm.dataCopy(), new byte[] {
-				(byte)0x00,
-				(byte)0x0E,
-				(byte)0x00,
-				(byte)0xFF,
-				(byte)0x00,
-				(byte)0xFD,
-				(byte)0x00,
-				(byte)0xFC,
-		}), is(equalTo(true)));
-		assertThat("Data decoded (shorts)", Arrays.equals(rmm.dataDecode(), new short[] {
-				(short)0x000E,
+		assertThat("Read data null", rwm.dataCopy(), is(nullValue()));
+		assertThat("Data decoded (shorts) null", rwm.dataDecode(), is(nullValue()));
+		assertThat("Data decoded (ints) null", rwm.dataDecodeUnsigned(), is(nullValue()));
+		assertThat("Write address decoded", rwm.getWriteAddress(), is(equalTo(0x000E)));
+		assertThat("Write data decoded (shorts)", Arrays.equals(rwm.writeDataDecode(), new short[] {
 				(short)0x00FF,
 				(short)0x00FD,
 				(short)0x00FC,
 		}), is(equalTo(true)));
-		assertThat("Data decoded (ints)", Arrays.equals(rmm.dataDecodeUnsigned(), new int[] {
-				0x000E,
+		assertThat("Write data decoded (ints)", Arrays.equals(rwm.writeDataDecodeUnsigned(), new int[] {
 				0x00FF,
 				0x00FD,
 				0x00FC,

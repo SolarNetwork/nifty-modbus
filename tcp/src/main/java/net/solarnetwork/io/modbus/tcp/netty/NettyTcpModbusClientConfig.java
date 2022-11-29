@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusMessage.java - 25/11/2022 3:31:56 pm
+ * NettyTcpModbusClientConfig.java - 29/11/2022 4:57:08 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,46 +20,61 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.tcp;
+package net.solarnetwork.io.modbus.tcp.netty;
 
-import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.handler.NettyModbusClientConfig;
+import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
 
 /**
- * TCP specific Modbus message API.
+ * Netty implementation of {@link TcpModbusClientConfig}.
  *
  * @author matt
  * @version 1.0
  */
-public interface TcpModbusMessage extends ModbusMessage {
+public class NettyTcpModbusClientConfig extends NettyModbusClientConfig
+		implements TcpModbusClientConfig {
 
-	/** The maximum transaction ID value. */
-	int MAX_TRANSACTION_ID = 0xFFFF;
-
-	/**
-	 * Get a message creation date.
-	 * 
-	 * @return the message creation date
-	 */
-	long getTimestamp();
+	private String host;
+	private int port;
 
 	/**
-	 * Get the transaction identifier.
+	 * Get the host to connect to.
 	 * 
-	 * @return the transaction identifier
+	 * @return the host
 	 */
-	int getTransactionId();
+	@Override
+	public String getHost() {
+		return host;
+	}
 
 	/**
-	 * Get the protocol identifier.
+	 * Set the host to connect to.
 	 * 
-	 * <p>
-	 * This implementation returns {@literal 0} for Modbus/TCP.
-	 * </p>
-	 * 
-	 * @return the protocol identifier
+	 * @param host
+	 *        the host to set
 	 */
-	default int getProtocolId() {
-		return 0;
+	public void setHost(String host) {
+		this.host = host;
+	}
+
+	/**
+	 * Get the IP port to connect to.
+	 * 
+	 * @return the port
+	 */
+	@Override
+	public int getPort() {
+		return port;
+	}
+
+	/**
+	 * Set the IP port to connect to.
+	 * 
+	 * @param port
+	 *        the port to set
+	 */
+	public void setPort(int port) {
+		this.port = port;
 	}
 
 }

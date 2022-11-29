@@ -159,6 +159,7 @@ subprojects {
 	// At a test failure, log the stack trace to the console so that we don't
 	// have to open the HTML in a browser.
 	test {
+		useJUnitPlatform()
 		testLogging {
 			exceptionFormat = 'full'
 			showExceptions true

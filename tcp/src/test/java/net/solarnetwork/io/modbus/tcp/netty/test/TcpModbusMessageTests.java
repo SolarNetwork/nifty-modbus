@@ -27,6 +27,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import org.junit.jupiter.api.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -59,7 +61,7 @@ public class TcpModbusMessageTests {
 		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
 				byteObjectArray(new byte[] {
 						(byte)0x00,
-						(byte)0x01,
+						(byte)0x04,
 						(byte)0x00,
 						(byte)0x00,
 						(byte)0x00,
@@ -72,6 +74,20 @@ public class TcpModbusMessageTests {
 						(byte)0x03,
 				})));
 		// @formatter:on
+	}
+
+	@Test
+	public void unwrap() {
+		// GIVEN
+		RegistersModbusMessage msg = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+
+		// THEN
+		assertThat("Can unwrap as Registers",
+				tcp.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class),
+				is(sameInstance(msg)));
+		assertThat("Can not unwrap as Bits",
+				tcp.unwrap(net.solarnetwork.io.modbus.BitsModbusMessage.class), is(nullValue()));
 	}
 
 }

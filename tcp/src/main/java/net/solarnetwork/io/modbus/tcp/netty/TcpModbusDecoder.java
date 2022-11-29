@@ -23,12 +23,15 @@
 package net.solarnetwork.io.modbus.tcp.netty;
 
 import java.util.List;
+import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ReplayingDecoder;
-import net.solarnetwork.io.modbus.netty.handler.ModbusFunctionDecoder;
+import net.solarnetwork.io.modbus.AddressedModbusMessage;
+import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.msg.ModbusMessageUtils;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusDecoder.DecoderState;
 
 /**
@@ -67,18 +70,36 @@ public class TcpModbusDecoder extends ReplayingDecoder<DecoderState> {
 		BAD_MESSAGE,
 	}
 
-	private final ModbusFunctionDecoder payloadDecoder = new ModbusFunctionDecoder();
+	/** True if decoding response messages, false for requests. */
+	private final boolean controller;
+
+	/** A mapping of transaction messages to pair requests/responses. */
+	private final ConcurrentMap<Integer, TcpModbusMessage> messages;
 
 	private int transactionId;
-	private int protocolId;
 	private short unitId;
 	private int payloadLength;
 
 	/**
 	 * Constructor.
+	 * 
+	 * @param controller
+	 *        {@literal true} if operating as a controller where decoding is for
+	 *        Modbus response message, or {@literal false} if operating as a
+	 *        responder where decoding is for Modbus request messages
+	 * @param messages
+	 *        a mapping of transaction IDs to associated messages, to handle
+	 *        request and response pairing
+	 * @throws IllegalArgumentException
+	 *         if {@code messages} is {@literal null}
 	 */
-	public TcpModbusDecoder() {
+	public TcpModbusDecoder(boolean controller, ConcurrentMap<Integer, TcpModbusMessage> messages) {
 		super(DecoderState.READ_FIXED_HEADER);
+		this.controller = controller;
+		if ( messages == null ) {
+			throw new IllegalArgumentException("The messages argument must not be null.");
+		}
+		this.messages = messages;
 	}
 
 	@Override
@@ -90,7 +111,7 @@ public class TcpModbusDecoder extends ReplayingDecoder<DecoderState> {
 					break;
 
 				case READ_PAYLOAD:
-					readPayload(ctx, in);
+					readPayload(ctx, in, out);
 					break;
 
 				case BAD_MESSAGE:
@@ -113,16 +134,37 @@ public class TcpModbusDecoder extends ReplayingDecoder<DecoderState> {
 			return;
 		}
 		transactionId = in.readUnsignedShort();
-		protocolId = in.readUnsignedShort();
+		in.skipBytes(2); // just assuming is 0 for TCP
 		payloadLength = in.readUnsignedShort() - 1; // minus 1 for unitId below
 		unitId = in.readUnsignedByte();
 		checkpoint(DecoderState.READ_PAYLOAD);
 	}
 
-	private void readPayload(ChannelHandlerContext ctx, ByteBuf in) {
+	private void readPayload(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
 		if ( in.readableBytes() < payloadLength ) {
 			return;
 		}
-
+		TcpModbusMessage msg = null;
+		if ( controller ) {
+			// inbound response
+			TcpModbusMessage req = messages.remove(transactionId);
+			AddressedModbusMessage addr = req.unwrap(AddressedModbusMessage.class);
+			ModbusMessage payload = ModbusMessageUtils.decodeResponsePayload(unitId,
+					(addr != null ? addr.getAddress() : 0), (addr != null ? addr.getCount() : 0), in);
+			if ( payload != null ) {
+				msg = new TcpModbusMessage(System.currentTimeMillis(), transactionId, payload);
+			}
+		} else {
+			// inbound request
+			ModbusMessage payload = ModbusMessageUtils.decodeRequestPayload(unitId, 0, 0, in);
+			if ( payload != null ) {
+				msg = new TcpModbusMessage(System.currentTimeMillis(), transactionId, payload);
+				messages.put(transactionId, msg);
+			}
+		}
+		if ( msg != null ) {
+			out.add(msg);
+		}
+		checkpoint(DecoderState.READ_FIXED_HEADER);
 	}
 }
