@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusEncoder.java - 29/11/2022 7:26:32 am
+ * TcpModbusMessageEncoder.java - 29/11/2022 7:26:32 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -38,10 +38,10 @@ import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
  * @author matt
  * @version 1.0
  */
-public class TcpModbusEncoder extends MessageToMessageEncoder<ModbusMessage> {
+public class TcpModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessage> {
 
-	/** A mapping of transaction messages to pair requests/responses. */
-	private final ConcurrentMap<Integer, TcpModbusMessage> messages;
+	/** A mapping of transaction pendingMessages to pair requests/responses. */
+	private final ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
 
 	/** A provider of transaction IDs. */
 	private final IntSupplier transactionIdSupplier;
@@ -49,35 +49,35 @@ public class TcpModbusEncoder extends MessageToMessageEncoder<ModbusMessage> {
 	/**
 	 * Constructor.
 	 * 
-	 * @param messages
-	 *        a mapping of transaction IDs to associated messages, to handle
-	 *        request and response pairing
+	 * @param pendingMessages
+	 *        a mapping of transaction IDs to associated pendingMessages, to
+	 *        handle request and response pairing
 	 * @throws IllegalArgumentException
 	 *         if any argument is {@literal null}
 	 */
-	public TcpModbusEncoder(ConcurrentMap<Integer, TcpModbusMessage> messages) {
+	public TcpModbusMessageEncoder(ConcurrentMap<Integer, TcpModbusMessage> messages) {
 		this(messages, SimpleTransactionIdSupplier.INSTANCE);
 	}
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param messages
-	 *        a mapping of transaction IDs to associated messages, to handle
-	 *        request and response pairing
+	 * @param pendingMessages
+	 *        a mapping of transaction IDs to associated pendingMessages, to
+	 *        handle request and response pairing
 	 * @param transactionIdSupplier
 	 *        a TCP Modbus transaction ID supplier; only values from 1-65535
 	 *        should be supplied
 	 * @throws IllegalArgumentException
 	 *         if any argument is {@literal null}
 	 */
-	public TcpModbusEncoder(ConcurrentMap<Integer, TcpModbusMessage> messages,
+	public TcpModbusMessageEncoder(ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
 			IntSupplier transactionIdSupplier) {
 		super();
-		if ( messages == null ) {
-			throw new IllegalArgumentException("The messages argument must not be null.");
+		if ( pendingMessages == null ) {
+			throw new IllegalArgumentException("The pendingMessages argument must not be null.");
 		}
-		this.messages = messages;
+		this.pendingMessages = pendingMessages;
 		if ( transactionIdSupplier == null ) {
 			throw new IllegalArgumentException("The transactionIdSupplier argument must not be null.");
 		}
@@ -105,7 +105,7 @@ public class TcpModbusEncoder extends MessageToMessageEncoder<ModbusMessage> {
 			// outbound request
 			int transactionId = transactionIdSupplier.getAsInt();
 			tcp = new TcpModbusMessage(transactionId, msg);
-			messages.put(transactionId, tcp);
+			pendingMessages.put(transactionId, tcp);
 		}
 		if ( tcp != null ) {
 			int len = tcp.payloadLength();

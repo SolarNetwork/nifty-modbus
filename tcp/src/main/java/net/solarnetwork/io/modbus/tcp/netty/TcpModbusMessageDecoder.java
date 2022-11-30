@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusDecoder.java - 27/11/2022 9:41:24 am
+ * TcpModbusMessageDecoder.java - 27/11/2022 9:41:24 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -32,17 +32,17 @@ import io.netty.handler.codec.ReplayingDecoder;
 import net.solarnetwork.io.modbus.AddressedModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.ModbusMessageUtils;
-import net.solarnetwork.io.modbus.tcp.netty.TcpModbusDecoder.DecoderState;
+import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageDecoder.DecoderState;
 
 /**
- * Decoder for TCP Modbus messages.
+ * Decoder for TCP Modbus pendingMessages.
  *
  * @author matt
  * @version 1.0
  */
-public class TcpModbusDecoder extends ReplayingDecoder<DecoderState> {
+public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 
-	private static final Logger log = LoggerFactory.getLogger(TcpModbusDecoder.class);
+	private static final Logger log = LoggerFactory.getLogger(TcpModbusMessageDecoder.class);
 
 	/** The length of the fixed-length header. */
 	public static final int FIXED_HEADER_LENGTH = 7;
@@ -70,11 +70,11 @@ public class TcpModbusDecoder extends ReplayingDecoder<DecoderState> {
 		BAD_MESSAGE,
 	}
 
-	/** True if decoding response messages, false for requests. */
+	/** True if decoding response pendingMessages, false for requests. */
 	private final boolean controller;
 
-	/** A mapping of transaction messages to pair requests/responses. */
-	private final ConcurrentMap<Integer, TcpModbusMessage> messages;
+	/** A mapping of transaction pendingMessages to pair requests/responses. */
+	private final ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
 
 	private int transactionId;
 	private short unitId;
@@ -86,20 +86,21 @@ public class TcpModbusDecoder extends ReplayingDecoder<DecoderState> {
 	 * @param controller
 	 *        {@literal true} if operating as a controller where decoding is for
 	 *        Modbus response message, or {@literal false} if operating as a
-	 *        responder where decoding is for Modbus request messages
-	 * @param messages
-	 *        a mapping of transaction IDs to associated messages, to handle
-	 *        request and response pairing
+	 *        responder where decoding is for Modbus request pendingMessages
+	 * @param pendingMessages
+	 *        a mapping of transaction IDs to associated pendingMessages, to
+	 *        handle request and response pairing
 	 * @throws IllegalArgumentException
-	 *         if {@code messages} is {@literal null}
+	 *         if {@code pendingMessages} is {@literal null}
 	 */
-	public TcpModbusDecoder(boolean controller, ConcurrentMap<Integer, TcpModbusMessage> messages) {
+	public TcpModbusMessageDecoder(boolean controller,
+			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages) {
 		super(DecoderState.READ_FIXED_HEADER);
 		this.controller = controller;
-		if ( messages == null ) {
-			throw new IllegalArgumentException("The messages argument must not be null.");
+		if ( pendingMessages == null ) {
+			throw new IllegalArgumentException("The pendingMessages argument must not be null.");
 		}
-		this.messages = messages;
+		this.pendingMessages = pendingMessages;
 	}
 
 	@Override
@@ -147,7 +148,7 @@ public class TcpModbusDecoder extends ReplayingDecoder<DecoderState> {
 		TcpModbusMessage msg = null;
 		if ( controller ) {
 			// inbound response
-			TcpModbusMessage req = messages.remove(transactionId);
+			TcpModbusMessage req = pendingMessages.remove(transactionId);
 			AddressedModbusMessage addr = req.unwrap(AddressedModbusMessage.class);
 			ModbusMessage payload = ModbusMessageUtils.decodeResponsePayload(unitId,
 					(addr != null ? addr.getAddress() : 0), (addr != null ? addr.getCount() : 0), in);
@@ -159,7 +160,7 @@ public class TcpModbusDecoder extends ReplayingDecoder<DecoderState> {
 			ModbusMessage payload = ModbusMessageUtils.decodeRequestPayload(unitId, 0, 0, in);
 			if ( payload != null ) {
 				msg = new TcpModbusMessage(System.currentTimeMillis(), transactionId, payload);
-				messages.put(transactionId, msg);
+				pendingMessages.put(transactionId, msg);
 			}
 		}
 		if ( msg != null ) {

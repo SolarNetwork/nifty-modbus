@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusEncoderTests.java - 29/11/2022 9:08:54 am
+ * TcpModbusMessageEncoderTests.java - 29/11/2022 9:08:54 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -39,16 +39,16 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
-import net.solarnetwork.io.modbus.tcp.netty.TcpModbusEncoder;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
+import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageEncoder;
 
 /**
- * Test cases for the {@link TcpModbusEncoder} class.
+ * Test cases for the {@link TcpModbusMessageEncoder} class.
  *
  * @author matt
  * @version 1.0
  */
-public class TcpModbusEncoderTests {
+public class TcpModbusMessageEncoderTests {
 
 	private AtomicInteger ID_SUPPLIER = new AtomicInteger();
 	private ConcurrentMap<Integer, TcpModbusMessage> messages;
@@ -57,9 +57,8 @@ public class TcpModbusEncoderTests {
 	@BeforeEach
 	public void setup() {
 		messages = new ConcurrentHashMap<>(8, 0.9f, 2);
-		channel = new EmbeddedChannel(new TcpModbusEncoder(messages, () -> {
-			return ID_SUPPLIER.incrementAndGet();
-		}));
+		channel = new EmbeddedChannel(
+				new TcpModbusMessageEncoder(messages, ID_SUPPLIER::incrementAndGet));
 	}
 
 	@Test

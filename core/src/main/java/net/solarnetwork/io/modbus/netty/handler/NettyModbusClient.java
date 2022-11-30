@@ -78,6 +78,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
 
 	private io.netty.util.concurrent.ScheduledFuture<?> cleanupTask;
+	private ChannelFuture connFuture;
 	private volatile Channel channel;
 	private volatile boolean disconnected;
 	private volatile boolean reconnecting;
@@ -105,6 +106,8 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 *        the client configuration
 	 * @param eventLoopGroup
 	 *        the event loop group
+	 * @param pending
+	 *        a map for request messages pending responses
 	 * @throws IllegalArgumentException
 	 *         if any argument is {@literal null}
 	 */
@@ -129,6 +132,9 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 * Start the client.
 	 */
 	public synchronized void start() {
+		if ( connFuture != null ) {
+			return;
+		}
 		handleConnect(false);
 		cleanupTask = eventLoopGroup.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(), 5, 5,
 				TimeUnit.MINUTES);
@@ -138,6 +144,12 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 * Stop the client.
 	 */
 	public synchronized void stop() {
+		if ( connFuture != null ) {
+			if ( connFuture.isCancellable() ) {
+				connFuture.cancel(true);
+			}
+			connFuture = null;
+		}
 		if ( channel != null ) {
 			channel.disconnect();
 			channel = null;
@@ -149,7 +161,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	}
 
 	private void handleConnect(boolean reconnecting) {
-		ChannelFuture connFuture = connect();
+		connFuture = connect();
 		connFuture.addListener((ChannelFutureListener) f -> {
 			if ( f.isSuccess() ) {
 				Channel c = f.channel();
@@ -195,7 +207,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 			channel.pipeline().addLast(
 					new LoggingHandler("net.solarnetwork.io.modbus." + clientConfig.getDescription()));
 		}
-		channel.pipeline().addLast("modbusClient", NettyModbusClient.this);
+		channel.pipeline().addLast("modbusClient", this);
 	}
 
 	private ChannelFuture sendAndFlushPacket(ModbusMessage message) {

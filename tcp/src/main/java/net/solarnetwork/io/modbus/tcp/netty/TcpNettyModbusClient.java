@@ -22,14 +22,20 @@
 
 package net.solarnetwork.io.modbus.tcp.netty;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.IntSupplier;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import net.solarnetwork.io.modbus.ModbusClient;
+import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
+import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
 import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
 
 /**
@@ -40,7 +46,14 @@ import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
  */
 public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfig> {
 
+	/** The channel class to use. */
 	private final Class<? extends Channel> channelClass;
+
+	/** A mapping of transaction pendingMessages to pair requests/responses. */
+	private final ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
+
+	/** A provider of transaction IDs. */
+	private final IntSupplier transactionIdSupplier;
 
 	/**
 	 * Constructor.
@@ -53,7 +66,36 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 *        the client configuration
 	 */
 	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig) {
-		this(clientConfig, new NioEventLoopGroup(), null);
+		this(clientConfig, new NioEventLoopGroup(), null, NioSocketChannel.class,
+				new ConcurrentHashMap<>(8, 0.9f, 2), SimpleTransactionIdSupplier.INSTANCE);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * <p>
+	 * A default {@link NioEventLoopGroup} will be used.
+	 * </p>
+	 * 
+	 * @param clientConfig
+	 *        the client configuration
+	 * @param pending
+	 *        a map for request messages pending responses
+	 * @param pendingMessages
+	 *        a mapping of transaction IDs to associated pendingMessages, to
+	 *        handle request and response pairing
+	 * @param transactionIdSupplier
+	 *        a TCP Modbus transaction ID supplier; only values from 1-65535
+	 *        should be supplied
+	 * @throws IllegalArgumentException
+	 *         if any argument is {@literal null}
+	 */
+	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig,
+			ConcurrentMap<ModbusMessage, PendingMessage> pending,
+			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
+			IntSupplier transactionIdSupplier) {
+		this(clientConfig, new NioEventLoopGroup(), pending, NioSocketChannel.class, pendingMessages,
+				transactionIdSupplier);
 	}
 
 	/**
@@ -63,14 +105,34 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 *        the client configuration
 	 * @param eventLoopGroup
 	 *        the event loop group
+	 * @param pending
+	 *        a map for request messages pending responses
 	 * @param channelClass
 	 *        the channel class, or {@literal null} to use
 	 *        {@link NioEventLoopGroup}
+	 * @param pendingMessages
+	 *        a mapping of transaction IDs to associated pendingMessages, to
+	 *        handle request and response pairing
+	 * @param transactionIdSupplier
+	 *        a TCP Modbus transaction ID supplier; only values from 1-65535
+	 *        should be supplied
+	 * @throws IllegalArgumentException
+	 *         if any argument is {@literal null}
 	 */
 	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig, EventLoopGroup eventLoopGroup,
-			Class<? extends Channel> channelClass) {
-		super(clientConfig, eventLoopGroup);
+			ConcurrentMap<ModbusMessage, PendingMessage> pending, Class<? extends Channel> channelClass,
+			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
+			IntSupplier transactionIdSupplier) {
+		super(clientConfig, eventLoopGroup, pending);
 		this.channelClass = (channelClass != null ? channelClass : NioSocketChannel.class);
+		if ( pendingMessages == null ) {
+			throw new IllegalArgumentException("The pendingMessages argument must not be null.");
+		}
+		this.pendingMessages = pendingMessages;
+		if ( transactionIdSupplier == null ) {
+			throw new IllegalArgumentException("The transactionIdSupplier argument must not be null.");
+		}
+		this.transactionIdSupplier = transactionIdSupplier;
 	}
 
 	@Override
@@ -86,7 +148,22 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 				.remoteAddress(host, clientConfig.getPort())
 				.handler(this);
 		// @formatter:on
-		return bootstrap.connect();
+		return bootstrap.connect().addListener(new ChannelFutureListener() {
+
+			@Override
+			public void operationComplete(ChannelFuture future) throws Exception {
+				if ( future.isSuccess() ) {
+					initChannel(future.channel());
+				}
+			}
+		});
+	}
+
+	@Override
+	protected void initChannel(Channel channel) {
+		channel.pipeline().addLast(new TcpModbusMessageEncoder(pendingMessages, transactionIdSupplier),
+				new TcpModbusMessageDecoder(true, pendingMessages));
+		super.initChannel(channel);
 	}
 
 }
