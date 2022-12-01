@@ -48,7 +48,7 @@ ext {
 		// Test dependencies.
 		hamcrest: 'org.hamcrest:hamcrest-library:2.2',
 		junit: 'org.junit.jupiter:junit-jupiter:5.8.0',
-		mockito: 'org.mockito:mockito-core:3.9.0',
+		mockito: 'org.mockito:mockito-core:4.9.0',
 		mockitoJupiter: 'org.mockito:mockito-junit-jupiter:3.9.0'
 	]
 
