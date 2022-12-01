@@ -41,7 +41,7 @@ plugins {
 ext {
 	checkstyleVersion = '8.34'
 	nettyVersion = '4.1.63.Final'
-	slf4jVersion = '1.7.36'
+	slf4jVersion = '2.0.5'
 	
 
 	libraries = [
