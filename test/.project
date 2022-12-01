@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>netty-codec-modbus-test</name>
-	<comment>Project netty-codec-modbus-test created by Buildship.</comment>
+	<name>nifty-modbus-test</name>
+	<comment>Project nifty-modbus-test created by Buildship.</comment>
 	<projects>
 	</projects>
 	<buildSpec>

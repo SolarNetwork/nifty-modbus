@@ -5,18 +5,18 @@ plugins {
 
 apply plugin: 'java-library'
 
-description = 'Netty Modbus: TCP'
+description = 'Nifty Modbus: TCP'
 version = '1.0.0'
-archivesBaseName = 'netty-codec-modbus-tcp'
+archivesBaseName = 'nifty-modbus-tcp'
 
 dependencies {
-	implementation project(':netty-codec-modbus-core');
+	implementation project(':nifty-modbus-core');
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation "io.netty:netty-codec:${nettyVersion}"
 	implementation "io.netty:netty-handler:${nettyVersion}"
 	
 	// Testing
-	testImplementation project(':netty-codec-modbus-test')
+	testImplementation project(':nifty-modbus-test')
 }
 
 jar.manifest {

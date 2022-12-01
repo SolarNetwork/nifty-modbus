@@ -5,9 +5,9 @@ plugins {
 
 apply plugin: 'java-library'
 
-description = 'Netty Modbus: Core Test'
+description = 'Nifty Modbus: Core Test'
 version = '1.0.0'
-archivesBaseName = 'netty-codec-modbus-test'
+archivesBaseName = 'nifty-modbus-test'
 
 dependencies {
 	api "org.slf4j:slf4j-api:${slf4jVersion}"
@@ -22,6 +22,6 @@ jar.manifest {
 
 eclipse {
 	jdt {
-		javaRuntimeName 'JavaSE-17'
+		javaRuntimeName 'JavaSE-1.8'
 	}
 }

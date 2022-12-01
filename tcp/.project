@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>netty-codec-modbus-tcp</name>
+	<name>nifty-modbus-tcp</name>
 	<comment>Project lib created by Buildship.</comment>
 	<projects>
 	</projects>

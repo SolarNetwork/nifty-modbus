@@ -1,11 +1,11 @@
-rootProject.name = 'netty-codec-modbus'
+rootProject.name = 'nifty-modbus'
 
 include('core')
 include('rtu')
 include('tcp')
 include('test')
 
-project(':core').name = 'netty-codec-modbus-core'
-project(':rtu').name = 'netty-codec-modbus-rtu'
-project(':tcp').name = 'netty-codec-modbus-tcp'
-project(':test').name = 'netty-codec-modbus-test'
+project(':core').name = 'nifty-modbus-core'
+project(':rtu').name = 'nifty-modbus-rtu'
+project(':tcp').name = 'nifty-modbus-tcp'
+project(':test').name = 'nifty-modbus-test'
