@@ -77,6 +77,7 @@ public class NettyModbusClientTests {
 
 		@Override
 		protected ChannelFuture connect() {
+			channel.pipeline().addLast(new ModbusMessageEncoder(), new ModbusMessageDecoder(true));
 			super.initChannel(channel);
 			return channel.newSucceededFuture();
 		}
@@ -90,7 +91,7 @@ public class NettyModbusClientTests {
 	@BeforeEach
 	public void setup() {
 		pending = new ConcurrentHashMap<>(8, 0.9f, 2);
-		channel = new EmbeddedChannel(new ModbusMessageEncoder(), new ModbusMessageDecoder(true));
+		channel = new EmbeddedChannel();
 		client = new TestNettyModbusClient(new NettyModbusClientConfig() {
 
 			@Override

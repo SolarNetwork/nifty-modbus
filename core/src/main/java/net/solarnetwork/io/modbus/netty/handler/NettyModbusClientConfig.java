@@ -37,7 +37,6 @@ public abstract class NettyModbusClientConfig implements ModbusClientConfig {
 
 	@Override
 	public boolean isAutoReconnect() {
-		// TODO Auto-generated method stub
 		return autoReconnect;
 	}
 

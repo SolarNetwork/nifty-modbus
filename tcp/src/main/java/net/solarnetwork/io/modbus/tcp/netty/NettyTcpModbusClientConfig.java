@@ -38,6 +38,27 @@ public class NettyTcpModbusClientConfig extends NettyModbusClientConfig
 	private int port;
 
 	/**
+	 * Constructor.
+	 */
+	public NettyTcpModbusClientConfig() {
+		super();
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param host
+	 *        the host
+	 * @param port
+	 *        the port
+	 */
+	public NettyTcpModbusClientConfig(String host, int port) {
+		super();
+		this.host = host;
+		this.port = port;
+	}
+
+	/**
 	 * Get the host to connect to.
 	 * 
 	 * @return the host

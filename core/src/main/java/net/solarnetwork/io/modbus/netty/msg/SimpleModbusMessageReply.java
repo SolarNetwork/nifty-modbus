@@ -80,6 +80,8 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
 		if ( msgType.isAssignableFrom(reply.getClass()) ) {
 			return (T) reply;
+		} else if ( msgType.isAssignableFrom(ModbusMessageReply.class) ) {
+			return (T) this;
 		}
 		return null;
 	}

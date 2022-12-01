@@ -32,6 +32,7 @@ import io.netty.handler.codec.ReplayingDecoder;
 import net.solarnetwork.io.modbus.AddressedModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.ModbusMessageUtils;
+import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageDecoder.DecoderState;
 
 /**
@@ -145,7 +146,7 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 		if ( in.readableBytes() < payloadLength ) {
 			return;
 		}
-		TcpModbusMessage msg = null;
+		ModbusMessage msg = null;
 		if ( controller ) {
 			// inbound response
 			TcpModbusMessage req = pendingMessages.remove(transactionId);
@@ -153,14 +154,18 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 			ModbusMessage payload = ModbusMessageUtils.decodeResponsePayload(unitId,
 					(addr != null ? addr.getAddress() : 0), (addr != null ? addr.getCount() : 0), in);
 			if ( payload != null ) {
-				msg = new TcpModbusMessage(System.currentTimeMillis(), transactionId, payload);
+				TcpModbusMessage res = new TcpModbusMessage(System.currentTimeMillis(), transactionId,
+						payload);
+				msg = new SimpleModbusMessageReply(req.unwrap(ModbusMessage.class), res);
 			}
 		} else {
 			// inbound request
 			ModbusMessage payload = ModbusMessageUtils.decodeRequestPayload(unitId, 0, 0, in);
 			if ( payload != null ) {
-				msg = new TcpModbusMessage(System.currentTimeMillis(), transactionId, payload);
-				pendingMessages.put(transactionId, msg);
+				TcpModbusMessage req = new TcpModbusMessage(System.currentTimeMillis(), transactionId,
+						payload);
+				pendingMessages.put(transactionId, req);
+				msg = req;
 			}
 		}
 		if ( msg != null ) {

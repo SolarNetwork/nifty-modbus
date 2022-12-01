@@ -59,11 +59,11 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
  */
 public class TcpNettyModbusClientTests {
 
-	private static final class TestNettyModbusClient extends TcpNettyModbusClient {
+	private static final class TestTcpNettyModbusClient extends TcpNettyModbusClient {
 
 		private final EmbeddedChannel channel;
 
-		private TestNettyModbusClient(TcpModbusClientConfig clientConfig, EmbeddedChannel channel,
+		private TestTcpNettyModbusClient(TcpModbusClientConfig clientConfig, EmbeddedChannel channel,
 				ConcurrentMap<ModbusMessage, PendingMessage> pending,
 				ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
 				IntSupplier transactionIdSupplier) {
@@ -83,7 +83,7 @@ public class TcpNettyModbusClientTests {
 
 	private ConcurrentMap<ModbusMessage, PendingMessage> pending;
 	private ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
-	private AtomicInteger ID_SUPPLIER = new AtomicInteger();
+	private AtomicInteger idSupplier = new AtomicInteger();
 	private EmbeddedChannel channel;
 	private TcpNettyModbusClient client;
 
@@ -92,7 +92,7 @@ public class TcpNettyModbusClientTests {
 		pendingMessages = new ConcurrentHashMap<>(8, 0.9f, 2);
 		pending = new ConcurrentHashMap<>(8, 0.9f, 2);
 		channel = new EmbeddedChannel();
-		client = new TestNettyModbusClient(new NettyTcpModbusClientConfig() {
+		client = new TestTcpNettyModbusClient(new NettyTcpModbusClientConfig() {
 
 			@Override
 			public String getHost() {
@@ -103,7 +103,7 @@ public class TcpNettyModbusClientTests {
 			public String getDescription() {
 				return "Test";
 			}
-		}, channel, pending, pendingMessages, ID_SUPPLIER::incrementAndGet);
+		}, channel, pending, pendingMessages, idSupplier::incrementAndGet);
 	}
 
 	@AfterEach
@@ -114,7 +114,7 @@ public class TcpNettyModbusClientTests {
 	}
 
 	@Test
-	public void send() {
+	public void send() throws Exception {
 		// GIVEN
 		final int unitId = 1;
 		final int addr = 2;
@@ -122,7 +122,7 @@ public class TcpNettyModbusClientTests {
 		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
 
 		// WHEN
-		client.start();
+		client.start().get();
 		Future<ModbusMessage> f = client.sendAsync(req);
 
 		// THEN
@@ -134,7 +134,48 @@ public class TcpNettyModbusClientTests {
 		ByteBuf buf = channel.readOutbound();
 		assertThat("Bytes produced", buf, is(notNullValue()));
 
-		final int txId = ID_SUPPLIER.get();
+		final int txId = idSupplier.get();
+		// @formatter:off
+		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
+				byteObjectArray(new byte[] {
+						(byte)(txId >>> 8 & 0xFF),
+						(byte)(txId & 0xFF),
+						(byte)0x00,
+						(byte)0x00,
+						(byte)0x00,
+						(byte)0x06,
+						(byte)(unitId & 0xFF),
+						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+						(byte)(addr >>> 8 & 0xFF),
+						(byte)(addr & 0xFF),
+						(byte)(count >>> 8 & 0xFF),
+						(byte)(count & 0xFF),
+				})));
+		// @formatter:on
+	}
+
+	@Test
+	public void responseTimeout() throws Exception {
+		// GIVEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.start().get();
+		Future<ModbusMessage> f = client.sendAsync(req);
+
+		// THEN
+		assertThat("Future returned", f, is(notNullValue()));
+		assertThat("Request should be pending", pending.keySet(), hasSize(1));
+		Entry<ModbusMessage, PendingMessage> pendingMessage = pending.entrySet().iterator().next();
+		assertThat("Pending entry key is message", pendingMessage.getKey(), is(sameInstance(req)));
+
+		ByteBuf buf = channel.readOutbound();
+		assertThat("Bytes produced", buf, is(notNullValue()));
+
+		final int txId = idSupplier.get();
 		// @formatter:off
 		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
 				byteObjectArray(new byte[] {

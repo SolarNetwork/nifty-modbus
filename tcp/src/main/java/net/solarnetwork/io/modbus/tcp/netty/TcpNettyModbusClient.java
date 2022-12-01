@@ -28,9 +28,11 @@ import java.util.function.IntSupplier;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import net.solarnetwork.io.modbus.ModbusClient;
 import net.solarnetwork.io.modbus.ModbusMessage;
@@ -146,24 +148,26 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 				.group(eventLoopGroup)
 				.channel(channelClass)
 				.remoteAddress(host, clientConfig.getPort())
-				.handler(this);
+				.handler(new HandlerInitializer());
 		// @formatter:on
-		return bootstrap.connect().addListener(new ChannelFutureListener() {
-
-			@Override
-			public void operationComplete(ChannelFuture future) throws Exception {
-				if ( future.isSuccess() ) {
-					initChannel(future.channel());
-				}
-			}
-		});
+		return bootstrap.connect();
 	}
 
 	@Override
 	protected void initChannel(Channel channel) {
-		channel.pipeline().addLast(new TcpModbusMessageEncoder(pendingMessages, transactionIdSupplier),
+		ChannelPipeline pipeline = channel.pipeline();
+		pipeline.addLast(new TcpModbusMessageEncoder(pendingMessages, transactionIdSupplier),
 				new TcpModbusMessageDecoder(true, pendingMessages));
 		super.initChannel(channel);
+	}
+
+	private final class HandlerInitializer extends ChannelInitializer<SocketChannel> {
+
+		@Override
+		protected void initChannel(SocketChannel ch) throws Exception {
+			TcpNettyModbusClient.this.initChannel(ch);
+		}
+
 	}
 
 }

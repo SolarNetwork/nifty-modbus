@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
@@ -38,6 +39,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.logging.LoggingHandler;
@@ -77,11 +79,10 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	private boolean wireLogging;
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
 
-	private io.netty.util.concurrent.ScheduledFuture<?> cleanupTask;
-	private ChannelFuture connFuture;
+	private ScheduledFuture<?> cleanupTask;
+	private Future<?> connFuture;
 	private volatile Channel channel;
-	private volatile boolean disconnected;
-	private volatile boolean reconnecting;
+	private volatile boolean stopped;
 
 	private final ConcurrentMap<ModbusMessage, PendingMessage> pending;
 
@@ -131,13 +132,17 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	/**
 	 * Start the client.
 	 */
-	public synchronized void start() {
+	public synchronized Future<?> start() {
 		if ( connFuture != null ) {
-			return;
+			return connFuture;
 		}
-		handleConnect(false);
-		cleanupTask = eventLoopGroup.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(), 5, 5,
-				TimeUnit.MINUTES);
+		Future<?> result = handleConnect(false);
+		connFuture = result;
+		if ( cleanupTask == null ) {
+			cleanupTask = eventLoopGroup.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(), 5, 5,
+					TimeUnit.MINUTES);
+		}
+		return result;
 	}
 
 	/**
@@ -145,12 +150,13 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 */
 	public synchronized void stop() {
 		if ( connFuture != null ) {
-			if ( connFuture.isCancellable() ) {
+			if ( !connFuture.isDone() ) {
 				connFuture.cancel(true);
 			}
 			connFuture = null;
 		}
 		if ( channel != null ) {
+			this.stopped = true;
 			channel.disconnect();
 			channel = null;
 		}
@@ -160,12 +166,13 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 		}
 	}
 
-	private void handleConnect(boolean reconnecting) {
-		connFuture = connect();
-		connFuture.addListener((ChannelFutureListener) f -> {
+	private Future<?> handleConnect(boolean reconnecting) {
+		CompletableFuture<Void> completable = new CompletableFuture<>();
+		ChannelFuture channelFuture = connect();
+		channelFuture.addListener((ChannelFutureListener) f -> {
 			if ( f.isSuccess() ) {
 				Channel c = f.channel();
-				c.closeFuture().addListener((ChannelFutureListener) channelFuture -> {
+				c.closeFuture().addListener((ChannelFutureListener) chFuture -> {
 					if ( isConnected() ) {
 						return;
 					}
@@ -174,17 +181,19 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 					scheduleConnectIfRequired(true);
 				});
 				NettyModbusClient.this.channel = c;
+				completable.complete(null);
 			} else {
 				scheduleConnectIfRequired(reconnecting);
+				if ( !reconnecting ) {
+					completable.completeExceptionally(f.cause());
+				}
 			}
 		});
+		return completable;
 	}
 
 	private void scheduleConnectIfRequired(boolean reconnecting) {
-		if ( clientConfig.isAutoReconnect() && !disconnected ) {
-			if ( reconnecting ) {
-				this.reconnecting = true;
-			}
+		if ( clientConfig.isAutoReconnect() && !stopped ) {
 			eventLoopGroup.schedule((Runnable) () -> handleConnect(reconnecting),
 					clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
 		}
@@ -203,21 +212,22 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 *        the channel to initialize
 	 */
 	protected void initChannel(Channel channel) {
+		ChannelPipeline pipeline = channel.pipeline();
 		if ( wireLogging ) {
-			channel.pipeline().addLast(
+			pipeline.addFirst(
 					new LoggingHandler("net.solarnetwork.io.modbus." + clientConfig.getDescription()));
 		}
-		channel.pipeline().addLast("modbusClient", this);
+		pipeline.addLast("modbusClient", this);
 	}
 
-	private ChannelFuture sendAndFlushPacket(ModbusMessage message) {
-		if ( this.channel == null ) {
+	private ChannelFuture sendAndFlushPacket(Channel channel, ModbusMessage message) {
+		if ( channel == null ) {
 			return null;
 		}
-		if ( this.channel.isActive() ) {
-			return this.channel.writeAndFlush(message);
+		if ( channel.isActive() ) {
+			return channel.writeAndFlush(message);
 		}
-		return this.channel.newFailedFuture(new IOException(
+		return channel.newFailedFuture(new IOException(
 				String.format("Connection to %s is closed.", clientConfig.getDescription())));
 	}
 
@@ -234,7 +244,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 * @return {@literal true} if the connection is active
 	 */
 	public boolean isConnected() {
-		return !disconnected && channel != null && channel.isActive();
+		return !stopped && channel != null && channel.isActive();
 	}
 
 	@Override
@@ -260,9 +270,15 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 
 	@Override
 	public Future<ModbusMessage> sendAsync(ModbusMessage request) {
+		final Channel channel = this.channel;
+		if ( channel == null ) {
+			CompletableFuture<ModbusMessage> fail = new CompletableFuture<>();
+			fail.completeExceptionally(new IOException("Client not started."));
+			return fail;
+		}
 		CompletableFuture<ModbusMessage> resp = new CompletableFuture<>();
 		pending.put(request, new PendingMessage(request, resp));
-		ChannelFuture f = sendAndFlushPacket(request);
+		ChannelFuture f = sendAndFlushPacket(channel, request);
 		f.addListener(new ChannelFutureListener() {
 
 			@Override
@@ -279,8 +295,8 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, ModbusMessage msg) throws Exception {
 		ModbusMessage req = null;
-		if ( msg instanceof ModbusMessageReply ) {
-			ModbusMessageReply reply = (ModbusMessageReply) msg;
+		ModbusMessageReply reply = msg.unwrap(ModbusMessageReply.class);
+		if ( reply != null ) {
 			req = reply.getRequest();
 		} else {
 			// fall back to the last sent request
@@ -367,18 +383,18 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 					PendingMessage pending = itr.next();
 					if ( pending.created + pendingMessageTtl < now ) {
 						log.warn(
-								"Dropping pending Modbus request message that has not received a response within {}ms: {}",
+								"Dropping pending Modbus request that has not received a response within {}ms: {}",
 								pendingMessageTtl, pending);
 						itr.remove();
 					}
 				}
 			} catch ( Exception e ) {
-				log.warn("Exception cleaning expired pending Modbus messages: {}", e.toString(), e);
+				log.warn("Exception cleaning expired pending Modbus requests: {}", e.toString(), e);
 			} finally {
 				if ( expiredCount < 1 ) {
-					log.debug("Finished cleaning expired pending Modbus messages; none expired.");
+					log.debug("Finished cleaning expired pending Modbus requests; none expired.");
 				} else {
-					log.info("Finished cleaning expired pending Modbus messages; {} expired.",
+					log.info("Finished cleaning expired pending Modbus requests; {} expired.",
 							expiredCount);
 				}
 			}
