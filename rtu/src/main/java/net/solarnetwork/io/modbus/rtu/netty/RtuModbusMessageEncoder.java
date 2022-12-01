@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusMessage.java - 25/11/2022 3:31:56 pm
+ * RtuModbusMessageEncoder.java - 1/12/2022 4:52:20 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,46 +20,39 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.tcp;
+package net.solarnetwork.io.modbus.rtu.netty;
 
+import java.util.List;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToMessageEncoder;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
 /**
- * TCP encapsulated Modbus message API.
+ * Encoder of {@link ModbusMessage} to RTU encapsulated {@link ByteBuf} Modbus
+ * frame.
  *
  * @author matt
  * @version 1.0
  */
-public interface TcpModbusMessage extends ModbusMessage {
+public class RtuModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessage> {
 
-	/** The maximum transaction ID value. */
-	int MAX_TRANSACTION_ID = 0xFFFF;
-
-	/**
-	 * Get a message creation date.
-	 * 
-	 * @return the message creation date
-	 */
-	long getTimestamp();
-
-	/**
-	 * Get the transaction identifier.
-	 * 
-	 * @return the transaction identifier
-	 */
-	int getTransactionId();
-
-	/**
-	 * Get the protocol identifier.
-	 * 
-	 * <p>
-	 * This implementation returns {@literal 0} for Modbus/TCP.
-	 * </p>
-	 * 
-	 * @return the protocol identifier
-	 */
-	default int getProtocolId() {
-		return 0;
+	@Override
+	protected void encode(ChannelHandlerContext ctx, ModbusMessage msg, List<Object> out)
+			throws Exception {
+		RtuModbusMessage rtu = null;
+		if ( msg instanceof RtuModbusMessage ) {
+			rtu = (RtuModbusMessage) msg;
+		} else {
+			// outbound response
+			rtu = new RtuModbusMessage(msg.getUnitId(), msg);
+		}
+		if ( rtu != null ) {
+			int len = rtu.payloadLength();
+			ByteBuf buf = ctx.alloc().buffer(len);
+			rtu.encodeModbusPayload(buf);
+			out.add(buf);
+		}
 	}
 
 }

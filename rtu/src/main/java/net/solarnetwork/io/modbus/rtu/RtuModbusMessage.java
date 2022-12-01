@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusMessage.java - 25/11/2022 3:31:56 pm
+ * RtuModbusMessage.java - 1/12/2022 2:53:32 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,20 +20,17 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.tcp;
+package net.solarnetwork.io.modbus.rtu;
 
 import net.solarnetwork.io.modbus.ModbusMessage;
 
 /**
- * TCP encapsulated Modbus message API.
+ * RTU encapsulated Modbus message API.
  *
  * @author matt
  * @version 1.0
  */
-public interface TcpModbusMessage extends ModbusMessage {
-
-	/** The maximum transaction ID value. */
-	int MAX_TRANSACTION_ID = 0xFFFF;
+public interface RtuModbusMessage extends ModbusMessage {
 
 	/**
 	 * Get a message creation date.
@@ -43,23 +40,35 @@ public interface TcpModbusMessage extends ModbusMessage {
 	long getTimestamp();
 
 	/**
-	 * Get the transaction identifier.
+	 * Get the 16-bit cyclic redundancy check value presented in the RTU message
+	 * frame.
 	 * 
-	 * @return the transaction identifier
+	 * @return the provided CRC value
 	 */
-	int getTransactionId();
+	short getCrc();
 
 	/**
-	 * Get the protocol identifier.
+	 * Compute the 16-bit cyclic redundancy check value from the message data.
 	 * 
 	 * <p>
-	 * This implementation returns {@literal 0} for Modbus/TCP.
+	 * If the {@link #getCrc()} and this value differ, the message should be
+	 * considered corrupted.
 	 * </p>
 	 * 
-	 * @return the protocol identifier
+	 * @return the computed CRC value
 	 */
-	default int getProtocolId() {
-		return 0;
+	short computeCrc();
+
+	/**
+	 * Test if the provided and computed CRC values match.
+	 * 
+	 * @return {@literal true} if {@link #getCrc()} and {@link #computeCrc()}
+	 *         return the same value
+	 */
+	default boolean isCrcValid() {
+		final short provided = getCrc();
+		final short computed = computeCrc();
+		return (provided == computed);
 	}
 
 }

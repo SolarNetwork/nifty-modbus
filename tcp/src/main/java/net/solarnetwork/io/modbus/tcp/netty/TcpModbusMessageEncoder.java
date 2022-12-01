@@ -33,7 +33,8 @@ import net.solarnetwork.io.modbus.ModbusMessageReply;
 import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
 
 /**
- * Encoder of {@link ModbusMessage} to {@link ByteBuf}.
+ * Encoder of {@link ModbusMessage} to TCP encapsulated {@link ByteBuf} Modbus
+ * frame.
  *
  * @author matt
  * @version 1.0

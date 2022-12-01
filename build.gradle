@@ -34,6 +34,29 @@ buildscript {
 	}
 }
 
+plugins {
+	id 'com.google.osdetector' version '1.7.1'
+}
+
+ext {
+	checkstyleVersion = '8.34'
+	nettyVersion = '4.1.63.Final'
+	slf4jVersion = '1.7.36'
+	
+
+	libraries = [
+		// Test dependencies.
+		hamcrest: 'org.hamcrest:hamcrest-library:2.2',
+		junit: 'org.junit.jupiter:junit-jupiter:5.8.0',
+		mockito: 'org.mockito:mockito-core:3.9.0',
+		mockitoJupiter: 'org.mockito:mockito-junit-jupiter:3.9.0'
+	]
+
+	if ( osdetector.classifier in ["linux-x86_64"] || ["osx-x86_64"] || ["osx-aarch_64"] || ["windows-x86_64"] ) {
+		os_suffix = ":" + osdetector.classifier
+	}
+}
+
 subprojects {
 	//apply plugin: "checkstyle"
 	apply plugin: "java"
@@ -84,21 +107,6 @@ subprojects {
 		use = true
 		links 'https://docs.oracle.com/javase/8/docs/api/'
 		source = "1.8"
-	}
-
-	ext {
-		checkstyleVersion = '8.34'
-		nettyVersion = '4.1.63.Final'
-		slf4jVersion = '1.7.36'
-		
-
-		libraries = [
-			// Test dependencies.
-			hamcrest: 'org.hamcrest:hamcrest-library:2.2',
-			junit: 'org.junit.jupiter:junit-jupiter:5.8.0',
-			mockito: 'org.mockito:mockito-core:3.9.0',
-			mockitoJupiter: 'org.mockito:mockito-junit-jupiter:3.9.0'
-		]
 	}
 
 	dependencies {

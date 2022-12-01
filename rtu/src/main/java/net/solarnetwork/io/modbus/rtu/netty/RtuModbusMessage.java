@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusMessage.java - 25/11/2022 6:32:39 pm
+ * RtuModbusMessage.java - 1/12/2022 3:04:29 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,30 +20,48 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.tcp.netty;
+package net.solarnetwork.io.modbus.rtu.netty;
 
-import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import net.solarnetwork.io.modbus.ModbusByteUtils;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.ModbusPayloadEncoder;
 
 /**
- * A TCP-encapsulated Modbus message.
+ * A RTU-encapsulated Modbus message.
  *
  * @author matt
  * @version 1.0
  */
-public class TcpModbusMessage
-		implements net.solarnetwork.io.modbus.tcp.TcpModbusMessage, ModbusPayloadEncoder {
-
-	/** The TCP protocol ID. */
-	public static final int TCP_PROTOCOL_ID = 0;
+public class RtuModbusMessage
+		implements net.solarnetwork.io.modbus.rtu.RtuModbusMessage, ModbusPayloadEncoder {
 
 	private final long timestamp;
-	private final int transactionId;
+	private final short crc;
 	private final ModbusMessage body;
+
+	/**
+	 * Constructor.
+	 * 
+	 * <p>
+	 * The current system time will be used for the timestamp value, and the CRC
+	 * will be calculated from the {@code body} value.
+	 * </p>
+	 * 
+	 * @param unitId
+	 *        the unit ID
+	 * @param body
+	 *        the message body, must implement {@link ModbusPayloadEncoder}.
+	 * 
+	 * @throws ClassCastException
+	 *         if {@code body} does not implement {@link ModbusPayloadEncoder}
+	 */
+	public RtuModbusMessage(int unitId, ModbusMessage body) {
+		this(System.currentTimeMillis(), body, computeCrc(unitId, body));
+	}
 
 	/**
 	 * Constructor.
@@ -52,15 +70,16 @@ public class TcpModbusMessage
 	 * The current system time will be used for the timestamp value.
 	 * </p>
 	 * 
-	 * @param transactionId
-	 *        the transaction ID
 	 * @param body
 	 *        the message body, must implement {@link ModbusPayloadEncoder}.
+	 * @param crc
+	 *        the provided cyclic redundancy check value
+	 * 
 	 * @throws IllegalArgumentException
 	 *         if {@code body} does not implement {@link ModbusPayloadEncoder}
 	 */
-	public TcpModbusMessage(int transactionId, ModbusMessage body) {
-		this(System.currentTimeMillis(), transactionId, body);
+	public RtuModbusMessage(ModbusMessage body, short crc) {
+		this(System.currentTimeMillis(), body, crc);
 	}
 
 	/**
@@ -68,17 +87,17 @@ public class TcpModbusMessage
 	 * 
 	 * @param timestamp
 	 *        the timestamp
-	 * @param transactionId
-	 *        the transaction ID
 	 * @param body
 	 *        the message body, must implement {@link ModbusPayloadEncoder}.
+	 * @param crc
+	 *        the provided cyclic redundancy check value
 	 * @throws IllegalArgumentException
 	 *         if {@code body} does not implement {@link ModbusPayloadEncoder}
 	 */
-	public TcpModbusMessage(long timestamp, int transactionId, ModbusMessage body) {
+	public RtuModbusMessage(long timestamp, ModbusMessage body, short crc) {
 		super();
 		this.timestamp = timestamp;
-		this.transactionId = transactionId;
+		this.crc = crc;
 		if ( body == null ) {
 			throw new IllegalArgumentException("The body argument must not be null.");
 		} else if ( !(body instanceof ModbusPayloadEncoder) ) {
@@ -99,10 +118,10 @@ public class TcpModbusMessage
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
-		builder.append("TcpModbusMessage{timestamp=");
+		builder.append("RtuModbusMessage{timestamp=");
 		builder.append(timestamp);
-		builder.append(", txId=");
-		builder.append(transactionId);
+		builder.append(", crc=");
+		builder.append(Short.toUnsignedInt(crc));
 		builder.append(", ");
 		if ( body != null ) {
 			builder.append("body=");
@@ -118,8 +137,34 @@ public class TcpModbusMessage
 	}
 
 	@Override
-	public int getTransactionId() {
-		return transactionId;
+	public short getCrc() {
+		return crc;
+	}
+
+	@Override
+	public short computeCrc() {
+		return computeCrc(getUnitId(), body);
+	}
+
+	/**
+	 * Compute the cyclic redundancy check of a message and given unit ID.
+	 * 
+	 * @param unitId
+	 *        the unit ID
+	 * @param body
+	 *        the message
+	 * @return the computed CRC
+	 */
+	public static short computeCrc(int unitId, ModbusMessage body) {
+		if ( body == null ) {
+			return (short) 0;
+		}
+		ModbusPayloadEncoder enc = (ModbusPayloadEncoder) body;
+		int len = enc.payloadLength() + 1;
+		ByteBuf buf = Unpooled.buffer(len);
+		buf.writeByte(unitId);
+		enc.encodeModbusPayload(buf);
+		return ModbusByteUtils.computeCrc(buf.array(), 0, len);
 	}
 
 	@Override
@@ -137,33 +182,34 @@ public class TcpModbusMessage
 		return body.getError();
 	}
 
-	/*- TCP frame structure:
+	/*- RTU frame structure:
 	 
-	   |0-|2-|4-|6||7|8..|
-	   +--+--+--+-||-+---+
-	   |tt|pp|ll|u||f|...|
-	   +--+--+--+-++-+---+
+	   |0||1|---||--|
+	   +-++-+---++--+
+	   |a||f|...||cc|
+	   +-++-+---++--+
 	   
-	   tt = 16-bit transaction ID
-	   pp = 16-bit protocol ID (0 for TCP)
-	   ll = remaining byte length
-	   u  = unit ID
+	   a  = address (unit ID)
 	   f  = function code + data
+	   cc = 16-bit CRC (LE order)
 	 */
 
 	@Override
 	public void encodeModbusPayload(ByteBuf out) {
-		byte[] header = new byte[7];
-		encode16(header, 0, transactionId);
-		encode16(header, 4, 1 + ((ModbusPayloadEncoder) body).payloadLength());
-		header[6] = (byte) body.getUnitId();
-		out.writeBytes(header);
+		int s = out.writerIndex();
+		out.writeByte(getUnitId());
 		((ModbusPayloadEncoder) body).encodeModbusPayload(out);
+
+		int len = out.writerIndex() - s;
+		byte[] payload = new byte[len];
+		out.slice(s, payload.length).readBytes(payload);
+		short crc = ModbusByteUtils.computeCrc(payload, 0, len);
+		out.writeShortLE(crc);
 	}
 
 	@Override
 	public int payloadLength() {
-		return 7 + ((ModbusPayloadEncoder) body).payloadLength();
+		return 3 + ((ModbusPayloadEncoder) body).payloadLength();
 	}
 
 }

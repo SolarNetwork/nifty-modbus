@@ -10,7 +10,15 @@ version = '1.0.0'
 archivesBaseName = 'netty-codec-modbus-rtu'
 
 dependencies {
+	implementation project(':netty-codec-modbus-core');
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+	implementation "io.netty:netty-codec:${nettyVersion}"
+	
+	if ( osdetector.os == "osx" ) {
+		implementation "io.netty:netty-transport-native-kqueue:${nettyVersion}${os_suffix}"
+	} else if ( osdetector.os == "linux" ) {
+		implementation "io.netty:netty-transport-native-epoll:${nettyVersion}${os_suffix}"
+	}
 
 	// Testing
 	testImplementation project(':netty-codec-modbus-test')

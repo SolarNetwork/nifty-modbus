@@ -330,4 +330,12 @@ public class ModbusByteUtilsTests {
 		// @formatter:on
 	}
 
+	@Test
+	public void computeCrc() {
+		// GIVEN
+		final byte[] data = new byte[] { 0x01, 0x04, 0x02, (byte) 0xFF, (byte) 0xFF };
+		assertThat("CRC computed", ModbusByteUtils.computeCrc(data, 0, data.length),
+				is(equalTo((short) 0x80B8)));
+	}
+
 }
