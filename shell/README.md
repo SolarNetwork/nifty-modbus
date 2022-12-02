@@ -15,11 +15,16 @@ using the `runWithJavaExec` task, for example:
 
 # Application arguments
 
+Both RTU and TCP are supported. For RTU use the `--device` argument and
+for TCP use the `--host` and `--port` arguments.
+
 The following application arguments are supported:
 
 | Argument | Default | Description |
 |:---------|:--------|:------------|
-| `--device` `--dev` |  | The serial device to use, for example `/dev/ttyUSB0` or `COM1`. |
+| `--device` `-dev` |  | The serial device to use, for example `/dev/ttyUSB0` or `COM1`. |
+| `--host` `-h` |  | The TCP host to use, for example `1.2.3.4` or `host.example.com`. |
+| `--port` `-p` | `502` | The TCP port to use for TCP connections. |
 | `--baud` `-b` | `115200` | The baud rate to use. |
 | `--data` `-d` | `8` | The number of data bits. |
 | `--parity` `-P` | `none` | The parity. One of `none`/`n`, `even`/`e`, `odd`/`o`. |
