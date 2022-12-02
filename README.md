@@ -1,4 +1,4 @@
-# SolarNetwork Netty Modbus Codec
+# Nifty Modbus
 
 A delightful little Modbus library for Java.
 

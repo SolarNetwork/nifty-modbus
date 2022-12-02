@@ -1,5 +1,5 @@
 /* ==================================================================
- * JscModbusShell.java - 2/12/2022 12:23:23 pm
+ * ModbusShell.java - 2/12/2022 12:23:23 pm
  * 
  * Copyright 2022 SolarNetwork.net Dev Team
  * 
@@ -20,7 +20,7 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.rtu.jsc;
+package net.solarnetwork.io.modbus.shell;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -34,8 +34,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.solarnetwork.io.modbus.ModbusBlockType;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
 import net.solarnetwork.io.modbus.netty.msg.BitsModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
+import net.solarnetwork.io.modbus.rtu.jsc.JscSerialPortProvider;
 import net.solarnetwork.io.modbus.rtu.netty.NettyRtuModbusClientConfig;
 import net.solarnetwork.io.modbus.rtu.netty.RtuNettyModbusClient;
 import net.solarnetwork.io.modbus.serial.BasicSerialParameters;
@@ -44,18 +46,18 @@ import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
 
 /**
- * Basic Modbus shell using jSerialComm.
+ * Basic Modbus interactive shell for TCP and RTU using jSerialComm.
  * 
  * @author matt
  * @version 1.0
  */
-public class JscModbusShell {
+public class ModbusShell {
 
 	private final String deviceName;
 	private final SerialParameters serialParameters;
 	private final BufferedReader in;
 	private final PrintWriter out;
-	private RtuNettyModbusClient client;
+	private NettyModbusClient<?> client;
 
 	private boolean wireLogging = true;
 
@@ -71,7 +73,7 @@ public class JscModbusShell {
 	 * @param out
 	 *        the output stream for shell output
 	 */
-	public JscModbusShell(String deviceName, SerialParameters serialParameters, BufferedReader in,
+	public ModbusShell(String deviceName, SerialParameters serialParameters, BufferedReader in,
 			PrintWriter out) {
 		super();
 		this.deviceName = deviceName;
@@ -386,7 +388,7 @@ public class JscModbusShell {
 			System.err.println("Must provide --device argument.");
 			System.exit(1);
 		}
-		JscModbusShell shell = new JscModbusShell(deviceName, params,
+		ModbusShell shell = new ModbusShell(deviceName, params,
 				new BufferedReader(new InputStreamReader(System.in)), new PrintWriter(System.out, true));
 		shell.setWireLogging(wireLogging);
 		shell.start();
