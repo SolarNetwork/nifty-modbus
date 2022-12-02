@@ -47,6 +47,7 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.AttributeKey;
 import net.solarnetwork.io.modbus.ModbusClient;
 import net.solarnetwork.io.modbus.ModbusClientConfig;
+import net.solarnetwork.io.modbus.ModbusClientConnectionObserver;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessageReply;
 
@@ -58,8 +59,7 @@ import net.solarnetwork.io.modbus.ModbusMessageReply;
  * @author matt
  * @version 1.0
  */
-public abstract class NettyModbusClient<C extends ModbusClientConfig>
-		extends SimpleChannelInboundHandler<ModbusMessage> implements ModbusClient {
+public abstract class NettyModbusClient<C extends ModbusClientConfig> implements ModbusClient {
 
 	/** The {@code pendingMessageTtl} property default value. */
 	public static final long DEFAULT_PENDING_MESSAGE_TTL = TimeUnit.MINUTES.toMillis(2);
@@ -87,6 +87,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	/** Flag if the scheduler is internally created. */
 	private final boolean privateScheduler;
 
+	private ModbusClientConnectionObserver connectionObserver;
 	private boolean wireLogging;
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
 
@@ -155,8 +156,11 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 		Future<?> result = handleConnect(false);
 		connFuture = result;
 		if ( cleanupTask == null ) {
-			cleanupTask = scheduler.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(), 5, 5,
-					TimeUnit.MINUTES);
+			long period = getPendingMessageTtl() * 2;
+			if ( period > 0 ) {
+				cleanupTask = scheduler.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(),
+						period, period, TimeUnit.MILLISECONDS);
+			}
 		}
 		return result;
 	}
@@ -185,33 +189,45 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 		}
 	}
 
-	private Future<?> handleConnect(boolean reconnecting) {
+	private synchronized Future<?> handleConnect(boolean reconnecting) {
 		CompletableFuture<Void> completable = new CompletableFuture<>();
-		ChannelFuture channelFuture = connect();
-		channelFuture.addListener((ChannelFutureListener) f -> {
-			if ( f.isSuccess() ) {
-				Channel c = f.channel();
-				c.closeFuture().addListener((ChannelFutureListener) chFuture -> {
-					if ( isConnected() ) {
-						return;
+		try {
+			ChannelFuture channelFuture = connect();
+			channelFuture.addListener((ChannelFutureListener) f -> {
+				if ( f.isSuccess() ) {
+					Channel c = f.channel();
+					c.closeFuture().addListener((ChannelFutureListener) chFuture -> {
+						if ( isConnected() ) {
+							return;
+						}
+						// Needed? NettyModbusClient.this.channel = null;
+						// TODO: could offer a "connection lost" callback API here
+						scheduleConnectIfRequired(true);
+					});
+					NettyModbusClient.this.channel = c;
+					completable.complete(null);
+				} else {
+					scheduleConnectIfRequired(reconnecting);
+					if ( !reconnecting ) {
+						completable.completeExceptionally(f.cause());
 					}
-					// Needed? NettyModbusClient.this.channel = null;
-					// TODO: could offer a "connection lost" callback API here
-					scheduleConnectIfRequired(true);
-				});
-				NettyModbusClient.this.channel = c;
-				completable.complete(null);
-			} else {
-				scheduleConnectIfRequired(reconnecting);
-				if ( !reconnecting ) {
-					completable.completeExceptionally(f.cause());
 				}
-			}
-		});
+			});
+		} catch ( IOException e ) {
+			completable.completeExceptionally(e);
+		}
 		return completable;
 	}
 
-	private void scheduleConnectIfRequired(boolean reconnecting) {
+	private synchronized void scheduleConnectIfRequired(boolean reconnecting) {
+		if ( channel != null ) {
+			try {
+				channel.close().sync();
+			} catch ( InterruptedException e ) {
+				// ignore
+			}
+			channel = null;
+		}
 		if ( clientConfig.isAutoReconnect() && !stopped ) {
 			scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
 					clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
@@ -236,7 +252,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 			pipeline.addFirst(
 					new LoggingHandler("net.solarnetwork.io.modbus." + clientConfig.getDescription()));
 		}
-		pipeline.addLast("modbusClient", this);
+		pipeline.addLast("modbusClient", new ModbusChannelHandler());
 	}
 
 	private ChannelFuture sendAndFlushPacket(Channel channel, ModbusMessage message) {
@@ -254,8 +270,10 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 * Establish the connection.
 	 * 
 	 * @return a connection future
+	 * @throws IOException
+	 *         if an error prevents the connection future from being created
 	 */
-	protected abstract ChannelFuture connect();
+	protected abstract ChannelFuture connect() throws IOException;
 
 	/**
 	 * Test if the connection is active.
@@ -292,7 +310,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 		final Channel channel = this.channel;
 		if ( channel == null ) {
 			CompletableFuture<ModbusMessage> fail = new CompletableFuture<>();
-			fail.completeExceptionally(new IOException("Client not started."));
+			fail.completeExceptionally(new IOException("Client not connected."));
 			return fail;
 		}
 		CompletableFuture<ModbusMessage> resp = new CompletableFuture<>();
@@ -311,22 +329,53 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 		return resp;
 	}
 
-	@Override
-	protected void channelRead0(ChannelHandlerContext ctx, ModbusMessage msg) throws Exception {
-		ModbusMessage req = null;
-		ModbusMessageReply reply = msg.unwrap(ModbusMessageReply.class);
-		if ( reply != null ) {
-			req = reply.getRequest();
-		} else {
-			// fall back to the last sent request
-			req = ctx.channel().attr(LAST_ENCODED_MESSAGE).getAndSet(null);
-		}
-		if ( req != null ) {
-			PendingMessage p = pending.remove(req);
-			if ( p != null ) {
-				p.future.complete(msg);
+	private final class ModbusChannelHandler extends SimpleChannelInboundHandler<ModbusMessage> {
+
+		@Override
+		protected void channelRead0(ChannelHandlerContext ctx, ModbusMessage msg) throws Exception {
+			ModbusMessage req = null;
+			ModbusMessageReply reply = msg.unwrap(ModbusMessageReply.class);
+			if ( reply != null ) {
+				req = reply.getRequest();
+			} else {
+				// fall back to the last sent request
+				req = ctx.channel().attr(LAST_ENCODED_MESSAGE).getAndSet(null);
+			}
+			if ( req != null ) {
+				PendingMessage p = pending.remove(req);
+				if ( p != null ) {
+					p.future.complete(msg);
+				}
 			}
 		}
+
+		@Override
+		public void channelActive(ChannelHandlerContext ctx) throws Exception {
+			super.channelActive(ctx);
+			final ModbusClientConnectionObserver obs = getConnectionObserver();
+			if ( obs != null ) {
+				try {
+					obs.connectionOpened(NettyModbusClient.this, clientConfig);
+				} catch ( Exception t ) {
+					log.warn("Connection observer [{}] threw exception: ");
+				}
+			}
+		}
+
+		@Override
+		public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+			super.channelInactive(ctx);
+			final ModbusClientConnectionObserver obs = getConnectionObserver();
+			if ( obs != null ) {
+				try {
+					obs.connectionClosed(NettyModbusClient.this, clientConfig, null,
+							clientConfig.isAutoReconnect() && !stopped);
+				} catch ( Exception t ) {
+					log.warn("Connection observer [{}] threw exception: ");
+				}
+			}
+		}
+
 	}
 
 	/**
@@ -359,6 +408,17 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 			}
 			this.future = future;
 			this.created = System.currentTimeMillis();
+		}
+
+		@Override
+		public String toString() {
+			StringBuilder builder = new StringBuilder();
+			builder.append("PendingMessage{created=");
+			builder.append(created);
+			builder.append(", request=");
+			builder.append(request);
+			builder.append("}");
+			return builder.toString();
 		}
 
 		/**
@@ -419,6 +479,34 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 			}
 		}
 
+	}
+
+	/**
+	 * Get the client configuration.
+	 * 
+	 * @return the client configuration
+	 */
+	public C getClientConfig() {
+		return clientConfig;
+	}
+
+	/**
+	 * Get the connection observer.
+	 * 
+	 * @return the connection observer, or {@literal null}
+	 */
+	public ModbusClientConnectionObserver getConnectionObserver() {
+		return connectionObserver;
+	}
+
+	/**
+	 * Set the connection observer.
+	 * 
+	 * @param connectionObserver
+	 *        the connection observer to set, or {@literal null}
+	 */
+	public void setConnectionObserver(ModbusClientConnectionObserver connectionObserver) {
+		this.connectionObserver = connectionObserver;
 	}
 
 	/**

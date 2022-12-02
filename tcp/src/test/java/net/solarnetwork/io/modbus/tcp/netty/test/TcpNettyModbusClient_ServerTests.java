@@ -23,12 +23,15 @@
 package net.solarnetwork.io.modbus.tcp.netty.test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -46,8 +49,8 @@ import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
-import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusServer;
+import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
 
 /**
@@ -114,7 +117,7 @@ public class TcpNettyModbusClient_ServerTests {
 	}
 
 	@Test
-	public void send() throws Exception {
+	public void send_recv() throws Exception {
 		// GIVEN
 		final List<ModbusMessage> serverIn = new ArrayList<>(1);
 		server.setMessageHandler((msg, sender) -> {
@@ -144,6 +147,33 @@ public class TcpNettyModbusClient_ServerTests {
 		assertThat("Response received", res, is(notNullValue()));
 		assertThat("Request should not be pending", pending.keySet(), hasSize(0));
 
+		ModbusMessage resp = f.get();
+		assertThat("Response is not an error", resp.getError(), is(nullValue()));
+		net.solarnetwork.io.modbus.RegistersModbusMessage respReg = resp
+				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+		assertThat("Response is Registers", respReg, is(notNullValue()));
+		assertThat("Address preserved", respReg.getAddress(), is(equalTo(addr)));
+		assertThat("Count decoded", respReg.getCount(), is(equalTo(3)));
+		// @formatter:off
+		assertThat("Data decoded", Arrays.equals(respReg.dataCopy(), new byte[] {
+				(byte)0x00,
+				(byte)0x01,
+				(byte)0x00,
+				(byte)0x02,
+				(byte)0x00,
+				(byte)0x03,
+		}), is(equalTo(true)));
+		assertThat("Data decoded (shorts)", Arrays.equals(respReg.dataDecode(), new short[] {
+				(short)0x0001,
+				(short)0x0002,
+				(short)0x0003
+		}), is(equalTo(true)));
+		assertThat("Data decoded (ints)", Arrays.equals(respReg.dataDecodeUnsigned(), new int[] {
+				0x0001,
+				0x0002,
+				0x0003
+		}), is(equalTo(true)));
+		// @formatter:on
 	}
 
 }

@@ -36,6 +36,11 @@ public abstract class NettyModbusClientConfig implements ModbusClientConfig {
 	private long autoReconnectDelaySeconds = DEFAULT_RECONNECT_DELAY_SECS;
 
 	@Override
+	public String toString() {
+		return getDescription();
+	}
+
+	@Override
 	public boolean isAutoReconnect() {
 		return autoReconnect;
 	}

@@ -22,6 +22,7 @@
 
 package net.solarnetwork.io.modbus.tcp.netty;
 
+import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -75,8 +76,8 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 *        the client configuration
 	 */
 	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig) {
-		this(clientConfig, null, null, null, NioSocketChannel.class, new ConcurrentHashMap<>(8, 0.9f, 2),
-				SimpleTransactionIdSupplier.INSTANCE);
+		this(clientConfig, null, new ConcurrentHashMap<>(8, 0.9f, 2), null, NioSocketChannel.class,
+				new ConcurrentHashMap<>(8, 0.9f, 2), SimpleTransactionIdSupplier.INSTANCE);
 	}
 
 	/**
@@ -154,10 +155,13 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	}
 
 	@Override
-	protected ChannelFuture connect() {
+	protected synchronized ChannelFuture connect() throws IOException {
 		final String host = clientConfig.getHost();
 		if ( host == null || host.isEmpty() ) {
 			throw new IllegalArgumentException("No host configured, cannot connect.");
+		}
+		if ( eventLoopGroup.isShutdown() ) {
+			throw new IOException("Client is stopped.");
 		}
 		// @formatter:off
 		Bootstrap bootstrap = new Bootstrap()
@@ -178,7 +182,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	}
 
 	@Override
-	protected void initChannel(Channel channel) {
+	protected synchronized void initChannel(Channel channel) {
 		ChannelPipeline pipeline = channel.pipeline();
 		pipeline.addLast(new TcpModbusMessageEncoder(pendingMessages, transactionIdSupplier),
 				new TcpModbusMessageDecoder(true, pendingMessages));

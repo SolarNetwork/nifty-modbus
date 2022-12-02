@@ -71,6 +71,17 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 	}
 
 	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("ModbusMessageReply{request=");
+		builder.append(request);
+		builder.append(", reply=");
+		builder.append(reply);
+		builder.append("}");
+		return builder.toString();
+	}
+
+	@Override
 	public ModbusMessage getRequest() {
 		return request;
 	}

@@ -126,7 +126,7 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 					throw new Error("Unknown decode state");
 			}
 		} catch ( Exception e ) {
-			log.debug("Exception decoding Modbus message: {}", e, e);
+			log.debug("Exception decoding Modbus message: {}", e.toString(), e);
 			checkpoint(DecoderState.BAD_MESSAGE);
 		}
 	}
@@ -150,13 +150,12 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 		if ( controller ) {
 			// inbound response
 			TcpModbusMessage req = pendingMessages.remove(transactionId);
-			AddressedModbusMessage addr = req.unwrap(AddressedModbusMessage.class);
+			AddressedModbusMessage addr = (req != null ? req.unwrap(AddressedModbusMessage.class)
+					: null);
 			ModbusMessage payload = ModbusMessageUtils.decodeResponsePayload(unitId,
 					(addr != null ? addr.getAddress() : 0), (addr != null ? addr.getCount() : 0), in);
 			if ( payload != null ) {
-				TcpModbusMessage res = new TcpModbusMessage(System.currentTimeMillis(), transactionId,
-						payload);
-				msg = new SimpleModbusMessageReply(req.unwrap(ModbusMessage.class), res);
+				msg = new SimpleModbusMessageReply(req.unwrap(ModbusMessage.class), payload);
 			}
 		} else {
 			// inbound request

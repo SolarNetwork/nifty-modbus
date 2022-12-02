@@ -34,7 +34,7 @@ public interface ModbusClientConfig {
 	boolean DEFAULT_AUTO_RECONNECT = true;
 
 	/** The default reconnection delay seconds. */
-	long DEFAULT_RECONNECT_DELAY_SECS = 1L;
+	long DEFAULT_RECONNECT_DELAY_SECS = 10L;
 
 	/**
 	 * Get the "auto reconnect" setting.

@@ -33,6 +33,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.solarnetwork.io.modbus.ModbusBlockType;
+import net.solarnetwork.io.modbus.ModbusClient;
+import net.solarnetwork.io.modbus.ModbusClientConfig;
+import net.solarnetwork.io.modbus.ModbusClientConnectionObserver;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
 import net.solarnetwork.io.modbus.netty.msg.BitsModbusMessage;
@@ -41,9 +44,10 @@ import net.solarnetwork.io.modbus.rtu.jsc.JscSerialPortProvider;
 import net.solarnetwork.io.modbus.rtu.netty.NettyRtuModbusClientConfig;
 import net.solarnetwork.io.modbus.rtu.netty.RtuNettyModbusClient;
 import net.solarnetwork.io.modbus.serial.BasicSerialParameters;
-import net.solarnetwork.io.modbus.serial.SerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
+import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
+import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
 
 /**
  * Basic Modbus interactive shell for TCP and RTU using jSerialComm.
@@ -51,35 +55,25 @@ import net.solarnetwork.io.modbus.serial.SerialStopBits;
  * @author matt
  * @version 1.0
  */
-public class ModbusShell {
+public class ModbusShell implements ModbusClientConnectionObserver {
 
-	private final String deviceName;
-	private final SerialParameters serialParameters;
+	private final NettyModbusClient<?> client;
 	private final BufferedReader in;
 	private final PrintWriter out;
-	private NettyModbusClient<?> client;
-
-	private boolean wireLogging = true;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param deviceName
-	 *        the serial device name to use
-	 * @param serialParameters
-	 *        the serial parameters to use
+	 * @param client
+	 *        the cleint to use
 	 * @param in
 	 *        the input stream for shell input
 	 * @param out
 	 *        the output stream for shell output
 	 */
-	public ModbusShell(String deviceName, SerialParameters serialParameters, BufferedReader in,
-			PrintWriter out) {
+	public ModbusShell(NettyModbusClient<?> client, BufferedReader in, PrintWriter out) {
 		super();
-		this.deviceName = deviceName;
-		this.serialParameters = serialParameters;
-		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig(deviceName, serialParameters);
-		client = new RtuNettyModbusClient(config, new JscSerialPortProvider());
+		this.client = client;
 		this.in = in;
 		this.out = out;
 	}
@@ -90,11 +84,10 @@ public class ModbusShell {
 	 * Start the shell.
 	 */
 	public void start() {
-		client.setWireLogging(wireLogging);
 		try {
 			client.start().get();
-			out.printf("Connected to %s %s\n", deviceName, serialParameters.bitsShortcut());
-			while ( true ) {
+			Thread.sleep(200);
+			while ( true && client.isConnected() ) {
 				out.print("> ");
 				out.flush();
 				String line = in.readLine();
@@ -125,12 +118,25 @@ public class ModbusShell {
 				}
 			}
 		} catch ( ExecutionException | InterruptedException e ) {
-			out.println("Error opening serial port: " + e.getCause().toString());
+			Throwable t = e.getCause();
+			out.printf("Error opening connection to [%s]: %s", client.getClientConfig(), t.getMessage());
 		} catch ( IOException e ) {
 			out.println("Communication error: " + e.toString());
 		} finally {
 			client.stop();
 		}
+	}
+
+	@Override
+	public void connectionOpened(ModbusClient client, ModbusClientConfig config) {
+		out.printf("Connected to %s\n", config);
+	}
+
+	@Override
+	public void connectionClosed(ModbusClient client, ModbusClientConfig config, Throwable exception,
+			boolean willReconnect) {
+		out.printf("Connection closed to %s\n", config);
+		System.exit(0); // only way to bail from blocking in.readLine() in main loop :-(
 	}
 
 	private void read(String... args) {
@@ -173,7 +179,7 @@ public class ModbusShell {
 		}
 		boolean oneBased = false;
 		int addrBase = 10;
-		int unitId = 0;
+		int unitId = -1;
 		int addr = 0;
 		int count = 1;
 		for ( int i = 2, len = args.length; i < len; i++ ) {
@@ -217,7 +223,7 @@ public class ModbusShell {
 			}
 		}
 
-		if ( unitId < 1 ) {
+		if ( unitId < 0 ) {
 			out.println("Must provide unit ID (--unit).");
 			return;
 		}
@@ -306,17 +312,6 @@ public class ModbusShell {
 			Pattern.CASE_INSENSITIVE);
 
 	/**
-	 * Toggle the "wire logging" flag.
-	 * 
-	 * @param wireLogging
-	 *        {@literal true} to enable wire logging; defaults to
-	 *        {@literal false}
-	 */
-	public void setWireLogging(boolean wireLogging) {
-		this.wireLogging = wireLogging;
-	}
-
-	/**
 	 * Main entry.
 	 * 
 	 * @param args
@@ -327,12 +322,14 @@ public class ModbusShell {
 			System.err.println("Must provide the serial port name -port argument.");
 		}
 		String deviceName = null;
+		String hostName = null;
+		int hostPort = 502;
 		BasicSerialParameters params = new BasicSerialParameters();
 		boolean wireLogging = false;
 		for ( int i = 0, len = args.length; i < len; i++ ) {
 			try {
 				switch (args[i]) {
-					case "--dev":
+					case "-dev":
 					case "--device":
 						deviceName = args[++i];
 						break;
@@ -369,6 +366,16 @@ public class ModbusShell {
 					}
 						break;
 
+					case "-h":
+					case "--host":
+						hostName = args[++i];
+						break;
+
+					case "-p":
+					case "--port":
+						hostPort = Integer.parseInt(args[++i]);
+						break;
+
 					case "--debug":
 						wireLogging = true;
 						break;
@@ -384,13 +391,27 @@ public class ModbusShell {
 				System.exit(1);
 			}
 		}
-		if ( deviceName == null || deviceName.trim().isEmpty() ) {
-			System.err.println("Must provide --device argument.");
-			System.exit(1);
+
+		NettyModbusClient<?> client = null;
+		if ( deviceName != null && !deviceName.trim().isEmpty() ) {
+			NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig(deviceName, params);
+			config.setAutoReconnect(false);
+			client = new RtuNettyModbusClient(config, new JscSerialPortProvider());
+		} else if ( hostName != null && !hostName.trim().isEmpty() ) {
+			NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig(hostName, hostPort);
+			config.setAutoReconnect(false);
+			client = new TcpNettyModbusClient(config);
 		}
-		ModbusShell shell = new ModbusShell(deviceName, params,
-				new BufferedReader(new InputStreamReader(System.in)), new PrintWriter(System.out, true));
-		shell.setWireLogging(wireLogging);
+		if ( client == null ) {
+			System.err.println(
+					"Must provide either --device or --host argument for the Modbus device to connect to.");
+			System.exit(1);
+
+		}
+		ModbusShell shell = new ModbusShell(client, new BufferedReader(new InputStreamReader(System.in)),
+				new PrintWriter(System.out, true));
+		client.setConnectionObserver(shell);
+		client.setWireLogging(wireLogging);
 		shell.start();
 	}
 

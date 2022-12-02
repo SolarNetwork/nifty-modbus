@@ -1,5 +1,5 @@
 /* ==================================================================
- * RtuModbusClientConfig.java - 2/12/2022 10:33:13 am
+ * ModbusClientConnectionObserver.java - 3/12/2022 10:07:02 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,48 +20,40 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.rtu;
-
-import net.solarnetwork.io.modbus.ModbusClientConfig;
-import net.solarnetwork.io.modbus.serial.SerialParameters;
+package net.solarnetwork.io.modbus;
 
 /**
- * RTU Modbus client configuration.
+ * API for an observer of ModbusClient connection state.
  *
  * @author matt
  * @version 1.0
  */
-public interface RtuModbusClientConfig extends ModbusClientConfig {
+public interface ModbusClientConnectionObserver {
 
 	/**
-	 * Get the name of the serial device to connect to, such as
-	 * {@literal /dev/ttyUSB0} or {@literal COM1}.
+	 * A connection has been established.
 	 * 
-	 * @return the serial device name
+	 * @param client
+	 *        the client that has established the connection
+	 * @param config
+	 *        the client's configuration
 	 */
-	String getName();
+	void connectionOpened(ModbusClient client, ModbusClientConfig config);
 
 	/**
-	 * Get the serial device parameters to use.
+	 * A connection has been closed.
 	 * 
-	 * @return the serial parameters
+	 * @param client
+	 *        the client whose connection has been closed
+	 * @param config
+	 *        the client's configuration
+	 * @param exception
+	 *        an exception, if any
+	 * @param willReconnect
+	 *        {@literal true} if the client will automatically attempt to
+	 *        re-establish the connection
 	 */
-	SerialParameters getSerialParameters();
-
-	/**
-	 * Get the serial device name.
-	 * 
-	 * <p>
-	 * This implementation returns {@link #getName()}.
-	 * </p>
-	 */
-	@Override
-	default String getDescription() {
-		final SerialParameters params = getSerialParameters();
-		if ( params != null ) {
-			return getName() + ' ' + params.getBaudRate() + ' ' + params.bitsShortcut();
-		}
-		return getName();
-	}
+	void connectionClosed(ModbusClient client, ModbusClientConfig config, Throwable exception,
+			boolean willReconnect);
 
 }
