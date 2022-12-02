@@ -24,6 +24,7 @@ package net.solarnetwork.io.modbus.netty.msg;
 
 import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
 import io.netty.buffer.ByteBuf;
+import net.solarnetwork.io.modbus.ModbusBlockType;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
@@ -358,6 +359,34 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 		byte[] data = ModbusByteUtils.encode(values);
 		return new RegistersModbusMessage(unitId, ModbusFunctionCode.ReadFifoQueue, null, address, count,
 				data);
+	}
+
+	/**
+	 * Create a bits register request message.
+	 * 
+	 * @param type
+	 *        the block type; only Input and Holding types are supported
+	 * @param unitId
+	 *        the unit ID
+	 * @param address
+	 *        the register address to start reading from
+	 * @param count
+	 *        the number of bits to read
+	 * @return the new message
+	 */
+	public static RegistersModbusMessage readRegistersRequest(ModbusBlockType type, int unitId,
+			int address, int count) {
+		switch (type) {
+			case Input:
+				return readInputsRequest(unitId, address, count);
+
+			case Holding:
+				return readHoldingsRequest(unitId, address, count);
+
+			default:
+				throw new IllegalArgumentException(
+						"Only Input/Holding types are supported; got " + type);
+		}
 	}
 
 	/**

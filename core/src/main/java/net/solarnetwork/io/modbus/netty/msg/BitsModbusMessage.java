@@ -25,6 +25,7 @@ package net.solarnetwork.io.modbus.netty.msg;
 import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
 import java.math.BigInteger;
 import io.netty.buffer.ByteBuf;
+import net.solarnetwork.io.modbus.ModbusBlockType;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
@@ -241,6 +242,34 @@ public class BitsModbusMessage extends AddressedModbusMessage
 			BigInteger bits) {
 		return new BitsModbusMessage(unitId, ModbusFunctionCode.ReadDiscreteInputs, null, address, count,
 				bits);
+	}
+
+	/**
+	 * Create a bits register request message.
+	 * 
+	 * @param type
+	 *        the block type; only Coil and Discrete types are supported
+	 * @param unitId
+	 *        the unit ID
+	 * @param address
+	 *        the bit register address to start reading from
+	 * @param count
+	 *        the number of bits to read
+	 * @return the new message
+	 */
+	public static BitsModbusMessage readBitsRequest(ModbusBlockType type, int unitId, int address,
+			int count) {
+		switch (type) {
+			case Coil:
+				return readCoilsRequest(unitId, address, count);
+
+			case Discrete:
+				return readDiscretesRequest(unitId, address, count);
+
+			default:
+				throw new IllegalArgumentException(
+						"Only Coil/Discrete types are supported; got " + type);
+		}
 	}
 
 	/**

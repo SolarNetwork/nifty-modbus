@@ -24,6 +24,7 @@ package net.solarnetwork.io.modbus.tcp.netty;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.IntSupplier;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -48,6 +49,12 @@ import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
  */
 public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfig> {
 
+	/** The event loop group. */
+	private final EventLoopGroup eventLoopGroup;
+
+	/** Flag if event loop group is internal. */
+	private final boolean privateEventLoopGroup;
+
 	/** The channel class to use. */
 	private final Class<? extends Channel> channelClass;
 
@@ -68,8 +75,8 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 *        the client configuration
 	 */
 	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig) {
-		this(clientConfig, new NioEventLoopGroup(), null, NioSocketChannel.class,
-				new ConcurrentHashMap<>(8, 0.9f, 2), SimpleTransactionIdSupplier.INSTANCE);
+		this(clientConfig, null, null, null, NioSocketChannel.class, new ConcurrentHashMap<>(8, 0.9f, 2),
+				SimpleTransactionIdSupplier.INSTANCE);
 	}
 
 	/**
@@ -96,8 +103,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 			ConcurrentMap<ModbusMessage, PendingMessage> pending,
 			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
 			IntSupplier transactionIdSupplier) {
-		this(clientConfig, new NioEventLoopGroup(), pending, NioSocketChannel.class, pendingMessages,
-				transactionIdSupplier);
+		this(clientConfig, null, pending, null, null, pendingMessages, transactionIdSupplier);
 	}
 
 	/**
@@ -105,10 +111,12 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 * 
 	 * @param clientConfig
 	 *        the client configuration
-	 * @param eventLoopGroup
-	 *        the event loop group
+	 * @param scheduler
+	 *        the scheduler, or {@literal null} to create an internal one
 	 * @param pending
 	 *        a map for request messages pending responses
+	 * @param eventLoopGroup
+	 *        the event loop group, or {@literal null} to create an internal one
 	 * @param channelClass
 	 *        the channel class, or {@literal null} to use
 	 *        {@link NioEventLoopGroup}
@@ -121,11 +129,19 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 * @throws IllegalArgumentException
 	 *         if any argument is {@literal null}
 	 */
-	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig, EventLoopGroup eventLoopGroup,
-			ConcurrentMap<ModbusMessage, PendingMessage> pending, Class<? extends Channel> channelClass,
+	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig, ScheduledExecutorService scheduler,
+			ConcurrentMap<ModbusMessage, PendingMessage> pending, EventLoopGroup eventLoopGroup,
+			Class<? extends Channel> channelClass,
 			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
 			IntSupplier transactionIdSupplier) {
-		super(clientConfig, eventLoopGroup, pending);
+		super(clientConfig, scheduler, pending);
+		if ( eventLoopGroup == null ) {
+			eventLoopGroup = new NioEventLoopGroup();
+			this.privateEventLoopGroup = true;
+		} else {
+			this.privateEventLoopGroup = false;
+		}
+		this.eventLoopGroup = eventLoopGroup;
 		this.channelClass = (channelClass != null ? channelClass : NioSocketChannel.class);
 		if ( pendingMessages == null ) {
 			throw new IllegalArgumentException("The pendingMessages argument must not be null.");
@@ -151,6 +167,14 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 				.handler(new HandlerInitializer());
 		// @formatter:on
 		return bootstrap.connect();
+	}
+
+	@Override
+	public synchronized void stop() {
+		super.stop();
+		if ( privateEventLoopGroup ) {
+			eventLoopGroup.shutdownGracefully();
+		}
 	}
 
 	@Override

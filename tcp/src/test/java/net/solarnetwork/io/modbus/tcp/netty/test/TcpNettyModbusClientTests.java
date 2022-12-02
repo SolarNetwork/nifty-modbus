@@ -67,7 +67,7 @@ public class TcpNettyModbusClientTests {
 				ConcurrentMap<ModbusMessage, PendingMessage> pending,
 				ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
 				IntSupplier transactionIdSupplier) {
-			super(clientConfig, channel.eventLoop(), pending, null, pendingMessages,
+			super(clientConfig, null, pending, channel.eventLoop(), null, pendingMessages,
 					transactionIdSupplier);
 			this.channel = channel;
 			setWireLogging(true);

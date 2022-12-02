@@ -5,22 +5,17 @@ plugins {
 
 apply plugin: 'java-library'
 
-description = 'Nifty Modbus: RTU'
+description = 'Nifty Modbus: RTU jSerialComm'
 version = '1.0.0'
-archivesBaseName = 'nifty-modbus-rtu'
+archivesBaseName = 'nifty-modbus-rtu-jsc'
 
 dependencies {
 	implementation project(':nifty-modbus-core');
+	implementation project(':nifty-modbus-rtu');
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation "io.netty:netty-codec:${nettyVersion}"
-	implementation "io.netty:netty-handler:${nettyVersion}"
+	implementation 'com.fazecast:jSerialComm:2.9.2';
 	
-	if ( osdetector.os == "osx" ) {
-		implementation "io.netty:netty-transport-native-kqueue:${nettyVersion}${os_suffix}"
-	} else if ( osdetector.os == "linux" ) {
-		implementation "io.netty:netty-transport-native-epoll:${nettyVersion}${os_suffix}"
-	}
-
 	// Testing
 	testImplementation project(':nifty-modbus-test')
 }

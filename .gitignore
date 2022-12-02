@@ -3,4 +3,5 @@
 bin
 build
 gradle.properties
+logback.xml
 *.jpage

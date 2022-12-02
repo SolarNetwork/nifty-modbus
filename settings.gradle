@@ -2,10 +2,12 @@ rootProject.name = 'nifty-modbus'
 
 include('core')
 include('rtu')
+include('rtu-jsc')
 include('tcp')
 include('test')
 
 project(':core').name = 'nifty-modbus-core'
 project(':rtu').name = 'nifty-modbus-rtu'
+project(':rtu-jsc').name = 'nifty-modbus-rtu-jsc'
 project(':tcp').name = 'nifty-modbus-tcp'
 project(':test').name = 'nifty-modbus-test'

@@ -1,0 +1,58 @@
+/* ==================================================================
+ * SerialChannelOption.java - 2/12/2022 7:05:23 am
+ *
+ * Copyright 2022 SolarNetwork.net Dev Team
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ * 02111-1307 USA
+ * ==================================================================
+ */
+
+package net.solarnetwork.io.modbus.serial;
+
+import io.netty.channel.ChannelOption;
+
+/**
+ * Option for configuring a serial port connection.
+ *
+ * @author matt
+ * @version 1.0
+ */
+public class SerialChannelOption<T> extends ChannelOption<T> {
+
+	/** The baud rate. */
+	public static final ChannelOption<Integer> BAUD_RATE = valueOf("BAUD_RATE");
+
+	/** The stop bits. */
+	public static final ChannelOption<SerialStopBits> STOP_BITS = valueOf("STOP_BITS");
+
+	/** The data bits. */
+	public static final ChannelOption<Integer> DATA_BITS = valueOf("DATA_BITS");
+
+	/** The parity bit. */
+	public static final ChannelOption<SerialParity> PARITY = valueOf("PARITY");
+
+	/** The wait time, in milliseconds. */
+	public static final ChannelOption<Integer> WAIT_TIME = valueOf("WAIT_TIME");
+
+	/** The read timeout, in milliseconds. */
+	public static final ChannelOption<Integer> READ_TIMEOUT = valueOf("READ_TIMEOUT");
+
+	@SuppressWarnings("deprecation")
+	private SerialChannelOption() {
+		super(null);
+	}
+
+}

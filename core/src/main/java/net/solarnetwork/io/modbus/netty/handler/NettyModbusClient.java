@@ -28,7 +28,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -40,7 +42,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.AttributeKey;
@@ -63,7 +64,14 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	/** The {@code pendingMessageTtl} property default value. */
 	public static final long DEFAULT_PENDING_MESSAGE_TTL = TimeUnit.MINUTES.toMillis(2);
 
-	/** A channel attribute key for the last encoded message. */
+	/**
+	 * A channel attribute key for the last encoded message.
+	 * 
+	 * <p>
+	 * This can be used by encoders if requests/responses can not be
+	 * multiplexed, such as a single-threaded serial connection.
+	 * </p>
+	 */
 	public static final AttributeKey<ModbusMessage> LAST_ENCODED_MESSAGE = AttributeKey
 			.valueOf("ModbusMessageEncoder.LAST");
 
@@ -73,8 +81,11 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	/** The client configuration. */
 	protected final C clientConfig;
 
-	/** The event loop group. */
-	protected final EventLoopGroup eventLoopGroup;
+	/** The scheduler. */
+	protected final ScheduledExecutorService scheduler;
+
+	/** Flag if the scheduler is internally created. */
+	private final boolean privateScheduler;
 
 	private boolean wireLogging;
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
@@ -91,13 +102,13 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 * 
 	 * @param clientConfig
 	 *        the client configuration
-	 * @param eventLoopGroup
-	 *        the event loop group
+	 * @param scheduler
+	 *        the scheduler, or {@literal null} to create an internal one
 	 * @throws IllegalArgumentException
 	 *         if any argument is {@literal null}
 	 */
-	public NettyModbusClient(C clientConfig, EventLoopGroup eventLoopGroup) {
-		this(clientConfig, eventLoopGroup, new ConcurrentHashMap<>(8, 0.9f, 2));
+	public NettyModbusClient(C clientConfig, ScheduledExecutorService scheduler) {
+		this(clientConfig, scheduler, new ConcurrentHashMap<>(8, 0.9f, 2));
 	}
 
 	/**
@@ -105,24 +116,29 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 * 
 	 * @param clientConfig
 	 *        the client configuration
-	 * @param eventLoopGroup
-	 *        the event loop group
+	 * @param scheduler
+	 *        the scheduler, or {@literal null} to create an internal one
 	 * @param pending
 	 *        a map for request messages pending responses
 	 * @throws IllegalArgumentException
 	 *         if any argument is {@literal null}
 	 */
-	public NettyModbusClient(C clientConfig, EventLoopGroup eventLoopGroup,
+	public NettyModbusClient(C clientConfig, ScheduledExecutorService scheduler,
 			ConcurrentMap<ModbusMessage, PendingMessage> pending) {
 		super();
 		if ( clientConfig == null ) {
 			throw new IllegalArgumentException("The clientConfig argument must not be null.");
 		}
 		this.clientConfig = clientConfig;
-		if ( eventLoopGroup == null ) {
-			throw new IllegalArgumentException("The eventLoopGroup argument must not be null.");
+
+		if ( scheduler == null ) {
+			scheduler = Executors.newSingleThreadScheduledExecutor();
+			this.privateScheduler = true;
+		} else {
+			this.privateScheduler = false;
 		}
-		this.eventLoopGroup = eventLoopGroup;
+		this.scheduler = scheduler;
+
 		if ( pending == null ) {
 			throw new IllegalArgumentException("The pending argument must not be null.");
 		}
@@ -139,7 +155,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 		Future<?> result = handleConnect(false);
 		connFuture = result;
 		if ( cleanupTask == null ) {
-			cleanupTask = eventLoopGroup.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(), 5, 5,
+			cleanupTask = scheduler.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(), 5, 5,
 					TimeUnit.MINUTES);
 		}
 		return result;
@@ -149,6 +165,10 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 	 * Stop the client.
 	 */
 	public synchronized void stop() {
+		this.stopped = true;
+		if ( privateScheduler && !scheduler.isShutdown() ) {
+			scheduler.shutdown();
+		}
 		if ( connFuture != null ) {
 			if ( !connFuture.isDone() ) {
 				connFuture.cancel(true);
@@ -156,7 +176,6 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 			connFuture = null;
 		}
 		if ( channel != null ) {
-			this.stopped = true;
 			channel.disconnect();
 			channel = null;
 		}
@@ -194,7 +213,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig>
 
 	private void scheduleConnectIfRequired(boolean reconnecting) {
 		if ( clientConfig.isAutoReconnect() && !stopped ) {
-			eventLoopGroup.schedule((Runnable) () -> handleConnect(reconnecting),
+			scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
 					clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
 		}
 	}

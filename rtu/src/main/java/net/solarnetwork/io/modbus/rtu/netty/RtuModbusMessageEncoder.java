@@ -27,6 +27,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
 
 /**
  * Encoder of {@link ModbusMessage} to RTU encapsulated {@link ByteBuf} Modbus
@@ -52,6 +53,7 @@ public class RtuModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessa
 			ByteBuf buf = ctx.alloc().buffer(len);
 			rtu.encodeModbusPayload(buf);
 			out.add(buf);
+			ctx.channel().attr(NettyModbusClient.LAST_ENCODED_MESSAGE).set(msg);
 		}
 	}
 
