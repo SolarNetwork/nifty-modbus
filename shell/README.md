@@ -51,6 +51,34 @@ To read registers, use the `read` command, followed by the type of registers to 
 | `--register:hex` `-r:hex` | `--register:hex B8` | The base-16 starting register address to read from. |
 | `--count` `-c` | `--count 10` | The number of registers to read. |
 
+# Write registers
+
+To write registers, use the `write` command, followed by the type of registers to write:
+
+ * `coils`, `coil`, `c` - write coil bit registers
+ * `holdings`, `holding`, `h` - write holding 16-bit registers
+ 
+ The following arguments are supported:
+ 
+| Argument | Example | Description |
+|:---------|:--------|:------------|
+| `-1` | `-1` | Use **one-based** register addressing, instead of **zero-based**. |
+| `--unit` `-a` | `--unit 1` | The unit ID of the device to communicate with. |
+| `--register` `-r` | `--register 184` | The base-10 starting register address to read from. |
+| `--register:hex` `-r:hex` | `--register:hex B8` | The base-16 starting register address to read from. |
+
+After the switch arguments, provide the values to write as additional arguments. For **coil**
+registers you must provide each coil value as a `0` or `1`. For **holding** registers you must
+provide 16-bit integer values, which may be specified in base 10 or in base 16 using a `0x` prefix.
+For example, the following commands all write the same values:
+
+```
+write holding -a 1 -r 0 1234 61757
+write holding -a 1 -r 0 1234 0xf13d
+write holding -a 1 -r 0 0x4d2 0xf13d
+write holding -a 1 -r 0 0x4D2 0xF13D
+```
+
 # Logging
 
 Logging is handled via slf4j. If you are executing the Modbus Shell via Gradle you can create
