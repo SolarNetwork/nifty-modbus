@@ -26,6 +26,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -110,6 +113,11 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 					case "r":
 					case "read":
 						read(args);
+						break;
+
+					case "w":
+					case "write":
+						write(args);
 						break;
 
 					default:
@@ -288,6 +296,197 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 						short[] data = regs.dataDecode();
 						for ( int i = 0, len = data.length; i < len; i++ ) {
 							out.printf(tmpl, addr + i, data[i]);
+						}
+					} else {
+						out.printf("Unexpected response: %s\n", res);
+					}
+				}
+					break;
+
+				default:
+					// shouldn't get here
+
+			}
+		} catch ( TimeoutException e ) {
+			out.println("Timeout waiting for response.");
+		} catch ( InterruptedException e ) {
+			out.println("Interrupted waiting for response.");
+		} catch ( ExecutionException e ) {
+			out.println("Error: " + e.getCause().toString());
+		}
+	}
+
+	private void write(String... args) {
+		if ( args.length < 2 ) {
+			out.println("Must provide register type to write to (coil, discrete, input, holding).");
+			return;
+		}
+		final String type = args[1].toLowerCase();
+		ModbusBlockType blockType = null;
+		switch (type) {
+			case "c":
+			case "coil":
+			case "coils":
+				blockType = ModbusBlockType.Coil;
+				break;
+
+			case "h":
+			case "holding":
+			case "holdings":
+				blockType = ModbusBlockType.Holding;
+				break;
+
+			default:
+				out.printf("Unsupported block type [%s]; must be one of coil or holding.\n", type);
+				return;
+		}
+		boolean oneBased = false;
+		int addrBase = 10;
+		int unitId = -1;
+		int addr = 0;
+		List<Short> values = new ArrayList<>(8);
+		for ( int i = 2, len = args.length; i < len; i++ ) {
+			try {
+				switch (args[i]) {
+					case "-1":
+						oneBased = true;
+						break;
+
+					case "-a":
+					case "--unit":
+						unitId = Integer.parseInt(args[++i]);
+						break;
+
+					case "-r":
+					case "--register":
+						addr = Integer.parseInt(args[++i]);
+						break;
+
+					case "-r:hex":
+					case "--register:hex":
+						addr = Integer.parseInt(args[++i], 16);
+						addrBase = 16;
+						break;
+
+					default:
+						try {
+							if ( args[i].toLowerCase().startsWith("0x") ) {
+								values.add(new BigInteger(args[i].substring(2), 16).shortValue());
+							} else {
+								values.add(Integer.valueOf(args[i]).shortValue());
+							}
+						} catch ( NumberFormatException e ) {
+							out.printf("Invalid write value: [%s]\n", args[i]);
+							return;
+						}
+						break;
+
+				}
+			} catch ( ArrayIndexOutOfBoundsException e ) {
+				out.printf("Missing value for %s argument.\n", args[i - 1]);
+				return;
+			} catch ( NumberFormatException e ) {
+				out.printf("Expected a number value for %s argument.\n", args[i - 1]);
+				return;
+			} catch ( IllegalArgumentException e ) {
+				out.printf("Invalid value for %s argument: %s\n", args[i - 1], e.getMessage());
+				return;
+			}
+		}
+
+		if ( unitId < 0 ) {
+			out.println("Must provide unit ID (--unit).");
+			return;
+		}
+		if ( addr < (oneBased ? 1 : 0) ) {
+			out.printf("Invalid starting register address (--register): minimum is %d",
+					(oneBased ? 1 : 0));
+			return;
+		}
+		if ( values.isEmpty() ) {
+			out.println("Must provide values to write.");
+			return;
+		}
+
+		final int count = values.size();
+
+		Future<ModbusMessage> f = null;
+		ModbusMessage req = null;
+		switch (blockType) {
+			case Coil: {
+				BigInteger bits = BigInteger.ZERO;
+				for ( int i = 0; i < count; i++ ) {
+					if ( values.get(i).shortValue() == (short) 1 ) {
+						bits = bits.setBit(i);
+					}
+				}
+				req = (count > 1
+						? BitsModbusMessage.writeCoilsRequest(unitId, (oneBased ? addr - 1 : addr),
+								count, bits)
+						: BitsModbusMessage.writeCoilRequest(unitId, addr, bits.testBit(0)));
+			}
+				break;
+
+			case Holding: {
+				short[] dataValues = new short[count];
+				for ( int i = 0; i < count; i++ ) {
+					dataValues[i] = values.get(i);
+				}
+				req = (count > 1
+						? RegistersModbusMessage.writeHoldingsRequest(unitId,
+								(oneBased ? addr - 1 : addr), dataValues)
+						: RegistersModbusMessage.writeHoldingRequest(unitId, addr, dataValues[0]));
+			}
+				break;
+
+			default:
+				// shouldn't get here
+				break;
+		}
+		if ( req != null ) {
+			f = client.sendAsync(req);
+		}
+		if ( f == null ) {
+			return;
+		}
+		final int addrEnd = addr + count - 1;
+		final int addrWidth = Integer.toString(addrEnd, addrBase).length();
+		try {
+			ModbusMessage res = f.get(15, TimeUnit.SECONDS);
+			switch (blockType) {
+				case Coil: {
+					net.solarnetwork.io.modbus.BitsModbusMessage bits = res
+							.unwrap(net.solarnetwork.io.modbus.BitsModbusMessage.class);
+					if ( bits != null ) {
+						BigInteger data = bits.getBits();
+						if ( data != null ) {
+							String tmpl = "[" + (addrBase == 16 ? "0x" : "") + "%0" + addrWidth
+									+ (addrBase == 16 ? "X" : "d") + "]: %d\n";
+							for ( int i = 0; i < count; i++ ) {
+								out.printf(tmpl, addr + i, bits.isBitEnabled(i) ? 1 : 0);
+							}
+						} else {
+							out.println("Write accepted.");
+						}
+					} else {
+						out.printf("Unexpected response: %s\n", res);
+					}
+				}
+					break;
+
+				case Holding: {
+					net.solarnetwork.io.modbus.RegistersModbusMessage regs = res
+							.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+					if ( regs != null ) {
+						short[] data = regs.dataDecode();
+						if ( data != null ) {
+							String tmpl = "[" + (addrBase == 16 ? "0x" : "") + "%0" + addrWidth
+									+ (addrBase == 16 ? "X" : "d") + "]: 0x%04X\n";
+							for ( int i = 0, len = data.length; i < len; i++ ) {
+								out.printf(tmpl, addr + i, data[i]);
+							}
+						} else {
+							out.println("Write accepted.");
 						}
 					} else {
 						out.printf("Unexpected response: %s\n", res);
