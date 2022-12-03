@@ -426,67 +426,75 @@ public class BitsModbusMessage extends AddressedModbusMessage
 
 	@Override
 	public int payloadLength() {
-		switch (getFunction()) {
-			case ReadCoils:
-			case ReadDiscreteInputs:
-				return (bits == null ? 5 : 2 + byteCount(getCount()));
+		final ModbusFunctionCode fn = getFunction().functionCode();
+		if ( fn != null ) {
+			switch (fn) {
+				case ReadCoils:
+				case ReadDiscreteInputs:
+					return (bits == null ? 5 : 2 + byteCount(getCount()));
 
-			case WriteCoil:
-				return 5;
+				case WriteCoil:
+					return 5;
 
-			case WriteCoils:
-				return (bits != null ? 6 + byteCount(getCount()) : 5);
+				case WriteCoils:
+					return (bits != null ? 6 + byteCount(getCount()) : 5);
 
-			default:
-				return super.payloadLength();
+				default:
+					// fall through
 
+			}
 		}
+		return super.payloadLength();
 	}
 
 	@Override
 	public void encodeModbusPayload(ByteBuf out) {
-		final ModbusFunctionCode fn = getFunction();
+		final ModbusFunctionCode fn = getFunction().functionCode();
 		final int count = getCount();
 		final int byteCount = byteCount(count);
 		byte[] header = null;
-		switch (fn) {
-			case ReadCoils:
-			case ReadDiscreteInputs:
-				if ( bits == null ) {
-					header = new byte[5];
+		if ( fn != null ) {
+			switch (fn) {
+				case ReadCoils:
+				case ReadDiscreteInputs:
+					if ( bits == null ) {
+						header = new byte[5];
+						header[0] = fn.getCode();
+						encode16(header, 1, getAddress());
+						encode16(header, 3, count);
+					} else {
+						header = new byte[2];
+						header[0] = fn.getCode();
+						header[1] = (byte) byteCount;
+					}
+					break;
+
+				case WriteCoil:
+					header = new byte[3];
 					header[0] = fn.getCode();
 					encode16(header, 1, getAddress());
-					encode16(header, 3, count);
-				} else {
-					header = new byte[2];
-					header[0] = fn.getCode();
-					header[1] = (byte) byteCount;
-				}
-				break;
+					break;
 
-			case WriteCoil:
-				header = new byte[3];
-				header[0] = fn.getCode();
-				encode16(header, 1, getAddress());
-				break;
+				case WriteCoils:
+					if ( bits != null ) {
+						header = new byte[6];
+						header[0] = fn.getCode();
+						encode16(header, 1, getAddress());
+						encode16(header, 3, count);
+						header[5] = (byte) byteCount;
+					} else {
+						header = new byte[5];
+						header[0] = fn.getCode();
+						encode16(header, 1, getAddress());
+						encode16(header, 3, count);
+					}
+					break;
 
-			case WriteCoils:
-				if ( bits != null ) {
-					header = new byte[6];
-					header[0] = fn.getCode();
-					encode16(header, 1, getAddress());
-					encode16(header, 3, count);
-					header[5] = (byte) byteCount;
-				} else {
-					header = new byte[5];
-					header[0] = fn.getCode();
-					encode16(header, 1, getAddress());
-					encode16(header, 3, count);
-				}
-				break;
-
-			default:
-				super.encodeModbusPayload(out);
+				default:
+					super.encodeModbusPayload(out);
+			}
+		} else {
+			super.encodeModbusPayload(out);
 		}
 		if ( header != null ) {
 			out.writeBytes(header);

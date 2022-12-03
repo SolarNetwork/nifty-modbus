@@ -51,7 +51,7 @@ import java.util.Map;
  * @author matt
  * @version 1.0
  */
-public enum ModbusFunctionCode {
+public enum ModbusFunctionCode implements ModbusFunction {
 
 	/** Read coil. */
 	ReadCoils(READ_COILS, ModbusBlockType.Coil, true),
@@ -144,69 +144,38 @@ public enum ModbusFunctionCode {
 		this.displayName = name().replaceAll("([a-z])([A-Z])", "$1 $2") + " (" + (code & 0xFF) + ")";
 	}
 
-	/**
-	 * Get the function code.
-	 * 
-	 * @return the code
-	 */
+	@Override
 	public byte getCode() {
 		return code;
 	}
 
-	/**
-	 * Get a friendly display string for this function.
-	 * 
-	 * @return a display string
-	 */
+	@Override
+	public ModbusFunctionCode functionCode() {
+		return this;
+	}
+
+	@Override
 	public String toDisplayString() {
 		return displayName;
 	}
 
-	/**
-	 * Return {@literal true} if this function represents a read operation.
-	 * 
-	 * @return {@literal true} if this function represents a read operation,
-	 *         {@literal false} if a write operation
-	 */
+	@Override
 	public boolean isReadFunction() {
 		return read;
 	}
 
-	/**
-	 * Get an "opposite" function from this function.
-	 * 
-	 * <p>
-	 * This method is used to get a read function for a given write function,
-	 * and a write function for a given read function. Note that not all
-	 * functions have exact opposites, such that:
-	 * </p>
-	 * 
-	 * <pre>
-	 * <code>
-	 * ModbusFunction a = myFunction();
-	 * ModbusFunction b = a.oppositeFunction();
-	 * ModbusFunction c = b.oppositeFunction();
-	 * // at this stage c is not necessarily equal to a
-	 * </code>
-	 * </pre>
-	 * 
-	 * @return the function, or {@literal null} if not applicable
-	 */
+	@Override
 	public ModbusFunctionCode oppositeFunction() {
 		return OPPOSITES.get(this);
 	}
 
-	/**
-	 * Get the register block type related to this function.
-	 * 
-	 * @return the block type
-	 */
+	@Override
 	public ModbusBlockType blockType() {
 		return blockType;
 	}
 
 	/**
-	 * Get an enum instance for a code value.
+	 * Get a function instance for a code value.
 	 * 
 	 * <p>
 	 * Error values will be handled to return the non-error function code
@@ -215,11 +184,10 @@ public enum ModbusFunctionCode {
 	 * 
 	 * @param code
 	 *        the code
-	 * @return the enum
-	 * @throws IllegalArgumentException
-	 *         if {@code code} is not a valid value
+	 * @return the function instance; may be an enumeration value of a
+	 *         user-defined custom function instance
 	 */
-	public static ModbusFunctionCode forCode(byte code) {
+	public static ModbusFunction valueOf(byte code) {
 		if ( code < 0 ) {
 			code &= (byte) 0x7F;
 		}
@@ -282,10 +250,31 @@ public enum ModbusFunctionCode {
 				return ModbusFunctionCode.EncapsulatedInterfaceTransport;
 
 			default:
-				throw new IllegalArgumentException(
-						"Unknown Modbus function code [" + (code & 0xFF) + "]");
+				return new UserModbusFunction(code);
 
 		}
+	}
+
+	/**
+	 * Get an enum instance for a code value.
+	 * 
+	 * <p>
+	 * Error values will be handled to return the non-error function code
+	 * equivalent value.
+	 * </p>
+	 * 
+	 * @param code
+	 *        the code
+	 * @return the enum
+	 * @throws IllegalArgumentException
+	 *         if {@code code} is not a valid value
+	 */
+	public static ModbusFunctionCode forCode(byte code) {
+		ModbusFunction fn = valueOf(code);
+		if ( fn instanceof ModbusFunctionCode ) {
+			return (ModbusFunctionCode) fn;
+		}
+		throw new IllegalArgumentException("Unknown Modbus function code [" + (code & 0xFF) + "]");
 	}
 
 }

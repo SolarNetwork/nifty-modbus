@@ -24,6 +24,7 @@ package net.solarnetwork.io.modbus.netty.msg;
 
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
@@ -36,7 +37,7 @@ import net.solarnetwork.io.modbus.ModbusMessage;
 public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 
 	private final int unitId;
-	private final ModbusFunctionCode function;
+	private final ModbusFunction function;
 	private final ModbusErrorCode error;
 
 	/**
@@ -50,7 +51,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 	 *         if {@code function} is not valid
 	 */
 	public BaseModbusMessage(int unitId, byte function) {
-		this(unitId, ModbusFunctionCode.forCode(function), null);
+		this(unitId, ModbusFunctionCode.valueOf(function), null);
 	}
 
 	/**
@@ -66,7 +67,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 	 *         if {@code function} or {@code error} are not valid
 	 */
 	public BaseModbusMessage(int unitId, byte function, byte error) {
-		this(unitId, ModbusFunctionCode.forCode(function), ModbusErrorCode.forCode(error));
+		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.forCode(error));
 	}
 
 	/**
@@ -81,7 +82,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 	 * @throws IllegalArgumentException
 	 *         if {@code function} is {@literal null}
 	 */
-	public BaseModbusMessage(int unitId, ModbusFunctionCode function, ModbusErrorCode error) {
+	public BaseModbusMessage(int unitId, ModbusFunction function, ModbusErrorCode error) {
 		super();
 		this.unitId = unitId;
 		if ( function == null ) {
@@ -125,7 +126,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 	}
 
 	@Override
-	public ModbusFunctionCode getFunction() {
+	public ModbusFunction getFunction() {
 		return function;
 	}
 

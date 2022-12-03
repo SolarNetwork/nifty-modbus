@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.netty.msg;
 
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 
 /**
@@ -57,7 +58,7 @@ public class AddressedModbusMessage extends BaseModbusMessage
 	 *         if {@code function} is not valid
 	 */
 	public AddressedModbusMessage(int unitId, byte function, int address, int count) {
-		this(unitId, ModbusFunctionCode.forCode(function), null, address, count);
+		this(unitId, ModbusFunctionCode.valueOf(function), null, address, count);
 	}
 
 	/**
@@ -77,7 +78,7 @@ public class AddressedModbusMessage extends BaseModbusMessage
 	 *         if {@code function} or {@code error} are not valid
 	 */
 	public AddressedModbusMessage(int unitId, byte function, byte error, int address, int count) {
-		this(unitId, ModbusFunctionCode.forCode(function), ModbusErrorCode.forCode(error), address,
+		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.forCode(error), address,
 				count);
 	}
 
@@ -99,7 +100,7 @@ public class AddressedModbusMessage extends BaseModbusMessage
 	 * @throws IllegalArgumentException
 	 *         if {@code function} is {@literal null}
 	 */
-	public AddressedModbusMessage(int unitId, ModbusFunctionCode function, ModbusErrorCode error,
+	public AddressedModbusMessage(int unitId, ModbusFunction function, ModbusErrorCode error,
 			int address, int count) {
 		super(unitId, function, error);
 		this.address = (address < 0 ? 0 : address);

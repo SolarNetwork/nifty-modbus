@@ -27,6 +27,7 @@ import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusBlockType;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
@@ -84,7 +85,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 *         if {@code function} is not valid
 	 */
 	public RegistersModbusMessage(int unitId, byte function, int address, int count) {
-		this(unitId, ModbusFunctionCode.forCode(function), null, address, count, null);
+		this(unitId, ModbusFunctionCode.valueOf(function), null, address, count, null);
 	}
 
 	/**
@@ -105,7 +106,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 *         if {@code function} is not valid
 	 */
 	public RegistersModbusMessage(int unitId, byte function, int address, int count, byte[] data) {
-		this(unitId, ModbusFunctionCode.forCode(function), null, address, count, data);
+		this(unitId, ModbusFunctionCode.valueOf(function), null, address, count, data);
 	}
 
 	/**
@@ -129,7 +130,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 */
 	public RegistersModbusMessage(int unitId, byte function, byte error, int address, int count,
 			byte[] data) {
-		this(unitId, ModbusFunctionCode.forCode(function), ModbusErrorCode.forCode(error), address,
+		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.forCode(error), address,
 				count, data);
 	}
 
@@ -153,7 +154,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 *         if {@code function} is {@literal null}, or if {@code data} does
 	 *         not have an even length (divisible by 2)
 	 */
-	public RegistersModbusMessage(int unitId, ModbusFunctionCode function, ModbusErrorCode error,
+	public RegistersModbusMessage(int unitId, ModbusFunction function, ModbusErrorCode error,
 			int address, int count, byte[] data) {
 		super(unitId, function, error, address, count);
 		if ( data != null && data.length % 2 != 0 ) {
@@ -573,32 +574,35 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 
 	@Override
 	public int payloadLength() {
-		switch (getFunction()) {
-			case ReadInputRegisters:
-			case ReadHoldingRegisters:
-				return (data == null ? 5 : 2 + byteCount(getCount()));
+		final ModbusFunctionCode fn = getFunction().functionCode();
+		if ( fn != null ) {
+			switch (fn) {
+				case ReadInputRegisters:
+				case ReadHoldingRegisters:
+					return (data == null ? 5 : 2 + byteCount(getCount()));
 
-			case WriteHoldingRegister:
-				return 5;
+				case WriteHoldingRegister:
+					return 5;
 
-			case ReadFifoQueue:
-				return (data == null ? 3 : 5 + byteCount(getCount()));
+				case ReadFifoQueue:
+					return (data == null ? 3 : 5 + byteCount(getCount()));
 
-			case WriteHoldingRegisters:
-				return (data != null ? 6 + getCount() * 2 : 5);
+				case WriteHoldingRegisters:
+					return (data != null ? 6 + getCount() * 2 : 5);
 
-			case ReadWriteHoldingRegisters:
-				if ( data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
-						&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE ) {
-					return data.length;
-				} else {
-					return 8 + data.length;
-				}
+				case ReadWriteHoldingRegisters:
+					if ( data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
+							&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE ) {
+						return data.length;
+					} else {
+						return 8 + data.length;
+					}
 
-			default:
-				return super.payloadLength();
-
+				default:
+					// fall through
+			}
 		}
+		return super.payloadLength();
 	}
 
 	private static int byteCount(int count) {
@@ -607,7 +611,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 
 	@Override
 	public void encodeModbusPayload(ByteBuf out) {
-		final ModbusFunctionCode fn = getFunction();
+		final ModbusFunctionCode fn = getFunction().functionCode();
 		final int count = getCount();
 		final int byteCount = byteCount(count);
 		byte[] header = null;

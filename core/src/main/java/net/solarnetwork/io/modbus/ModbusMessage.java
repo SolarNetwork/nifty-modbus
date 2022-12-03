@@ -46,7 +46,7 @@ public interface ModbusMessage {
 	 * 
 	 * @return the function code, never {@literal null}
 	 */
-	ModbusFunctionCode getFunction();
+	ModbusFunction getFunction();
 
 	/**
 	 * Get the Modbus error code.

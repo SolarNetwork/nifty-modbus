@@ -95,7 +95,8 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 * @throws IllegalArgumentException
 	 *         if {@code function} or {@code error} are not valid
 	 */
-	public MaskWriteRegisterModbusMessage(int unitId, byte function, byte error, int address, byte[] data) {
+	public MaskWriteRegisterModbusMessage(int unitId, byte function, byte error, int address,
+			byte[] data) {
 		this(unitId, ModbusFunctionCode.forCode(function), ModbusErrorCode.forCode(error), address,
 				data);
 	}
@@ -141,8 +142,8 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 		byte[] data = new byte[4];
 		ModbusByteUtils.encode16(data, 0, andMask);
 		ModbusByteUtils.encode16(data, 2, orMask);
-		return new MaskWriteRegisterModbusMessage(unitId, ModbusFunctionCode.MaskWriteHoldingRegister, null,
-				address, data);
+		return new MaskWriteRegisterModbusMessage(unitId, ModbusFunctionCode.MaskWriteHoldingRegister,
+				null, address, data);
 	}
 
 	/**
@@ -263,14 +264,17 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 
 	@Override
 	public int payloadLength() {
-		switch (getFunction()) {
-			case MaskWriteHoldingRegister:
-				return 7;
+		final ModbusFunctionCode fn = getFunction().functionCode();
+		if ( fn != null ) {
+			switch (fn) {
+				case MaskWriteHoldingRegister:
+					return 7;
 
-			default:
-				return super.payloadLength();
-
+				default:
+					// fall through
+			}
 		}
+		return super.payloadLength();
 	}
 
 	@Override

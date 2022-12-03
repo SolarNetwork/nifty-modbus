@@ -24,7 +24,7 @@ package net.solarnetwork.io.modbus.netty.msg;
 
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
-import net.solarnetwork.io.modbus.ModbusFunctionCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessageReply;
 
@@ -103,7 +103,7 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 	}
 
 	@Override
-	public ModbusFunctionCode getFunction() {
+	public ModbusFunction getFunction() {
 		return reply.getFunction();
 	}
 
