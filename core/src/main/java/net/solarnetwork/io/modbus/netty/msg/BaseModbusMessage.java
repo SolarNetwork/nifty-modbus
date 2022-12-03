@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.netty.msg;
 
 import io.netty.buffer.ByteBuf;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
@@ -38,7 +39,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 
 	private final int unitId;
 	private final ModbusFunction function;
-	private final ModbusErrorCode error;
+	private final ModbusError error;
 
 	/**
 	 * Constructor.
@@ -67,7 +68,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 	 *         if {@code function} or {@code error} are not valid
 	 */
 	public BaseModbusMessage(int unitId, byte function, byte error) {
-		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.forCode(error));
+		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.valueOf(error));
 	}
 
 	/**
@@ -82,7 +83,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 	 * @throws IllegalArgumentException
 	 *         if {@code function} is {@literal null}
 	 */
-	public BaseModbusMessage(int unitId, ModbusFunction function, ModbusErrorCode error) {
+	public BaseModbusMessage(int unitId, ModbusFunction function, ModbusError error) {
 		super();
 		this.unitId = unitId;
 		if ( function == null ) {
@@ -131,7 +132,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 	}
 
 	@Override
-	public ModbusErrorCode getError() {
+	public ModbusError getError() {
 		return error;
 	}
 

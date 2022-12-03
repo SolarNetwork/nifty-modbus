@@ -28,7 +28,7 @@ package net.solarnetwork.io.modbus;
  * @author matt
  * @version 1.0
  */
-public enum ModbusErrorCode {
+public enum ModbusErrorCode implements ModbusError {
 
 	/**
 	 * Function code received in the query is not recognized or allowed by
@@ -91,13 +91,51 @@ public enum ModbusErrorCode {
 		this.code = code;
 	}
 
-	/**
-	 * Get the error code value.
-	 * 
-	 * @return the code value
-	 */
+	@Override
 	public byte getCode() {
 		return code;
+	}
+
+	@Override
+	public ModbusErrorCode errorCode() {
+		return this;
+	}
+
+	public static ModbusError valueOf(byte code) {
+		switch (code) {
+			case ModbusErrorCodes.ILLEGAL_FUNCTION:
+				return ModbusErrorCode.IllegalFunction;
+
+			case ModbusErrorCodes.ILLEGAL_DATA_ADDRESS:
+				return ModbusErrorCode.IllegalDataAddress;
+
+			case ModbusErrorCodes.ILLEGAL_DATA_VALUE:
+				return ModbusErrorCode.IllegalDataValue;
+
+			case ModbusErrorCodes.SERVER_DEVICE_FAILURE:
+				return ModbusErrorCode.ServerDeviceFailure;
+
+			case ModbusErrorCodes.ACKNOWLEDGE:
+				return ModbusErrorCode.Acknowledge;
+
+			case ModbusErrorCodes.SERVER_DEVICE_BUSY:
+				return ModbusErrorCode.ServerDeviceBusy;
+
+			case ModbusErrorCodes.NEGATIVE_ACKNOWLEDGE:
+				return ModbusErrorCode.NegativeAcknowledge;
+
+			case ModbusErrorCodes.MEMORY_PARITY_ERROR:
+				return ModbusErrorCode.MemoryParityError;
+
+			case ModbusErrorCodes.GATEWAY_PATH_UNAVAILABLE:
+				return ModbusErrorCode.GatewayPathUnavailable;
+
+			case ModbusErrorCodes.GATEWAY_TIMEOUT:
+				return ModbusErrorCode.GatewayTimeout;
+
+			default:
+				return new UserModbusError(code);
+		}
 	}
 
 	/**

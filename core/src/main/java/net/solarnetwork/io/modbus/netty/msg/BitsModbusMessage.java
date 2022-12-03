@@ -27,7 +27,9 @@ import java.math.BigInteger;
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusBlockType;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
@@ -60,7 +62,7 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	 *         if {@code function} is not valid
 	 */
 	public BitsModbusMessage(int unitId, byte function, int address, int count, BigInteger bits) {
-		this(unitId, ModbusFunctionCode.forCode(function), null, address, count, bits);
+		this(unitId, ModbusFunctionCode.valueOf(function), null, address, count, bits);
 	}
 
 	/**
@@ -83,7 +85,7 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	 */
 	public BitsModbusMessage(int unitId, byte function, byte error, int address, int count,
 			BigInteger bits) {
-		this(unitId, ModbusFunctionCode.forCode(function), ModbusErrorCode.forCode(error), address,
+		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.valueOf(error), address,
 				count, bits);
 	}
 
@@ -105,7 +107,7 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	 * @throws IllegalArgumentException
 	 *         if {@code function} is {@literal null}
 	 */
-	public BitsModbusMessage(int unitId, ModbusFunctionCode function, ModbusErrorCode error, int address,
+	public BitsModbusMessage(int unitId, ModbusFunction function, ModbusError error, int address,
 			int count, BigInteger bits) {
 		super(unitId, function, error, address, count);
 		this.bits = bits;
@@ -290,15 +292,16 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	 */
 	public static ModbusMessage decodeRequestPayload(final int unitId, byte functionCode,
 			final int address, final int count, final ByteBuf in) {
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
-		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		ModbusFunction fn = ModbusFunctionCode.valueOf(functionCode);
+		ModbusFunctionCode function = fn.functionCode();
+		ModbusError error = ModbusMessageUtils.decodeError(functionCode, in);
 		if ( error != null ) {
 			return new BaseModbusMessage(unitId, function, error);
 		}
 		int addr = address;
 		int cnt = count;
 		BigInteger data = null;
-		if ( error == null ) {
+		if ( function != null ) {
 			switch (function) {
 				case ReadCoils:
 				case ReadDiscreteInputs:
@@ -328,7 +331,7 @@ public class BitsModbusMessage extends AddressedModbusMessage
 					return null;
 			}
 		}
-		return new BitsModbusMessage(unitId, function, error, addr, cnt, data);
+		return new BitsModbusMessage(unitId, fn, error, addr, cnt, data);
 	}
 
 	/**
@@ -349,15 +352,16 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	 */
 	public static ModbusMessage decodeResponsePayload(final int unitId, final byte functionCode,
 			final int address, final int count, final ByteBuf in) {
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
-		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		ModbusFunction fn = ModbusFunctionCode.valueOf(functionCode);
+		ModbusFunctionCode function = fn.functionCode();
+		ModbusError error = ModbusMessageUtils.decodeError(functionCode, in);
 		if ( error != null ) {
 			return new BaseModbusMessage(unitId, function, error);
 		}
 		int addr = address;
 		int cnt = count;
 		BigInteger data = null;
-		if ( error == null ) {
+		if ( function != null ) {
 			switch (function) {
 				case ReadCoils:
 				case ReadDiscreteInputs: {
@@ -385,7 +389,7 @@ public class BitsModbusMessage extends AddressedModbusMessage
 					return null;
 			}
 		}
-		return new BitsModbusMessage(unitId, function, error, addr, cnt, data);
+		return new BitsModbusMessage(unitId, fn, error, addr, cnt, data);
 	}
 
 	@Override

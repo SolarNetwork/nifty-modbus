@@ -28,7 +28,7 @@ package net.solarnetwork.io.modbus;
  * @author matt
  * @version 1.0
  */
-public class UserModbusFunction implements ModbusFunction {
+public final class UserModbusFunction implements ModbusFunction {
 
 	private final String displayName;
 	private final byte code;
@@ -68,6 +68,15 @@ public class UserModbusFunction implements ModbusFunction {
 		this.blockType = blockType;
 		this.readFunction = readFunction;
 		this.oppositeFunction = oppositeFunction;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("UserModbusFunction{");
+		builder.append(code);
+		builder.append("}");
+		return builder.toString();
 	}
 
 	@Override

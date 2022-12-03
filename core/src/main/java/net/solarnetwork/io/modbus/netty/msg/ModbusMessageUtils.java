@@ -23,7 +23,9 @@
 package net.solarnetwork.io.modbus.netty.msg;
 
 import io.netty.buffer.ByteBuf;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
@@ -66,10 +68,10 @@ public final class ModbusMessageUtils {
 		}
 		final int idx = in.readerIndex();
 		final byte fn = in.getByte(idx);
-		ModbusFunctionCode function;
-		try {
-			function = ModbusFunctionCode.forCode(fn);
-		} catch ( IllegalArgumentException e ) {
+		ModbusFunction func = ModbusFunctionCode.valueOf(fn);
+		ModbusFunctionCode function = func.functionCode();
+		if ( function == null ) {
+			// user function, don't know
 			return -1;
 		}
 		if ( fn < 0 ) {
@@ -156,11 +158,14 @@ public final class ModbusMessageUtils {
 	 */
 	public static int discoverResponsePayloadLength(final ByteBuf in) {
 		final int idx = in.readerIndex();
+		if ( in.readableBytes() < 1 ) {
+			return -1;
+		}
 		final byte fn = in.getByte(idx);
-		ModbusFunctionCode function;
-		try {
-			function = ModbusFunctionCode.forCode(fn);
-		} catch ( IllegalArgumentException e ) {
+		ModbusFunction func = ModbusFunctionCode.valueOf(fn);
+		ModbusFunctionCode function = func.functionCode();
+		if ( function == null ) {
+			// user function, don't know
 			return -1;
 		}
 		if ( fn < 0 ) {
@@ -255,10 +260,11 @@ public final class ModbusMessageUtils {
 	public static ModbusMessage decodeRequestPayload(final int unitId, final int address,
 			final int count, final ByteBuf in) {
 		final byte fn = in.readByte();
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(fn);
-		ModbusErrorCode error = decodeErrorCode(fn, in);
-		if ( error != null ) {
-			return new BaseModbusMessage(unitId, function, error);
+		ModbusFunction func = ModbusFunctionCode.valueOf(fn);
+		ModbusFunctionCode function = func.functionCode();
+		ModbusError error = decodeError(fn, in);
+		if ( error != null || function == null ) {
+			return new BaseModbusMessage(unitId, func, error);
 		}
 		switch (function) {
 			case ReadCoils:
@@ -324,10 +330,11 @@ public final class ModbusMessageUtils {
 	public static ModbusMessage decodeResponsePayload(final int unitId, final int address,
 			final int count, final ByteBuf in) {
 		final byte fn = in.readByte();
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(fn);
-		ModbusErrorCode error = decodeErrorCode(fn, in);
-		if ( error != null ) {
-			return new BaseModbusMessage(unitId, function, error);
+		ModbusFunction func = ModbusFunctionCode.valueOf(fn);
+		ModbusFunctionCode function = func.functionCode();
+		ModbusError error = decodeError(fn, in);
+		if ( error != null || function == null ) {
+			return new BaseModbusMessage(unitId, func, error);
 		}
 		switch (function) {
 			case ReadCoils:
@@ -377,12 +384,12 @@ public final class ModbusMessageUtils {
 	 * @return the error code, or {@literal null} if {@code functionCode} is not
 	 *         an exception value
 	 */
-	public static ModbusErrorCode decodeErrorCode(final byte functionCode, final ByteBuf in) {
-		ModbusErrorCode error = null;
+	public static ModbusError decodeError(final byte functionCode, final ByteBuf in) {
+		ModbusError error = null;
 		if ( functionCode < 0 ) {
 			// error
 			byte err = in.readByte();
-			error = ModbusErrorCode.forCode(err);
+			error = ModbusErrorCode.valueOf(err);
 		}
 		return error;
 	}

@@ -24,7 +24,9 @@ package net.solarnetwork.io.modbus.netty.msg;
 
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
@@ -56,7 +58,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	 *         if {@code function} is not valid
 	 */
 	public ReadWriteRegistersModbusMessage(int unitId, byte function, int address, int count) {
-		this(unitId, ModbusFunctionCode.forCode(function), null, address, count, null);
+		this(unitId, ModbusFunctionCode.valueOf(function), null, address, count, null);
 	}
 
 	/**
@@ -78,7 +80,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	 */
 	public ReadWriteRegistersModbusMessage(int unitId, byte function, int address, int count,
 			byte[] data) {
-		this(unitId, ModbusFunctionCode.forCode(function), null, address, count, data);
+		this(unitId, ModbusFunctionCode.valueOf(function), null, address, count, data);
 	}
 
 	/**
@@ -102,7 +104,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	 */
 	public ReadWriteRegistersModbusMessage(int unitId, byte function, byte error, int address, int count,
 			byte[] data) {
-		this(unitId, ModbusFunctionCode.forCode(function), ModbusErrorCode.forCode(error), address,
+		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.valueOf(error), address,
 				count, data);
 	}
 
@@ -126,8 +128,8 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	 *         if {@code function} is {@literal null}, or if {@code data} does
 	 *         not have an even length (divisible by 2)
 	 */
-	public ReadWriteRegistersModbusMessage(int unitId, ModbusFunctionCode function,
-			ModbusErrorCode error, int address, int count, byte[] data) {
+	public ReadWriteRegistersModbusMessage(int unitId, ModbusFunction function, ModbusError error,
+			int address, int count, byte[] data) {
 		super(unitId, function, error, address, count, data);
 	}
 
@@ -216,15 +218,16 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	 */
 	public static ModbusMessage decodeRequestPayload(final int unitId, final byte functionCode,
 			final int address, final int count, final ByteBuf in) {
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
-		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		ModbusFunction fn = ModbusFunctionCode.valueOf(functionCode);
+		ModbusFunctionCode function = fn.functionCode();
+		ModbusError error = ModbusMessageUtils.decodeError(functionCode, in);
 		if ( error != null ) {
 			return new BaseModbusMessage(unitId, function, error);
 		}
 		int addr = address;
 		int cnt = count;
 		byte[] data = null;
-		if ( error == null ) {
+		if ( function != null ) {
 			switch (function) {
 				case ReadWriteHoldingRegisters: {
 					addr = in.readUnsignedShort();
@@ -242,7 +245,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 					return null;
 			}
 		}
-		return new ReadWriteRegistersModbusMessage(unitId, function, error, addr, cnt, data);
+		return new ReadWriteRegistersModbusMessage(unitId, fn, error, addr, cnt, data);
 	}
 
 	/**
@@ -263,15 +266,16 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	 */
 	public static ModbusMessage decodeResponsePayload(final int unitId, final byte functionCode,
 			final int address, final int count, final ByteBuf in) {
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
-		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		ModbusFunction fn = ModbusFunctionCode.valueOf(functionCode);
+		ModbusFunctionCode function = fn.functionCode();
+		ModbusError error = ModbusMessageUtils.decodeError(functionCode, in);
 		if ( error != null ) {
 			return new BaseModbusMessage(unitId, function, error);
 		}
 		int addr = address;
 		int cnt = count;
 		byte[] data = null;
-		if ( error == null ) {
+		if ( function != null ) {
 			switch (function) {
 				case ReadWriteHoldingRegisters: {
 					int len = in.readUnsignedByte();
@@ -287,7 +291,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 					return null;
 			}
 		}
-		return new ReadWriteRegistersModbusMessage(unitId, function, error, addr, cnt, data);
+		return new ReadWriteRegistersModbusMessage(unitId, fn, error, addr, cnt, data);
 	}
 
 	private boolean isRequest(final byte[] data) {

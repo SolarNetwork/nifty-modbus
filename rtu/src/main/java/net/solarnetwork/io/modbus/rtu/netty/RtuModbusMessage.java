@@ -25,7 +25,7 @@ package net.solarnetwork.io.modbus.rtu.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
-import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.ModbusPayloadEncoder;
@@ -178,7 +178,7 @@ public class RtuModbusMessage
 	}
 
 	@Override
-	public ModbusErrorCode getError() {
+	public ModbusError getError() {
 		return body.getError();
 	}
 

@@ -53,7 +53,7 @@ public interface ModbusMessage {
 	 * 
 	 * @return the error code, or {@literal null} if not an error
 	 */
-	ModbusErrorCode getError();
+	ModbusError getError();
 
 	/**
 	 * Test if this message is an exception (error).

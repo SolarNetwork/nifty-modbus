@@ -27,6 +27,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -50,6 +51,7 @@ import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.UserModbusFunction;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
@@ -331,6 +333,69 @@ public class TcpNettyModbusClientTests {
 		assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
 		ModbusMessage resp = f.get();
 		assertThat("Response is an error", resp.getError(), is(ModbusErrorCode.IllegalDataAddress));
+	}
+
+	@Test
+	public void send_recvJunk() throws InterruptedException, ExecutionException {
+		// GIVEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+
+		// provide response
+		final int txId = idSupplier.get();
+		// @formatter:off
+		final byte[] responseData = new byte[] {
+				(byte)0x00,
+				(byte)0x01,
+				(byte)0x02,
+				(byte)0x03,
+				(byte)0x04,
+				(byte)0x05,
+				(byte)0x06,
+				(byte)0x65,
+		};
+		ByteBuf response = Unpooled.copiedBuffer(responseData);
+		// @formatter:on
+		channel.writeOneInbound(response).sync();
+
+		// THEN
+		assertThat("Future returned", f, is(notNullValue()));
+		assertThat("Request should no longer be pending", pending.keySet(), hasSize(0));
+
+		ByteBuf requestData = channel.readOutbound();
+		assertThat("Request bytes produced", requestData, is(notNullValue()));
+
+		// @formatter:off
+		assertThat("Request message encoded", byteObjectArray(ByteBufUtil.getBytes(requestData)), arrayContaining(
+				byteObjectArray(new byte[] {
+						(byte)(txId >>> 8 & 0xFF),
+						(byte)(txId & 0xFF),
+						(byte)0x00,
+						(byte)0x00,
+						(byte)0x00,
+						(byte)0x06,
+						(byte)(unitId & 0xFF),
+						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+						(byte)(addr >>> 8 & 0xFF),
+						(byte)(addr & 0xFF),
+						(byte)(count >>> 8 & 0xFF),
+						(byte)(count & 0xFF),
+				})));
+		// @formatter:on
+
+		assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
+		ModbusMessage resp = f.get();
+		assertThat("Response is not an error", resp.getError(), is(nullValue()));
+		assertThat("Response function is user function", resp.getFunction(),
+				is(instanceOf(UserModbusFunction.class)));
+		assertThat("Response function is from junk", resp.getFunction().getCode(),
+				is(equalTo((byte) 0x65)));
 	}
 
 }

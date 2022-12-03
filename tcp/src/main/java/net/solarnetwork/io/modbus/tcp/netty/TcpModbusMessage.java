@@ -24,7 +24,7 @@ package net.solarnetwork.io.modbus.tcp.netty;
 
 import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
 import io.netty.buffer.ByteBuf;
-import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.ModbusPayloadEncoder;
@@ -133,7 +133,7 @@ public class TcpModbusMessage
 	}
 
 	@Override
-	public ModbusErrorCode getError() {
+	public ModbusError getError() {
 		return body.getError();
 	}
 

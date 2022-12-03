@@ -40,6 +40,7 @@ import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ReadWriteRegistersModbusMessage;
 import net.solarnetwork.io.modbus.RegistersModbusMessage;
+import net.solarnetwork.io.modbus.UserModbusFunction;
 import net.solarnetwork.io.modbus.netty.msg.ModbusMessageUtils;
 
 /**
@@ -540,6 +541,35 @@ public class ModbusMessageUtils_RequestTests {
 		assertThat("No data", rmm.dataCopy(), is(nullValue()));
 		assertThat("No data (shorts)", rmm.dataDecode(), is(nullValue()));
 		assertThat("No data (ints)", rmm.dataDecodeUnsigned(), is(nullValue()));
+	}
+
+	@Test
+	public void decodeRequest_userFunction() {
+		// GIVEN
+		// @formatter:off
+		final byte userFn = (byte)0x65;
+		final byte[] data = new byte[] {
+				userFn,
+				(byte)0x04,
+				(byte)0xDE,
+		};
+		ByteBuf buf = Unpooled.copiedBuffer(data);
+		// @formatter:on
+
+		// WHEN
+		final int unitId = 1;
+		final int address = 2;
+		final int count = 0;
+		ModbusMessage msg = ModbusMessageUtils.decodeRequestPayload(unitId, address, count, buf);
+
+		// THEN
+		assertThat("Message decoded", msg, is(notNullValue()));
+		assertThat("Unit ID preserved", msg.getUnitId(), is(equalTo(unitId)));
+		assertThat("Function is decoded as user function", msg.getFunction(),
+				is(instanceOf(UserModbusFunction.class)));
+		assertThat("Not an exception", msg.isException(), is(equalTo(false)));
+		assertThat("No error", msg.getError(), is(nullValue()));
+		assertThat("Function is preserved", msg.getFunction().getCode(), is(equalTo(userFn)));
 	}
 
 }

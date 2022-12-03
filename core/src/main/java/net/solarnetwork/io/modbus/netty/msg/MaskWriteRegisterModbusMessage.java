@@ -25,7 +25,9 @@ package net.solarnetwork.io.modbus.netty.msg;
 import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
@@ -56,7 +58,7 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 *         if {@code function} is not valid
 	 */
 	public MaskWriteRegisterModbusMessage(int unitId, byte function, int address) {
-		this(unitId, ModbusFunctionCode.forCode(function), null, address, null);
+		this(unitId, ModbusFunctionCode.valueOf(function), null, address, null);
 	}
 
 	/**
@@ -75,7 +77,7 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 *         if {@code function} is not valid
 	 */
 	public MaskWriteRegisterModbusMessage(int unitId, byte function, int address, byte[] data) {
-		this(unitId, ModbusFunctionCode.forCode(function), null, address, data);
+		this(unitId, ModbusFunctionCode.valueOf(function), null, address, data);
 	}
 
 	/**
@@ -97,7 +99,7 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 */
 	public MaskWriteRegisterModbusMessage(int unitId, byte function, byte error, int address,
 			byte[] data) {
-		this(unitId, ModbusFunctionCode.forCode(function), ModbusErrorCode.forCode(error), address,
+		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.valueOf(error), address,
 				data);
 	}
 
@@ -119,7 +121,7 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 *         if {@code function} is {@literal null}, or if {@code data} does
 	 *         not have an even length (divisible by 2)
 	 */
-	public MaskWriteRegisterModbusMessage(int unitId, ModbusFunctionCode function, ModbusErrorCode error,
+	public MaskWriteRegisterModbusMessage(int unitId, ModbusFunction function, ModbusError error,
 			int address, byte[] data) {
 		super(unitId, function, error, address, 1, data);
 	}
@@ -182,14 +184,15 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 */
 	public static ModbusMessage decodeRequestPayload(final int unitId, final byte functionCode,
 			final int address, final int count, final ByteBuf in) {
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
-		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		ModbusFunction fn = ModbusFunctionCode.valueOf(functionCode);
+		ModbusFunctionCode function = fn.functionCode();
+		ModbusError error = ModbusMessageUtils.decodeError(functionCode, in);
 		if ( error != null ) {
 			return new BaseModbusMessage(unitId, function, error);
 		}
 		int addr = address;
 		byte[] data = null;
-		if ( error == null ) {
+		if ( function != null ) {
 			switch (function) {
 				case MaskWriteHoldingRegister:
 					addr = in.readUnsignedShort();
@@ -201,7 +204,7 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 					return null;
 			}
 		}
-		return new MaskWriteRegisterModbusMessage(unitId, function, error, addr, data);
+		return new MaskWriteRegisterModbusMessage(unitId, fn, error, addr, data);
 	}
 
 	/**
@@ -222,14 +225,15 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 */
 	public static ModbusMessage decodeResponsePayload(final int unitId, final byte functionCode,
 			final int address, final int count, final ByteBuf in) {
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
-		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		ModbusFunction fn = ModbusFunctionCode.valueOf(functionCode);
+		ModbusFunctionCode function = fn.functionCode();
+		ModbusError error = ModbusMessageUtils.decodeError(functionCode, in);
 		if ( error != null ) {
 			return new BaseModbusMessage(unitId, function, error);
 		}
 		int addr = address;
 		byte[] data = null;
-		if ( error == null ) {
+		if ( function != null ) {
 			switch (function) {
 				case MaskWriteHoldingRegister:
 					addr = in.readUnsignedShort();

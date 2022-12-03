@@ -26,6 +26,7 @@ import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusBlockType;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
@@ -130,7 +131,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 */
 	public RegistersModbusMessage(int unitId, byte function, byte error, int address, int count,
 			byte[] data) {
-		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.forCode(error), address,
+		this(unitId, ModbusFunctionCode.valueOf(function), ModbusErrorCode.valueOf(error), address,
 				count, data);
 	}
 
@@ -154,8 +155,8 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 *         if {@code function} is {@literal null}, or if {@code data} does
 	 *         not have an even length (divisible by 2)
 	 */
-	public RegistersModbusMessage(int unitId, ModbusFunction function, ModbusErrorCode error,
-			int address, int count, byte[] data) {
+	public RegistersModbusMessage(int unitId, ModbusFunction function, ModbusError error, int address,
+			int count, byte[] data) {
 		super(unitId, function, error, address, count);
 		if ( data != null && data.length % 2 != 0 ) {
 			throw new IllegalArgumentException("The byte data has an odd length, but it must be even.");
@@ -408,15 +409,16 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 */
 	public static ModbusMessage decodeRequestPayload(final int unitId, final byte functionCode,
 			final int address, final int count, final ByteBuf in) {
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
-		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		ModbusFunction fn = ModbusFunctionCode.valueOf(functionCode);
+		ModbusFunctionCode function = fn.functionCode();
+		ModbusError error = ModbusMessageUtils.decodeError(functionCode, in);
 		if ( error != null ) {
 			return new BaseModbusMessage(unitId, function, error);
 		}
 		int addr = address;
 		int cnt = count;
 		byte[] data = null;
-		if ( error == null ) {
+		if ( function != null ) {
 			switch (function) {
 				case ReadInputRegisters:
 				case ReadHoldingRegisters:
@@ -447,7 +449,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 					return null;
 			}
 		}
-		return new RegistersModbusMessage(unitId, function, error, addr, cnt, data);
+		return new RegistersModbusMessage(unitId, fn, error, addr, cnt, data);
 	}
 
 	/**
@@ -468,15 +470,16 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 */
 	public static ModbusMessage decodeResponsePayload(final int unitId, final byte functionCode,
 			final int address, final int count, final ByteBuf in) {
-		ModbusFunctionCode function = ModbusFunctionCode.forCode(functionCode);
-		ModbusErrorCode error = ModbusMessageUtils.decodeErrorCode(functionCode, in);
+		ModbusFunction fn = ModbusFunctionCode.valueOf(functionCode);
+		ModbusFunctionCode function = fn.functionCode();
+		ModbusError error = ModbusMessageUtils.decodeError(functionCode, in);
 		if ( error != null ) {
 			return new BaseModbusMessage(unitId, function, error);
 		}
 		int addr = address;
 		int cnt = count;
 		byte[] data = null;
-		if ( error == null ) {
+		if ( function != null ) {
 			switch (function) {
 				case ReadInputRegisters:
 				case ReadHoldingRegisters:
@@ -514,7 +517,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 					return null;
 			}
 		}
-		return new RegistersModbusMessage(unitId, function, error, addr, cnt, data);
+		return new RegistersModbusMessage(unitId, fn, error, addr, cnt, data);
 	}
 
 	/**
