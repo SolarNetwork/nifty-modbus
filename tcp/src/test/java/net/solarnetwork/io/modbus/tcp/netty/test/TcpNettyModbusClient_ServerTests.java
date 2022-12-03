@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,7 @@ import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusServer;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
+import net.solarnetwork.io.modbus.tcp.netty.test.support.TcpTestUtils;
 
 /**
  * Test cases for the {@link TcpNettyModbusClient} class.
@@ -73,12 +75,11 @@ public class TcpNettyModbusClient_ServerTests {
 	private NettyTcpModbusServer server;
 
 	@BeforeEach
-	public void setup() {
+	public void setup() throws IOException {
 		serverPendingMessages = new ConcurrentHashMap<>(8, 0.9f, 2);
-		server = new NettyTcpModbusServer(freePort(), serverPendingMessages,
+		server = new NettyTcpModbusServer(TcpTestUtils.freePort(), serverPendingMessages,
 				serverIdSupplier::incrementAndGet);
 		server.setWireLogging(true);
-		server.start();
 
 		pendingMessages = new ConcurrentHashMap<>(8, 0.9f, 2);
 		pending = new ConcurrentHashMap<>(8, 0.9f, 2);
@@ -94,25 +95,6 @@ public class TcpNettyModbusClient_ServerTests {
 		}
 		if ( server != null ) {
 			server.stop();
-		}
-	}
-
-	private int freePort() {
-		ServerSocket socket = null;
-		try {
-			socket = new ServerSocket(0);
-			socket.setReuseAddress(true);
-			return socket.getLocalPort();
-		} catch ( IOException e ) {
-			throw new RuntimeException(e);
-		} finally {
-			try {
-				if ( socket != null ) {
-					socket.close();
-				}
-			} catch ( IOException e ) {
-				// ignore
-			}
 		}
 	}
 
@@ -133,6 +115,8 @@ public class TcpNettyModbusClient_ServerTests {
 						ModbusErrorCode.IllegalFunction));
 			}
 		});
+		server.start();
+
 		final int unitId = 1;
 		final int addr = 2;
 		final int count = 3;
@@ -174,6 +158,36 @@ public class TcpNettyModbusClient_ServerTests {
 				0x0003
 		}), is(equalTo(true)));
 		// @formatter:on
+	}
+
+	@Test
+	public void unhandled_expire() throws Exception {
+		// GIVEN
+		server.setPendingMessageTtl(200);
+
+		final List<ModbusMessage> serverIn = new ArrayList<>(1);
+		server.setMessageHandler((msg, sender) -> {
+			serverIn.add(msg);
+			// no reply provided
+		});
+		server.start();
+
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.start().get(10, TimeUnit.SECONDS);
+		Future<ModbusMessage> f = client.sendAsync(req);
+
+		// THEN
+		assertThrows(TimeoutException.class, () -> {
+			f.get(900, TimeUnit.MILLISECONDS); // give at least 2 runs to execute different branches
+		}, "No response provided throws TimeoutException");
+
+		assertThat("Pending request should have been expunged by cleanup task",
+				serverPendingMessages.keySet(), hasSize(0));
 	}
 
 }

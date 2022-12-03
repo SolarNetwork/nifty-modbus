@@ -22,6 +22,7 @@
 
 package net.solarnetwork.io.modbus.tcp.netty;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -133,7 +134,7 @@ public class NettyTcpModbusServer {
 	 * the configured port.
 	 * </p>
 	 */
-	public synchronized void start() {
+	public synchronized void start() throws IOException {
 		if ( this.channel != null ) {
 			return;
 		}
@@ -161,12 +162,20 @@ public class NettyTcpModbusServer {
 			});
 			this.channel = channel;
 			if ( cleanupTask == null ) {
-				cleanupTask = bossGroup.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(), 5, 5,
-						TimeUnit.MINUTES);
+				long period = getPendingMessageTtl() * 2;
+				if ( period > 0 ) {
+					cleanupTask = bossGroup.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(),
+							period, period, TimeUnit.MILLISECONDS);
+				}
 			}
 		} catch ( Exception e ) {
 			String msg = String.format("Error starting Modbus server on port %d", port);
-			log.error(msg, e);
+			if ( e instanceof IOException ) {
+				log.warn("{}: {}", msg, e.getMessage());
+				throw (IOException) e;
+			} else {
+				log.error(msg, e);
+			}
 			throw new RuntimeException(msg, e);
 		}
 	}
@@ -247,6 +256,7 @@ public class NettyTcpModbusServer {
 								"Dropping pending Modbus request message that has not had a response provided within {}ms: {}",
 								pendingMessageTtl, pending);
 						itr.remove();
+						expiredCount++;
 					}
 				}
 			} catch ( Exception e ) {

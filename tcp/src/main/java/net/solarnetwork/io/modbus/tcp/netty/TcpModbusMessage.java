@@ -99,15 +99,12 @@ public class TcpModbusMessage
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
-		builder.append("TcpModbusMessage{timestamp=");
+		builder.append("TcpModbusMessage{ts=");
 		builder.append(timestamp);
 		builder.append(", txId=");
 		builder.append(transactionId);
-		builder.append(", ");
-		if ( body != null ) {
-			builder.append("body=");
-			builder.append(body);
-		}
+		builder.append(", body=");
+		builder.append(body);
 		builder.append("}");
 		return builder.toString();
 	}

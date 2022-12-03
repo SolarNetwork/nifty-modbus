@@ -24,16 +24,26 @@ package net.solarnetwork.io.modbus.tcp.netty.test;
 
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import net.solarnetwork.io.modbus.ModbusError;
+import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
+import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
+import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
 
@@ -44,6 +54,91 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
  * @version 1.0
  */
 public class TcpModbusMessageTests {
+
+	@Test
+	public void construct_nullBody() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			new TcpModbusMessage(4, null);
+		}, "Null body not allowed");
+	}
+
+	@Test
+	public void construct_nonEncoder() {
+		class NonPayloadEncoder implements ModbusMessage {
+
+			@Override
+			public int getUnitId() {
+				return 0;
+			}
+
+			@Override
+			public ModbusFunction getFunction() {
+				return ModbusFunctionCode.ReadCoils;
+			}
+
+			@Override
+			public ModbusError getError() {
+				return null;
+			}
+
+			@Override
+			public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+				throw new UnsupportedOperationException();
+			}
+
+		}
+		;
+		assertThrows(IllegalArgumentException.class, () -> {
+			new TcpModbusMessage(4, new NonPayloadEncoder());
+		}, "Body that does not implement ModbusPayloadEncoder not allowed");
+	}
+
+	@Test
+	public void getFunction() {
+		// GIVEN
+		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
+				ModbusErrorCode.IllegalFunction);
+		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+
+		// THEN
+		assertThat("Function getter delegates", tcp.getFunction(), is(sameInstance(msg.getFunction())));
+	}
+
+	@Test
+	public void getError() {
+		// GIVEN
+		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
+				ModbusErrorCode.IllegalFunction);
+		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+
+		// THEN
+		assertThat("Error getter delegates", tcp.getError(), is(sameInstance(msg.getError())));
+	}
+
+	@Test
+	public void getTimestamp() {
+		// GIVEN
+		final long ts = System.currentTimeMillis();
+		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
+				ModbusErrorCode.IllegalFunction);
+		TcpModbusMessage tcp = new TcpModbusMessage(ts, 4, msg);
+
+		// THEN
+		assertThat("Provided timestamp returned", tcp.getTimestamp(), is(equalTo(ts)));
+	}
+
+	@Test
+	public void getTimestamp_default() {
+		// GIVEN
+		final long start = System.currentTimeMillis();
+		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
+				ModbusErrorCode.IllegalFunction);
+		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+
+		// THEN
+		assertThat("System timestamp returned (within sec tolerance)", tcp.getTimestamp(),
+				is(allOf(greaterThanOrEqualTo(start), lessThanOrEqualTo(start + 1000))));
+	}
 
 	@Test
 	public void encode_request() {

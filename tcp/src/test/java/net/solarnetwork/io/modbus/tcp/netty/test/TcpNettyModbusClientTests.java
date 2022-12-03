@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -54,6 +55,7 @@ import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.UserModbusFunction;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
+import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
 import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
@@ -122,6 +124,40 @@ public class TcpNettyModbusClientTests {
 	}
 
 	@Test
+	public void construct_nulls() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			new TcpNettyModbusClient(new NettyTcpModbusClientConfig("localhost", 502), null, pending,
+					channel.eventLoop(), null, null, SimpleTransactionIdSupplier.INSTANCE);
+		}, "Null pendingMessages not allowed");
+		assertThrows(IllegalArgumentException.class, () -> {
+			new TcpNettyModbusClient(new NettyTcpModbusClientConfig("localhost", 502), null, pending,
+					channel.eventLoop(), null, new ConcurrentHashMap<>(), null);
+		}, "Null transactionIdSupplier not allowed");
+	}
+
+	@Test
+	public void start_noHost() {
+		final TcpNettyModbusClient c = new TcpNettyModbusClient(
+				new NettyTcpModbusClientConfig(null, 502), null, pending, channel.eventLoop(), null,
+				new ConcurrentHashMap<>(), SimpleTransactionIdSupplier.INSTANCE);
+		try {
+			assertThrows(IllegalArgumentException.class, () -> {
+				c.start();
+			}, "Null host not allowed");
+		} finally {
+			if ( c != null ) {
+				c.stop();
+			}
+		}
+	}
+
+	@Test
+	public void start_twice() throws Exception {
+		client.start().get();
+		client.start().get(); // should not cause exception
+	}
+
+	@Test
 	public void send() throws Exception {
 		// GIVEN
 		final int unitId = 1;
@@ -180,7 +216,7 @@ public class TcpNettyModbusClientTests {
 
 		// THEN
 		assertThat("Future returned", f, is(notNullValue()));
-		assertThat("Pending request should have been expunged from cleanup task", pending.keySet(),
+		assertThat("Pending request should have been expunged by cleanup task", pending.keySet(),
 				hasSize(0));
 
 		ByteBuf buf = channel.readOutbound();

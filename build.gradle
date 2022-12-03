@@ -47,9 +47,7 @@ ext {
 	libraries = [
 		// Test dependencies.
 		hamcrest: 'org.hamcrest:hamcrest-library:2.2',
-		junit: 'org.junit.jupiter:junit-jupiter:5.8.0',
-		mockito: 'org.mockito:mockito-core:3.9.0',
-		mockitoJupiter: 'org.mockito:mockito-junit-jupiter:3.9.0'
+		junit: 'org.junit.jupiter:junit-jupiter:5.8.0'
 	]
 
 	if ( osdetector.classifier in ["linux-x86_64"] || ["osx-x86_64"] || ["osx-aarch_64"] || ["windows-x86_64"] ) {
@@ -57,14 +55,22 @@ ext {
 	}
 }
 
+allprojects {
+    apply plugin: 'java'
+    apply plugin: 'jacoco'
+
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+		maven { url "https://plugins.gradle.org/m2/" }
+    }
+}
+
 subprojects {
-	//apply plugin: "checkstyle"
-	apply plugin: "java"
-
 	group = "net.solarnetwork.common"
-
-	sourceCompatibility = 1.8
-	targetCompatibility = 1.8
 
 	repositories {
 		mavenCentral()
@@ -112,9 +118,7 @@ subprojects {
 	dependencies {
 		components { all(IvyVariantDerivationRule) }
 		testImplementation libraries.junit,
-				libraries.hamcrest,
-				libraries.mockito,
-				libraries.mockitoJupiter
+				libraries.hamcrest
 	}
 
 	// Disable JavaDoc doclint on Java 8. It's annoying.
@@ -176,5 +180,21 @@ subprojects {
 		}
 		maxHeapSize = '1500m'
 	}
-	
+
+	jacocoTestReport {
+		reports {
+			xml.enabled true
+			html.enabled true
+		}
+	}
+
+	check.dependsOn jacocoTestReport
 }
+
+jacoco {
+    toolVersion = "0.8.5"
+    reportsDir = file("$buildDir/reports/jacoco")
+}
+
+/*
+*/
