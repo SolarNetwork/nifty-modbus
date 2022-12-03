@@ -58,6 +58,8 @@ To write registers, use the `write` command, followed by the type of registers t
  * `coils`, `coil`, `c` - write coil bit registers
  * `holdings`, `holding`, `h` - write holding 16-bit registers
  
+ ![Modbus Shell writing](docs/nifty-modbus-shell-write.gif)
+
  The following arguments are supported:
  
 | Argument | Example | Description |
