@@ -38,9 +38,13 @@ jobs:
         distribution: 'liberica'
         java-version: ${{ matrix.java }}
         
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
-
+    # Instead of autobuild, manually run Gradle to get full build w/coverage reports
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+    
+    - name: Execute Gradle build
+      run: ./gradlew build
+      
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
 
