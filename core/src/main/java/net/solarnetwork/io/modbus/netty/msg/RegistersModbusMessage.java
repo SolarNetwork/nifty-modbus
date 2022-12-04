@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.netty.msg;
 
 import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
+import java.util.Arrays;
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusBlockType;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
@@ -518,6 +519,18 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 			}
 		}
 		return new RegistersModbusMessage(unitId, fn, error, addr, cnt, data);
+	}
+
+	@Override
+	public boolean isSameAs(ModbusMessage obj) {
+		if ( !super.isSameAs(obj) ) {
+			return false;
+		}
+		if ( !(obj instanceof RegistersModbusMessage) ) {
+			return false;
+		}
+		RegistersModbusMessage other = (RegistersModbusMessage) obj;
+		return Arrays.equals(data, other.data);
 	}
 
 	/**

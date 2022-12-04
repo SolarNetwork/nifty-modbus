@@ -44,6 +44,23 @@ public final class UserModbusError implements ModbusError {
 	}
 
 	@Override
+	public int hashCode() {
+		return Byte.hashCode(code);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if ( this == obj ) {
+			return true;
+		}
+		if ( !(obj instanceof UserModbusError) ) {
+			return false;
+		}
+		UserModbusError other = (UserModbusError) obj;
+		return code == other.code;
+	}
+
+	@Override
 	public byte getCode() {
 		return code;
 	}

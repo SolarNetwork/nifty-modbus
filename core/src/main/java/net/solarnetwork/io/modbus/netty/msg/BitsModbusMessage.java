@@ -393,6 +393,18 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	}
 
 	@Override
+	public boolean isSameAs(ModbusMessage obj) {
+		if ( !super.isSameAs(obj) ) {
+			return false;
+		}
+		if ( !(obj instanceof BitsModbusMessage) ) {
+			return false;
+		}
+		BitsModbusMessage other = (BitsModbusMessage) obj;
+		return bits.equals(other.bits);
+	}
+
+	@Override
 	public BigInteger getBits() {
 		return bits;
 	}

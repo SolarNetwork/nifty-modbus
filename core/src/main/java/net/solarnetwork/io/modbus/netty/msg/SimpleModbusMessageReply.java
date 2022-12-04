@@ -86,6 +86,11 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 		return request;
 	}
 
+	@Override
+	public boolean isSameAs(ModbusMessage obj) {
+		return reply.isSameAs(obj);
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {

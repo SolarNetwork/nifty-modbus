@@ -106,6 +106,26 @@ public class RtuModbusMessage
 		this.body = body;
 	}
 
+	@Override
+	public boolean isSameAs(ModbusMessage obj) {
+		if ( obj == this ) {
+			return true;
+		}
+		if ( !(obj instanceof RtuModbusMessage) ) {
+			return false;
+		}
+		RtuModbusMessage other = (RtuModbusMessage) obj;
+		if ( crc != other.crc ) {
+			return false;
+		}
+		if ( body == null ) {
+			if ( other.body != null ) {
+				return false;
+			}
+		}
+		return body.equals(other.body);
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {

@@ -24,8 +24,6 @@ package net.solarnetwork.io.modbus.tcp.netty;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ReplayingDecoder;
@@ -42,8 +40,6 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageDecoder.DecoderState
  * @version 1.0
  */
 public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
-
-	private static final Logger log = LoggerFactory.getLogger(TcpModbusMessageDecoder.class);
 
 	/** The length of the fixed-length header. */
 	public static final int FIXED_HEADER_LENGTH = 7;
@@ -68,7 +64,6 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 	enum DecoderState {
 		READ_FIXED_HEADER,
 		READ_PAYLOAD,
-		BAD_MESSAGE,
 	}
 
 	/** True if decoding response messages, false for requests. */
@@ -79,7 +74,6 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 
 	private int transactionId;
 	private short unitId;
-	private int payloadLength;
 
 	/**
 	 * Constructor.
@@ -106,56 +100,40 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-		try {
-			switch (state()) {
-				case READ_FIXED_HEADER:
-					readFixedHeader(ctx, in);
-					break;
+		switch (state()) {
+			case READ_FIXED_HEADER:
+				readFixedHeader(ctx, in);
+				break;
 
-				case READ_PAYLOAD:
-					readPayload(ctx, in, out);
-					break;
-
-				case BAD_MESSAGE:
-					// Keep discarding until disconnection.
-					in.skipBytes(actualReadableBytes());
-					break;
-
-				default:
-					// Shouldn't reach here.
-					throw new Error("Unknown decode state");
-			}
-		} catch ( Exception e ) {
-			log.debug("Exception decoding Modbus message: {}", e.toString(), e);
-			checkpoint(DecoderState.BAD_MESSAGE);
+			case READ_PAYLOAD:
+				readPayload(ctx, in, out);
+				break;
 		}
 	}
 
 	private void readFixedHeader(ChannelHandlerContext ctx, ByteBuf in) {
-		if ( in.readableBytes() < FIXED_HEADER_LENGTH ) {
-			return;
-		}
 		transactionId = in.readUnsignedShort();
-		in.skipBytes(2); // just assuming is 0 for TCP
-		payloadLength = in.readUnsignedShort() - 1; // minus 1 for unitId below
+		in.skipBytes(4); // just assuming is 0 for TCP, and we don't mind about payload length bytes
 		unitId = in.readUnsignedByte();
 		checkpoint(DecoderState.READ_PAYLOAD);
 	}
 
 	private void readPayload(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
-		if ( in.readableBytes() < payloadLength ) {
-			return;
-		}
 		ModbusMessage msg = null;
 		if ( controller ) {
 			// inbound response
-			TcpModbusMessage req = pendingMessages.remove(transactionId);
+			TcpModbusMessage req = pendingMessages.get(transactionId);
 			AddressedModbusMessage addr = (req != null ? req.unwrap(AddressedModbusMessage.class)
 					: null);
 			ModbusMessage payload = ModbusMessageUtils.decodeResponsePayload(unitId,
 					(addr != null ? addr.getAddress() : 0), (addr != null ? addr.getCount() : 0), in);
 			if ( payload != null ) {
-				msg = new SimpleModbusMessageReply(req.unwrap(ModbusMessage.class), payload);
+				if ( req != null ) {
+					pendingMessages.remove(transactionId, req);
+					msg = new SimpleModbusMessageReply(req.unwrap(ModbusMessage.class), payload);
+				} else {
+					msg = new TcpModbusMessage(transactionId, payload);
+				}
 			}
 		} else {
 			// inbound request

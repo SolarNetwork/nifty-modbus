@@ -40,7 +40,7 @@ public interface ModbusFunction {
 	 * 
 	 * @return the code
 	 */
-	public byte getCode();
+	byte getCode();
 
 	/**
 	 * Get this function as a {@link ModbusFunctionCode}.
@@ -61,7 +61,7 @@ public interface ModbusFunction {
 	 * 
 	 * @return a display string
 	 */
-	public String toDisplayString();
+	String toDisplayString();
 
 	/**
 	 * Return {@literal true} if this function represents a read operation.
@@ -69,7 +69,7 @@ public interface ModbusFunction {
 	 * @return {@literal true} if this function represents a read operation,
 	 *         {@literal false} if a write operation
 	 */
-	public boolean isReadFunction();
+	boolean isReadFunction();
 
 	/**
 	 * Get an "opposite" function from this function.
@@ -91,13 +91,19 @@ public interface ModbusFunction {
 	 * 
 	 * @return the function, or {@literal null} if not applicable
 	 */
-	public ModbusFunction oppositeFunction();
+	ModbusFunction oppositeFunction();
 
 	/**
 	 * Get the register block type related to this function.
 	 * 
 	 * @return the block type
 	 */
-	public ModbusBlockType blockType();
+	ModbusBlockType blockType();
+
+	@Override
+	int hashCode();
+
+	@Override
+	boolean equals(Object obj);
 
 }

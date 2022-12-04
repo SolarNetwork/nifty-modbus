@@ -27,6 +27,7 @@ import static net.solarnetwork.io.modbus.ModbusFunctionCodes.READ_COILS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
@@ -44,7 +45,7 @@ public class BaseModbusMessageTests {
 
 	@Test
 	public void base() {
-		// WHEN
+		// GIVEN
 		int unitId = 1;
 		byte fn = READ_COILS;
 		BaseModbusMessage msg = new BaseModbusMessage(unitId, fn);
@@ -56,7 +57,7 @@ public class BaseModbusMessageTests {
 
 	@Test
 	public void error() {
-		// WHEN
+		// GIVEN
 		int unitId = 1;
 		byte fn = READ_COILS;
 		byte err = ILLEGAL_DATA_ADDRESS;
@@ -70,7 +71,7 @@ public class BaseModbusMessageTests {
 
 	@Test
 	public void error_functionOffset() {
-		// WHEN
+		// GIVEN
 		int unitId = 1;
 		byte fn = READ_COILS + ModbusFunctionCodes.ERROR_OFFSET;
 		byte err = ILLEGAL_DATA_ADDRESS;
@@ -81,6 +82,37 @@ public class BaseModbusMessageTests {
 		assertThat("Function decoded from error offset", msg.getFunction(),
 				is(equalTo(ModbusFunctionCode.ReadCoils)));
 		assertThat("Error saved", msg.getError(), is(equalTo(ModbusErrorCode.IllegalDataAddress)));
+	}
+
+	@Test
+	public void equals() {
+		// GIVEN
+		BaseModbusMessage msg1 = new BaseModbusMessage(1, READ_COILS);
+
+		// THEN
+		assertThat("Equality is based on instance", msg1, is(equalTo(msg1)));
+	}
+
+	@Test
+	public void isSameAs() {
+		// GIVEN
+		BaseModbusMessage msg1 = new BaseModbusMessage(1, READ_COILS);
+		BaseModbusMessage msg2 = new BaseModbusMessage(1, READ_COILS);
+
+		// THEN
+		assertThat("Sameness is based on properties", msg1.isSameAs(msg2), is(equalTo(true)));
+		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
+	}
+
+	@Test
+	public void isNotSameAs() {
+		// GIVEN
+		BaseModbusMessage msg1 = new BaseModbusMessage(1, READ_COILS);
+		BaseModbusMessage msg2 = new BaseModbusMessage(2, READ_COILS);
+
+		// THEN
+		assertThat("Difference is based on properties", msg1.isSameAs(msg2), is(equalTo(false)));
+		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
 	}
 
 }

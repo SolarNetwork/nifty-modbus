@@ -23,8 +23,6 @@
 package net.solarnetwork.io.modbus.rtu.netty;
 
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ReplayingDecoder;
@@ -39,8 +37,6 @@ import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessageDecoder.DecoderState
  * @version 1.0
  */
 public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
-
-	private static final Logger log = LoggerFactory.getLogger(RtuModbusMessageDecoder.class);
 
 	/** The length of the fixed-length header. */
 	public static final int FIXED_HEADER_LENGTH = 7;
@@ -63,7 +59,6 @@ public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 	enum DecoderState {
 		READ_FIXED_HEADER,
 		READ_PAYLOAD,
-		BAD_MESSAGE,
 	}
 
 	/** True if decoding response messages, false for requests. */
@@ -86,35 +81,18 @@ public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-		try {
-			switch (state()) {
-				case READ_FIXED_HEADER:
-					readFixedHeader(ctx, in);
-					break;
+		switch (state()) {
+			case READ_FIXED_HEADER:
+				readFixedHeader(ctx, in);
+				break;
 
-				case READ_PAYLOAD:
-					readPayload(ctx, in, out);
-					break;
-
-				case BAD_MESSAGE:
-					// Keep discarding until disconnection.
-					in.skipBytes(actualReadableBytes());
-					break;
-
-				default:
-					// Shouldn't reach here.
-					throw new Error("Unknown decode state");
-			}
-		} catch ( Exception e ) {
-			log.debug("Exception decoding Modbus message: {}", e, e);
-			checkpoint(DecoderState.BAD_MESSAGE);
+			case READ_PAYLOAD:
+				readPayload(ctx, in, out);
+				break;
 		}
 	}
 
 	private void readFixedHeader(ChannelHandlerContext ctx, ByteBuf in) {
-		if ( in.readableBytes() < FIXED_HEADER_LENGTH ) {
-			return;
-		}
 		unitId = in.readUnsignedByte();
 		checkpoint(DecoderState.READ_PAYLOAD);
 	}
@@ -127,19 +105,11 @@ public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 			if ( len < 1 ) {
 				return;
 			}
-			// look for payload + CRC length
-			if ( in.readableBytes() < len + 2 ) {
-				return;
-			}
 			msg = ModbusMessageUtils.decodeResponsePayload(unitId, 0, 0, in);
 		} else {
 			// inbound request
 			int len = ModbusMessageUtils.discoverRequestPayloadLength(in);
 			if ( len < 1 ) {
-				return;
-			}
-			// look for payload + CRC length
-			if ( in.readableBytes() < len + 2 ) {
 				return;
 			}
 			msg = ModbusMessageUtils.decodeRequestPayload(unitId, 0, 0, in);

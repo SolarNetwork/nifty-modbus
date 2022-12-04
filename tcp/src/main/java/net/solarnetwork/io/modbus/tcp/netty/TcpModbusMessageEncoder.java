@@ -56,8 +56,8 @@ public class TcpModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessa
 	 * @throws IllegalArgumentException
 	 *         if any argument is {@literal null}
 	 */
-	public TcpModbusMessageEncoder(ConcurrentMap<Integer, TcpModbusMessage> messages) {
-		this(messages, SimpleTransactionIdSupplier.INSTANCE);
+	public TcpModbusMessageEncoder(ConcurrentMap<Integer, TcpModbusMessage> pendingMessages) {
+		this(pendingMessages, SimpleTransactionIdSupplier.INSTANCE);
 	}
 
 	/**
@@ -88,7 +88,7 @@ public class TcpModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessa
 	@Override
 	protected void encode(ChannelHandlerContext ctx, ModbusMessage msg, List<Object> out)
 			throws Exception {
-		TcpModbusMessage tcp = null;
+		TcpModbusMessage tcp;
 		if ( msg instanceof TcpModbusMessage ) {
 			tcp = (TcpModbusMessage) msg;
 		} else if ( msg instanceof ModbusMessageReply ) {
@@ -108,12 +108,10 @@ public class TcpModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessa
 			tcp = new TcpModbusMessage(transactionId, msg);
 			pendingMessages.put(transactionId, tcp);
 		}
-		if ( tcp != null ) {
-			int len = tcp.payloadLength();
-			ByteBuf buf = ctx.alloc().buffer(len);
-			tcp.encodeModbusPayload(buf);
-			out.add(buf);
-		}
+		int len = tcp.payloadLength();
+		ByteBuf buf = ctx.alloc().buffer(len);
+		tcp.encodeModbusPayload(buf);
+		out.add(buf);
 	}
 
 }

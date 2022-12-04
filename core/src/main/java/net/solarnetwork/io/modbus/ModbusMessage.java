@@ -107,4 +107,20 @@ public interface ModbusMessage {
 	 */
 	<T extends ModbusMessage> T unwrap(Class<T> msgType);
 
+	/**
+	 * Compare the "sameness" of this message to another.
+	 * 
+	 * @param obj
+	 *        the message to compare to this message
+	 * @return if the class of {@code other} is the same as this class, and the
+	 *         properties are the same
+	 */
+	boolean isSameAs(ModbusMessage obj);
+
+	@Override
+	int hashCode();
+
+	@Override
+	boolean equals(Object obj);
+
 }

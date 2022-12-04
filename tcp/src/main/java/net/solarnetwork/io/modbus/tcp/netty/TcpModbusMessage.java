@@ -87,6 +87,21 @@ public class TcpModbusMessage
 		this.body = body;
 	}
 
+	@Override
+	public boolean isSameAs(ModbusMessage obj) {
+		if ( obj == this ) {
+			return true;
+		}
+		if ( !(obj instanceof TcpModbusMessage) ) {
+			return false;
+		}
+		TcpModbusMessage other = (TcpModbusMessage) obj;
+		if ( transactionId != other.transactionId ) {
+			return false;
+		}
+		return body.isSameAs(other.body);
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
@@ -107,6 +122,15 @@ public class TcpModbusMessage
 		builder.append(body);
 		builder.append("}");
 		return builder.toString();
+	}
+
+	/**
+	 * Get the wrapped message.
+	 * 
+	 * @return the wrapped message
+	 */
+	public ModbusMessage getBody() {
+		return body;
 	}
 
 	@Override

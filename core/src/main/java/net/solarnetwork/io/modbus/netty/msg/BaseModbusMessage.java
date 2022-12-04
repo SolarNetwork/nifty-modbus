@@ -22,6 +22,7 @@
 
 package net.solarnetwork.io.modbus.netty.msg;
 
+import java.util.Objects;
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
@@ -91,6 +92,19 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 		}
 		this.function = function;
 		this.error = error;
+	}
+
+	@Override
+	public boolean isSameAs(ModbusMessage obj) {
+		if ( this == obj ) {
+			return true;
+		}
+		if ( !(obj instanceof BaseModbusMessage) ) {
+			return false;
+		}
+		BaseModbusMessage other = (BaseModbusMessage) obj;
+		return unitId == other.unitId && Objects.equals(error, other.error)
+				&& Objects.equals(function, other.function);
 	}
 
 	@SuppressWarnings("unchecked")

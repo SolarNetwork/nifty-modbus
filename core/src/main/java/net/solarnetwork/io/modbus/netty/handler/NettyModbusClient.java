@@ -153,13 +153,15 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		if ( connFuture != null ) {
 			return connFuture;
 		}
-		Future<?> result = handleConnect(false);
+		CompletableFuture<?> result = handleConnect(false);
 		connFuture = result;
 		if ( cleanupTask == null ) {
 			long period = getPendingMessageTtl() * 2;
 			if ( period > 0 ) {
-				cleanupTask = scheduler.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(),
-						period, period, TimeUnit.MILLISECONDS);
+				result.thenRun(() -> {
+					cleanupTask = scheduler.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(),
+							period, period, TimeUnit.MILLISECONDS);
+				});
 			}
 		}
 		return result;
@@ -189,7 +191,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		}
 	}
 
-	private synchronized Future<?> handleConnect(boolean reconnecting) {
+	private synchronized CompletableFuture<?> handleConnect(boolean reconnecting) {
 		CompletableFuture<Void> completable = new CompletableFuture<>();
 		try {
 			ChannelFuture channelFuture = connect();
@@ -213,7 +215,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 					}
 				}
 			});
-		} catch ( IOException e ) {
+		} catch ( Exception e ) {
 			completable.completeExceptionally(e);
 		}
 		return completable;

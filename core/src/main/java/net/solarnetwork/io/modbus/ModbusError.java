@@ -51,4 +51,10 @@ public interface ModbusError {
 		}
 	}
 
+	@Override
+	int hashCode();
+
+	@Override
+	boolean equals(Object obj);
+
 }

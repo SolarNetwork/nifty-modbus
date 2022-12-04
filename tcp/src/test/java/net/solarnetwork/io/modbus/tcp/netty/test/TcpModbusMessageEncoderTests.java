@@ -28,6 +28,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,6 +40,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
+import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageEncoder;
 
@@ -59,6 +61,55 @@ public class TcpModbusMessageEncoderTests {
 		messages = new ConcurrentHashMap<>(8, 0.9f, 2);
 		channel = new EmbeddedChannel(
 				new TcpModbusMessageEncoder(messages, ID_SUPPLIER::incrementAndGet));
+	}
+
+	@Test
+	public void construct_nullValues() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			new TcpModbusMessageEncoder(null);
+		}, "Pending messages map is required");
+
+		assertThrows(IllegalArgumentException.class, () -> {
+			new TcpModbusMessageEncoder(new ConcurrentHashMap<>(), null);
+		}, "Tx ID supplier is required");
+
+	}
+
+	@Test
+	public void construct_defaultIdSupplier() {
+		// GIVEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage msg = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+		EmbeddedChannel ch = new EmbeddedChannel(new TcpModbusMessageEncoder(messages));
+
+		// WHEN
+		boolean result = ch.writeOutbound(msg);
+
+		// THEN
+		assertThat("Message handled", result, is(equalTo(true)));
+		ByteBuf buf = ch.readOutbound();
+		assertThat("Bytes produced", buf, is(notNullValue()));
+
+		// @formatter:off
+		int txId = SimpleTransactionIdSupplier.INSTANCE.nextId() - 1;
+		assertThat("Message encoded using default ID supplier", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
+				byteObjectArray(new byte[] {
+						(byte)(txId >>> 8 & 0xFF),
+						(byte)(txId & 0xFF),
+						(byte)0x00,
+						(byte)0x00,
+						(byte)0x00,
+						(byte)0x06,
+						(byte)unitId,
+						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+						(byte)(addr >>> 8 & 0xFF),
+						(byte)(addr & 0xFF),
+						(byte)(count >>> 8 & 0xFF),
+						(byte)(count & 0xFF),
+				})));
+		// @formatter:on
 	}
 
 	@Test
@@ -135,6 +186,43 @@ public class TcpModbusMessageEncoderTests {
 						(byte)0x45,
 						(byte)0x34,
 						(byte)0x56,
+				})));
+		// @formatter:on
+	}
+
+	@Test
+	public void tcp_passedThrough() {
+		// GIVEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		final int txId = 4;
+		RegistersModbusMessage msg = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+		TcpModbusMessage tcp = new TcpModbusMessage(txId, msg);
+
+		// WHEN
+		boolean result = channel.writeOutbound(tcp);
+
+		// THEN
+		assertThat("Message handled", result, is(equalTo(true)));
+		ByteBuf buf = channel.readOutbound();
+		assertThat("Bytes produced", buf, is(notNullValue()));
+
+		// @formatter:off
+		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
+				byteObjectArray(new byte[] {
+						(byte)(txId >>> 8 & 0xFF),
+						(byte)(txId & 0xFF),
+						(byte)0x00,
+						(byte)0x00,
+						(byte)0x00,
+						(byte)0x06,
+						(byte)unitId,
+						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+						(byte)(addr >>> 8 & 0xFF),
+						(byte)(addr & 0xFF),
+						(byte)(count >>> 8 & 0xFF),
+						(byte)(count & 0xFF),
 				})));
 		// @formatter:on
 	}

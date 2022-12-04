@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -86,8 +87,13 @@ public class TcpModbusMessageTests {
 				throw new UnsupportedOperationException();
 			}
 
+			@Override
+			public boolean isSameAs(ModbusMessage obj) {
+				return false;
+			}
+
 		}
-		;
+
 		assertThrows(IllegalArgumentException.class, () -> {
 			new TcpModbusMessage(4, new NonPayloadEncoder());
 		}, "Body that does not implement ModbusPayloadEncoder not allowed");
@@ -125,6 +131,18 @@ public class TcpModbusMessageTests {
 
 		// THEN
 		assertThat("Provided timestamp returned", tcp.getTimestamp(), is(equalTo(ts)));
+	}
+
+	@Test
+	public void getBody() {
+		// GIVEN
+		final long ts = System.currentTimeMillis();
+		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
+				ModbusErrorCode.IllegalFunction);
+		TcpModbusMessage tcp = new TcpModbusMessage(ts, 4, msg);
+
+		// THEN
+		assertThat("Provided timestamp returned", tcp.getBody(), is(sameInstance(msg)));
 	}
 
 	@Test
@@ -183,6 +201,51 @@ public class TcpModbusMessageTests {
 				is(sameInstance(msg)));
 		assertThat("Can not unwrap as Bits",
 				tcp.unwrap(net.solarnetwork.io.modbus.BitsModbusMessage.class), is(nullValue()));
+	}
+
+	@Test
+	public void equals() {
+		// GIVEN
+		RegistersModbusMessage body1 = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		TcpModbusMessage msg1 = new TcpModbusMessage(4, body1);
+
+		// THEN
+		assertThat("Sameness is based on properties", msg1.isSameAs(msg1), is(equalTo(true)));
+		assertThat("Equality is based on instance", msg1, is(equalTo(msg1)));
+	}
+
+	@Test
+	public void isSameAs() {
+		// GIVEN
+		RegistersModbusMessage body1 = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		RegistersModbusMessage body2 = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		TcpModbusMessage msg1 = new TcpModbusMessage(1, body1);
+		TcpModbusMessage msg2 = new TcpModbusMessage(1, body2);
+
+		// THEN
+		assertThat("Sameness is based on properties", msg1.isSameAs(msg2), is(equalTo(true)));
+		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
+	}
+
+	@Test
+	public void isNotSameAs() {
+		// GIVEN
+		RegistersModbusMessage body1 = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		RegistersModbusMessage body2 = RegistersModbusMessage.readHoldingsRequest(2, 2, 3);
+		TcpModbusMessage msg1 = new TcpModbusMessage(1, body1);
+		TcpModbusMessage msg2 = new TcpModbusMessage(2, body1);
+		TcpModbusMessage msg3 = new TcpModbusMessage(1, body2);
+		BaseModbusMessage msg4 = new BaseModbusMessage(1, ModbusFunctionCodes.READ_COILS);
+
+		// THEN
+		assertThat("Difference is based on properties", msg1.isSameAs(msg2), is(equalTo(false)));
+		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
+
+		assertThat("Difference is based on properties", msg1.isSameAs(msg3), is(equalTo(false)));
+		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
+
+		assertThat("Difference is based on properties", msg1.isSameAs(msg4), is(equalTo(false)));
+		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
 	}
 
 }

@@ -53,6 +53,18 @@ public final class UserModbusFunction implements ModbusFunction {
 	 *        the display name
 	 * @param code
 	 *        the function code
+	 */
+	public UserModbusFunction(String displayName, byte code) {
+		this(displayName, code, null, false, null);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param displayName
+	 *        the display name
+	 * @param code
+	 *        the function code
 	 * @param blockType
 	 *        the block type
 	 * @param readFunction
@@ -80,6 +92,23 @@ public final class UserModbusFunction implements ModbusFunction {
 	}
 
 	@Override
+	public int hashCode() {
+		return Byte.hashCode(code);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if ( this == obj ) {
+			return true;
+		}
+		if ( !(obj instanceof UserModbusFunction) ) {
+			return false;
+		}
+		UserModbusFunction other = (UserModbusFunction) obj;
+		return code == other.code;
+	}
+
+	@Override
 	public byte getCode() {
 		return code;
 	}
@@ -101,6 +130,9 @@ public final class UserModbusFunction implements ModbusFunction {
 
 	@Override
 	public String toDisplayString() {
+		if ( displayName == null || displayName.isEmpty() ) {
+			return "UserModbusFunction{" + Byte.toUnsignedInt(code) + "}";
+		}
 		return displayName;
 	}
 

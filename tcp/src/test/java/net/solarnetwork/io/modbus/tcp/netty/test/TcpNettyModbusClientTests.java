@@ -124,6 +124,14 @@ public class TcpNettyModbusClientTests {
 	}
 
 	@Test
+	public void construct_defaults() {
+		NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig("localhost", 502);
+		TcpNettyModbusClient c = new TcpNettyModbusClient(config);
+
+		assertThat("Provided client config returned", c.getClientConfig(), is(sameInstance(config)));
+	}
+
+	@Test
 	public void construct_nulls() {
 		assertThrows(IllegalArgumentException.class, () -> {
 			new TcpNettyModbusClient(new NettyTcpModbusClientConfig("localhost", 502), null, pending,
@@ -136,14 +144,34 @@ public class TcpNettyModbusClientTests {
 	}
 
 	@Test
-	public void start_noHost() {
+	public void start_nullHost() {
 		final TcpNettyModbusClient c = new TcpNettyModbusClient(
 				new NettyTcpModbusClientConfig(null, 502), null, pending, channel.eventLoop(), null,
 				new ConcurrentHashMap<>(), SimpleTransactionIdSupplier.INSTANCE);
 		try {
-			assertThrows(IllegalArgumentException.class, () -> {
-				c.start();
-			}, "Null host not allowed");
+			ExecutionException e = assertThrows(ExecutionException.class, () -> {
+				c.start().get();
+			}, "Null host throws exception");
+			assertThat("Null host throws IllegalArgumentException", e.getCause(),
+					is(instanceOf(IllegalArgumentException.class)));
+		} finally {
+			if ( c != null ) {
+				c.stop();
+			}
+		}
+	}
+
+	@Test
+	public void start_emptyHost() {
+		final TcpNettyModbusClient c = new TcpNettyModbusClient(new NettyTcpModbusClientConfig("", 502),
+				null, pending, channel.eventLoop(), null, new ConcurrentHashMap<>(),
+				SimpleTransactionIdSupplier.INSTANCE);
+		try {
+			ExecutionException e = assertThrows(ExecutionException.class, () -> {
+				c.start().get();
+			}, "Empty host throws exception");
+			assertThat("Null host throws IllegalArgumentException", e.getCause(),
+					is(instanceOf(IllegalArgumentException.class)));
 		} finally {
 			if ( c != null ) {
 				c.stop();

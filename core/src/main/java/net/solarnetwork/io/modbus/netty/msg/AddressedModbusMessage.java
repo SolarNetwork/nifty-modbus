@@ -26,6 +26,7 @@ import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
+import net.solarnetwork.io.modbus.ModbusMessage;
 
 /**
  * An addressed Modbus message.
@@ -106,6 +107,18 @@ public class AddressedModbusMessage extends BaseModbusMessage
 		super(unitId, function, error);
 		this.address = (address < 0 ? 0 : address);
 		this.count = (count < 0 ? 0 : count);
+	}
+
+	@Override
+	public boolean isSameAs(ModbusMessage obj) {
+		if ( !super.isSameAs(obj) ) {
+			return false;
+		}
+		if ( !(obj instanceof AddressedModbusMessage) ) {
+			return false;
+		}
+		AddressedModbusMessage other = (AddressedModbusMessage) obj;
+		return address == other.address && count == other.count;
 	}
 
 	@Override
