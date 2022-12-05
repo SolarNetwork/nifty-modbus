@@ -22,12 +22,12 @@
 
 package net.solarnetwork.io.modbus.serial;
 
-import static net.solarnetwork.io.modbus.serial.SerialChannelOption.BAUD_RATE;
-import static net.solarnetwork.io.modbus.serial.SerialChannelOption.DATA_BITS;
-import static net.solarnetwork.io.modbus.serial.SerialChannelOption.PARITY;
-import static net.solarnetwork.io.modbus.serial.SerialChannelOption.READ_TIMEOUT;
-import static net.solarnetwork.io.modbus.serial.SerialChannelOption.STOP_BITS;
-import static net.solarnetwork.io.modbus.serial.SerialChannelOption.WAIT_TIME;
+import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.BAUD_RATE;
+import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.DATA_BITS;
+import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.PARITY;
+import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.READ_TIMEOUT;
+import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.STOP_BITS;
+import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.WAIT_TIME;
 import java.util.Map;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelOption;
@@ -41,7 +41,8 @@ import io.netty.channel.RecvByteBufAllocator;
  * @author matt
  * @version 1.0
  */
-public class DefaultSerialPortChannelConfig extends DefaultChannelConfig implements SerialChannelConfig {
+public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
+		implements SerialPortChannelConfig {
 
 	private volatile int baudRate = DEFAULT_BAUD_RATE;
 	private volatile SerialStopBits stopBits = DEFAULT_STOP_BITS;
@@ -57,7 +58,7 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig impleme
 	@Override
 	public String toString() {
 		StringBuilder buf = new StringBuilder();
-		buf.append("SerialChannelConfig{");
+		buf.append("SerialPortChannelConfig{");
 		buf.append(baudRate);
 		buf.append(" ");
 		buf.append(bitsShortcut());
@@ -122,7 +123,7 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig impleme
 	}
 
 	@Override
-	public SerialChannelConfig setBaudRate(final int baudRate) {
+	public SerialPortChannelConfig setBaudRate(final int baudRate) {
 		this.baudRate = baudRate;
 		return this;
 	}
@@ -133,7 +134,7 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig impleme
 	}
 
 	@Override
-	public SerialChannelConfig setStopBits(final SerialStopBits stopBits) {
+	public SerialPortChannelConfig setStopBits(final SerialStopBits stopBits) {
 		this.stopBits = stopBits;
 		return this;
 	}
@@ -144,7 +145,7 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig impleme
 	}
 
 	@Override
-	public SerialChannelConfig setDataBits(final int dataBits) {
+	public SerialPortChannelConfig setDataBits(final int dataBits) {
 		this.dataBits = dataBits;
 		return this;
 	}
@@ -155,7 +156,7 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig impleme
 	}
 
 	@Override
-	public SerialChannelConfig setParity(final SerialParity parity) {
+	public SerialPortChannelConfig setParity(final SerialParity parity) {
 		this.parity = parity;
 		return this;
 	}
@@ -166,7 +167,7 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig impleme
 	}
 
 	@Override
-	public SerialChannelConfig setWaitTime(final int waitTime) {
+	public SerialPortChannelConfig setWaitTime(final int waitTime) {
 		if ( waitTime < 0 ) {
 			throw new IllegalArgumentException("The wait time must be >= 0");
 		}
@@ -180,7 +181,7 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig impleme
 	}
 
 	@Override
-	public SerialChannelConfig setReadTimeout(int readTimeout) {
+	public SerialPortChannelConfig setReadTimeout(int readTimeout) {
 		if ( readTimeout < 0 ) {
 			throw new IllegalArgumentException("The read timeout must be >= 0");
 		}
@@ -189,62 +190,62 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig impleme
 	}
 
 	@Override
-	public SerialChannelConfig setConnectTimeoutMillis(int connectTimeoutMillis) {
+	public SerialPortChannelConfig setConnectTimeoutMillis(int connectTimeoutMillis) {
 		super.setConnectTimeoutMillis(connectTimeoutMillis);
 		return this;
 	}
 
 	@SuppressWarnings("deprecation")
 	@Override
-	public SerialChannelConfig setMaxMessagesPerRead(int maxMessagesPerRead) {
+	public SerialPortChannelConfig setMaxMessagesPerRead(int maxMessagesPerRead) {
 		super.setMaxMessagesPerRead(maxMessagesPerRead);
 		return this;
 	}
 
 	@Override
-	public SerialChannelConfig setWriteSpinCount(int writeSpinCount) {
+	public SerialPortChannelConfig setWriteSpinCount(int writeSpinCount) {
 		super.setWriteSpinCount(writeSpinCount);
 		return this;
 	}
 
 	@Override
-	public SerialChannelConfig setAllocator(ByteBufAllocator allocator) {
+	public SerialPortChannelConfig setAllocator(ByteBufAllocator allocator) {
 		super.setAllocator(allocator);
 		return this;
 	}
 
 	@Override
-	public SerialChannelConfig setRecvByteBufAllocator(RecvByteBufAllocator allocator) {
+	public SerialPortChannelConfig setRecvByteBufAllocator(RecvByteBufAllocator allocator) {
 		super.setRecvByteBufAllocator(allocator);
 		return this;
 	}
 
 	@Override
-	public SerialChannelConfig setAutoRead(boolean autoRead) {
+	public SerialPortChannelConfig setAutoRead(boolean autoRead) {
 		super.setAutoRead(autoRead);
 		return this;
 	}
 
 	@Override
-	public SerialChannelConfig setAutoClose(boolean autoClose) {
+	public SerialPortChannelConfig setAutoClose(boolean autoClose) {
 		super.setAutoClose(autoClose);
 		return this;
 	}
 
 	@Override
-	public SerialChannelConfig setWriteBufferHighWaterMark(int writeBufferHighWaterMark) {
+	public SerialPortChannelConfig setWriteBufferHighWaterMark(int writeBufferHighWaterMark) {
 		super.setWriteBufferHighWaterMark(writeBufferHighWaterMark);
 		return this;
 	}
 
 	@Override
-	public SerialChannelConfig setWriteBufferLowWaterMark(int writeBufferLowWaterMark) {
+	public SerialPortChannelConfig setWriteBufferLowWaterMark(int writeBufferLowWaterMark) {
 		super.setWriteBufferLowWaterMark(writeBufferLowWaterMark);
 		return this;
 	}
 
 	@Override
-	public SerialChannelConfig setMessageSizeEstimator(MessageSizeEstimator estimator) {
+	public SerialPortChannelConfig setMessageSizeEstimator(MessageSizeEstimator estimator) {
 		super.setMessageSizeEstimator(estimator);
 		return this;
 	}

@@ -1,5 +1,5 @@
 /* ==================================================================
- * SerialChannelOption.java - 2/12/2022 7:05:23 am
+ * SerialPortChannelOption.java - 2/12/2022 7:05:23 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -30,7 +30,7 @@ import io.netty.channel.ChannelOption;
  * @author matt
  * @version 1.0
  */
-public class SerialChannelOption<T> extends ChannelOption<T> {
+public class SerialPortChannelOption<T> extends ChannelOption<T> {
 
 	/** The baud rate. */
 	public static final ChannelOption<Integer> BAUD_RATE = valueOf("BAUD_RATE");
@@ -51,7 +51,7 @@ public class SerialChannelOption<T> extends ChannelOption<T> {
 	public static final ChannelOption<Integer> READ_TIMEOUT = valueOf("READ_TIMEOUT");
 
 	@SuppressWarnings("deprecation")
-	private SerialChannelOption() {
+	private SerialPortChannelOption() {
 		super(null);
 	}
 

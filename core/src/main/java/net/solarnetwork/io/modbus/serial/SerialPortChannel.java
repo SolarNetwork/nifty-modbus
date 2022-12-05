@@ -53,7 +53,7 @@ public class SerialPortChannel extends AbstractChannel {
 	private static final SerialAddress LOCAL_ADDRESS = new SerialAddress("localhost");
 
 	private final SerialPortProvider serialPortProvider;
-	private final SerialChannelConfig config;
+	private final SerialPortChannelConfig config;
 
 	private boolean open;
 	private SerialAddress deviceAddress;
@@ -98,7 +98,7 @@ public class SerialPortChannel extends AbstractChannel {
 	}
 
 	@Override
-	public SerialChannelConfig config() {
+	public SerialPortChannelConfig config() {
 		return config;
 	}
 
@@ -457,7 +457,7 @@ public class SerialPortChannel extends AbstractChannel {
 
 			try {
 				doConnect(remoteAddress, localAddress);
-				int waitTime = config().getOption(SerialChannelOption.WAIT_TIME);
+				int waitTime = config().getOption(SerialPortChannelOption.WAIT_TIME);
 				if ( waitTime > 0 ) {
 					eventLoop().schedule(task, waitTime, TimeUnit.MILLISECONDS);
 				} else {
