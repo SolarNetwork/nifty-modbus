@@ -20,7 +20,7 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.rtu.netty;
+package net.solarnetwork.io.modbus.rtu.netty.test;
 
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -35,6 +35,8 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
+import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessage;
+import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessageEncoder;
 
 /**
  * Test cases for the {@link RtuModbusMessageEncoder} class.
@@ -112,6 +114,39 @@ public class RtuModbusMessageEncoderTests {
 						(byte)0x45,
 						(byte)0x34,
 						(byte)0x56,
+						(byte)(expectedCrc & 0xFF),
+						(byte)((expectedCrc >>> 8) & 0xFF),
+				})));
+		// @formatter:on
+	}
+
+	@Test
+	public void rtu_passedThrough() {
+		// GIVEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage msg = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+		RtuModbusMessage rtu = new RtuModbusMessage(unitId, msg);
+
+		// WHEN
+		boolean result = channel.writeOutbound(rtu);
+
+		// THEN
+		assertThat("Message handled", result, is(equalTo(true)));
+		ByteBuf buf = channel.readOutbound();
+		assertThat("Bytes produced", buf, is(notNullValue()));
+
+		final short expectedCrc = RtuModbusMessage.computeCrc(unitId, msg);
+		// @formatter:off
+		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
+				byteObjectArray(new byte[] {
+						(byte)unitId,
+						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+						(byte)(addr >>> 8 & 0xFF),
+						(byte)(addr & 0xFF),
+						(byte)(count >>> 8 & 0xFF),
+						(byte)(count & 0xFF),
 						(byte)(expectedCrc & 0xFF),
 						(byte)((expectedCrc >>> 8) & 0xFF),
 				})));

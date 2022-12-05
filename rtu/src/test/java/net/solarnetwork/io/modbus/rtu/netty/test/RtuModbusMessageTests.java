@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpModbusMessageTests.java - 28/11/2022 4:15:37 pm
+ * RtuModbusMessageTests.java - 1/12/2022 4:15:31 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,7 +20,7 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.tcp.netty.test;
+package net.solarnetwork.io.modbus.rtu.netty.test;
 
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -47,20 +47,20 @@ import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
-import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
+import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessage;
 
 /**
- * Test cases for the {@link TcpModbusMessage} class.
+ * Test cases for the {@link RtuModbusMessage} class.
  *
  * @author matt
  * @version 1.0
  */
-public class TcpModbusMessageTests {
+public class RtuModbusMessageTests {
 
 	@Test
 	public void construct_nullBody() {
 		assertThrows(IllegalArgumentException.class, () -> {
-			new TcpModbusMessage(4, null);
+			new RtuModbusMessage(1, null);
 		}, "Null body not allowed");
 	}
 
@@ -96,7 +96,7 @@ public class TcpModbusMessageTests {
 		}
 
 		assertThrows(IllegalArgumentException.class, () -> {
-			new TcpModbusMessage(4, new NonPayloadEncoder());
+			new RtuModbusMessage(1, new NonPayloadEncoder());
 		}, "Body that does not implement ModbusPayloadEncoder not allowed");
 	}
 
@@ -105,10 +105,10 @@ public class TcpModbusMessageTests {
 		// GIVEN
 		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
 				ModbusErrorCode.IllegalFunction);
-		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+		RtuModbusMessage rtu = new RtuModbusMessage(4, msg);
 
 		// THEN
-		assertThat("Function getter delegates", tcp.getFunction(), is(sameInstance(msg.getFunction())));
+		assertThat("Function getter delegates", rtu.getFunction(), is(sameInstance(msg.getFunction())));
 	}
 
 	@Test
@@ -116,10 +116,10 @@ public class TcpModbusMessageTests {
 		// GIVEN
 		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
 				ModbusErrorCode.IllegalFunction);
-		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+		RtuModbusMessage rtu = new RtuModbusMessage(4, msg);
 
 		// THEN
-		assertThat("Error getter delegates", tcp.getError(), is(sameInstance(msg.getError())));
+		assertThat("Error getter delegates", rtu.getError(), is(sameInstance(msg.getError())));
 	}
 
 	@Test
@@ -128,22 +128,21 @@ public class TcpModbusMessageTests {
 		final long ts = System.currentTimeMillis();
 		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
 				ModbusErrorCode.IllegalFunction);
-		TcpModbusMessage tcp = new TcpModbusMessage(ts, 4, msg);
+		RtuModbusMessage rtu = new RtuModbusMessage(ts, 4, msg);
 
 		// THEN
-		assertThat("Provided timestamp returned", tcp.getTimestamp(), is(equalTo(ts)));
+		assertThat("Provided timestamp returned", rtu.getTimestamp(), is(equalTo(ts)));
 	}
 
 	@Test
 	public void getBody() {
 		// GIVEN
-		final long ts = System.currentTimeMillis();
 		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
 				ModbusErrorCode.IllegalFunction);
-		TcpModbusMessage tcp = new TcpModbusMessage(ts, 4, msg);
+		RtuModbusMessage rtu = new RtuModbusMessage(4, msg);
 
 		// THEN
-		assertThat("Provided timestamp returned", tcp.getBody(), is(sameInstance(msg)));
+		assertThat("Provided timestamp returned", rtu.getBody(), is(sameInstance(msg)));
 	}
 
 	@Test
@@ -152,40 +151,75 @@ public class TcpModbusMessageTests {
 		final long start = System.currentTimeMillis();
 		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadCoils,
 				ModbusErrorCode.IllegalFunction);
-		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+		RtuModbusMessage rtu = new RtuModbusMessage(4, msg);
 
 		// THEN
-		assertThat("System timestamp returned (within sec tolerance)", tcp.getTimestamp(),
+		assertThat("System timestamp returned (within sec tolerance)", rtu.getTimestamp(),
 				is(allOf(greaterThanOrEqualTo(start), lessThanOrEqualTo(start + 1000))));
 	}
 
 	@Test
-	public void encode_request() {
+	public void crc() {
 		// GIVEN
-		RegistersModbusMessage msg = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
-		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+		final short crc = (short) 0x80B8;
+		RegistersModbusMessage msg = RegistersModbusMessage.readInputsResponse(1, 1,
+				new short[] { (short) 0xFFFF });
+		RtuModbusMessage rtu = new RtuModbusMessage(msg, crc);
+
+		// WHEN
+		short givenCrc = rtu.getCrc();
+		short computedCrc = rtu.computeCrc();
+		boolean valid = rtu.isCrcValid();
+
+		// THEN
+		assertThat("Given CRC preserved", givenCrc, is(equalTo(crc)));
+		assertThat("Computed CRC same", computedCrc, is(equalTo(crc)));
+		assertThat("Validated CRC", valid, is(equalTo(true)));
+	}
+
+	@Test
+	public void crc_invalid() {
+		// GIVEN
+		final short crc = (short) 0xABCD;
+		RegistersModbusMessage msg = RegistersModbusMessage.readInputsResponse(1, 1,
+				new short[] { (short) 0xFFFF });
+		RtuModbusMessage rtu = new RtuModbusMessage(msg, crc);
+
+		// WHEN
+		short givenCrc = rtu.getCrc();
+		short computedCrc = rtu.computeCrc();
+		boolean valid = rtu.isCrcValid();
+
+		// THEN
+		assertThat("Given CRC preserved", givenCrc, is(equalTo(crc)));
+		assertThat("Computed CRC from msg", computedCrc,
+				is(equalTo(RtuModbusMessage.computeCrc(1, msg))));
+		assertThat("Validated CRC", valid, is(equalTo(false)));
+	}
+
+	@Test
+	public void encode_response() {
+		// GIVEN
+		RegistersModbusMessage msg = RegistersModbusMessage.readInputsResponse(1, 1,
+				new short[] { (short) 0xFFFF });
+		RtuModbusMessage rtu = new RtuModbusMessage(msg, (short) 0x80B8);
 
 		// WHEN
 		ByteBuf buf = Unpooled.buffer();
-		tcp.encodeModbusPayload(buf);
+		rtu.encodeModbusPayload(buf);
 
 		// THEN
-		assertThat("Message length", tcp.payloadLength(), is(equalTo(7 + msg.payloadLength())));
+		assertThat("Message length", rtu.payloadLength(), is(equalTo(3 + msg.payloadLength())));
 		// @formatter:off
 		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
 				byteObjectArray(new byte[] {
-						(byte)0x00,
-						(byte)0x04,
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x06,
 						(byte)0x01,
-						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
-						(byte)0x00,
+						ModbusFunctionCodes.READ_INPUT_REGISTERS,
 						(byte)0x02,
-						(byte)0x00,
-						(byte)0x03,
+						(byte)0xFF,
+						(byte)0xFF,
+						(byte)0xB8,
+						(byte)0x80,
 				})));
 		// @formatter:on
 	}
@@ -193,22 +227,23 @@ public class TcpModbusMessageTests {
 	@Test
 	public void unwrap() {
 		// GIVEN
-		RegistersModbusMessage msg = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
-		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+		RegistersModbusMessage msg = RegistersModbusMessage.readInputsResponse(1, 1,
+				new short[] { (short) 0xFFFF });
+		RtuModbusMessage rtu = new RtuModbusMessage(msg, (short) 0x80B8);
 
 		// THEN
 		assertThat("Can unwrap as Registers",
-				tcp.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class),
+				rtu.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class),
 				is(sameInstance(msg)));
 		assertThat("Can not unwrap as Bits",
-				tcp.unwrap(net.solarnetwork.io.modbus.BitsModbusMessage.class), is(nullValue()));
+				rtu.unwrap(net.solarnetwork.io.modbus.BitsModbusMessage.class), is(nullValue()));
 	}
 
 	@Test
 	public void equals() {
 		// GIVEN
 		RegistersModbusMessage body1 = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
-		TcpModbusMessage msg1 = new TcpModbusMessage(4, body1);
+		RtuModbusMessage msg1 = new RtuModbusMessage(4, body1);
 
 		// THEN
 		assertThat("Sameness is based on properties", msg1.isSameAs(msg1), is(equalTo(true)));
@@ -220,8 +255,8 @@ public class TcpModbusMessageTests {
 		// GIVEN
 		RegistersModbusMessage body1 = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
 		RegistersModbusMessage body2 = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
-		TcpModbusMessage msg1 = new TcpModbusMessage(1, body1);
-		TcpModbusMessage msg2 = new TcpModbusMessage(1, body2);
+		RtuModbusMessage msg1 = new RtuModbusMessage(1, body1);
+		RtuModbusMessage msg2 = new RtuModbusMessage(1, body2);
 
 		// THEN
 		assertThat("Sameness is based on properties", msg1.isSameAs(msg2), is(equalTo(true)));
@@ -233,9 +268,9 @@ public class TcpModbusMessageTests {
 		// GIVEN
 		RegistersModbusMessage body1 = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
 		RegistersModbusMessage body2 = RegistersModbusMessage.readHoldingsRequest(2, 2, 3);
-		TcpModbusMessage msg1 = new TcpModbusMessage(1, body1);
-		TcpModbusMessage msg2 = new TcpModbusMessage(2, body1);
-		TcpModbusMessage msg3 = new TcpModbusMessage(1, body2);
+		RtuModbusMessage msg1 = new RtuModbusMessage(1, body1);
+		RtuModbusMessage msg2 = new RtuModbusMessage(2, body1);
+		RtuModbusMessage msg3 = new RtuModbusMessage(1, body2);
 		BaseModbusMessage msg4 = new BaseModbusMessage(1, ModbusFunctionCodes.READ_COILS);
 
 		// THEN
@@ -253,10 +288,10 @@ public class TcpModbusMessageTests {
 	public void toStringMethod() {
 		// GIVEN
 		RegistersModbusMessage body = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
-		TcpModbusMessage msg = new TcpModbusMessage(1, body);
+		RtuModbusMessage msg = new RtuModbusMessage(1, body);
 
 		// THEN
-		assertThat("String produced", msg.toString(), matchesPattern("^TcpModbusMessage\\{.*\\}$"));
+		assertThat("String produced", msg.toString(), matchesPattern("^RtuModbusMessage\\{.*\\}$"));
 	}
 
 }

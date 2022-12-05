@@ -23,11 +23,16 @@
 package net.solarnetwork.io.modbus.rtu.netty;
 
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ReplayingDecoder;
+import net.solarnetwork.io.modbus.AddressedModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
 import net.solarnetwork.io.modbus.netty.msg.ModbusMessageUtils;
+import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
 import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessageDecoder.DecoderState;
 
 /**
@@ -37,6 +42,8 @@ import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessageDecoder.DecoderState
  * @version 1.0
  */
 public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
+
+	private static final Logger log = LoggerFactory.getLogger(RtuModbusMessageDecoder.class);
 
 	/** The length of the fixed-length header. */
 	public static final int FIXED_HEADER_LENGTH = 7;
@@ -59,6 +66,7 @@ public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 	enum DecoderState {
 		READ_FIXED_HEADER,
 		READ_PAYLOAD,
+		BAD_DATA,
 	}
 
 	/** True if decoding response messages, false for requests. */
@@ -89,6 +97,12 @@ public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 			case READ_PAYLOAD:
 				readPayload(ctx, in, out);
 				break;
+
+			case BAD_DATA:
+				// discard input
+				in.skipBytes(in.readableBytes());
+				checkpoint(DecoderState.READ_FIXED_HEADER);
+				break;
 		}
 	}
 
@@ -99,24 +113,38 @@ public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 
 	private void readPayload(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
 		ModbusMessage msg = null;
+		ModbusMessage req = null;
+		AddressedModbusMessage reqAddr = null;
 		if ( controller ) {
 			// inbound response
 			int len = ModbusMessageUtils.discoverResponsePayloadLength(in);
 			if ( len < 1 ) {
+				checkpoint(DecoderState.BAD_DATA);
 				return;
 			}
-			msg = ModbusMessageUtils.decodeResponsePayload(unitId, 0, 0, in);
+			req = ctx.channel().attr(NettyModbusClient.LAST_ENCODED_MESSAGE).get();
+			reqAddr = (req instanceof AddressedModbusMessage ? (AddressedModbusMessage) req : null);
+			msg = ModbusMessageUtils.decodeResponsePayload(unitId,
+					(reqAddr != null ? reqAddr.getAddress() : 0),
+					(reqAddr != null ? reqAddr.getCount() : 0), in);
 		} else {
 			// inbound request
-			int len = ModbusMessageUtils.discoverRequestPayloadLength(in);
-			if ( len < 1 ) {
-				return;
-			}
 			msg = ModbusMessageUtils.decodeRequestPayload(unitId, 0, 0, in);
 		}
 		if ( msg != null ) {
 			short crc = in.readShortLE();
-			out.add(new RtuModbusMessage(msg, crc));
+			short computedCrc = RtuModbusMessage.computeCrc(unitId, msg);
+			if ( crc != computedCrc ) {
+				log.warn("CRC mismatch: frame value {} but computed value {} from {}",
+						Short.toUnsignedInt(crc), Short.toUnsignedInt(computedCrc), msg);
+			}
+			if ( req != null ) {
+				msg = new SimpleModbusMessageReply(req, msg);
+				ctx.channel().attr(NettyModbusClient.LAST_ENCODED_MESSAGE).compareAndSet(req, null);
+			} else {
+				msg = new RtuModbusMessage(msg, crc);
+			}
+			out.add(msg);
 		}
 		checkpoint(DecoderState.READ_FIXED_HEADER);
 	}

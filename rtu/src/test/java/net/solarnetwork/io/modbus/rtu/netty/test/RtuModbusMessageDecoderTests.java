@@ -20,7 +20,7 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.rtu.netty;
+package net.solarnetwork.io.modbus.rtu.netty.test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -36,6 +36,8 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.RegistersModbusMessage;
+import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessage;
+import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessageDecoder;
 
 /**
  * Test cases for the {@link RtuModbusMessageDecoder} class.

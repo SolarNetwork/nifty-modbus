@@ -1,5 +1,5 @@
 /* ==================================================================
- * TcpNettyModbusClientTests.java - 30/11/2022 2:07:44 pm
+ * RtuNettyModbusClientTests.java - 5/12/2022 6:43:24 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,7 +20,7 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.tcp.netty.test;
+package net.solarnetwork.io.modbus.rtu.netty.test;
 
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,8 +38,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntSupplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,35 +48,36 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusErrorCodes;
+import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
-import net.solarnetwork.io.modbus.UserModbusFunction;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
+import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
-import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
-import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
-import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
-import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
-import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
+import net.solarnetwork.io.modbus.rtu.RtuModbusClientConfig;
+import net.solarnetwork.io.modbus.rtu.netty.NettyRtuModbusClientConfig;
+import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessage;
+import net.solarnetwork.io.modbus.rtu.netty.RtuNettyModbusClient;
+import net.solarnetwork.io.modbus.serial.BasicSerialParameters;
+import net.solarnetwork.io.modbus.serial.SerialPort;
+import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 
 /**
- * Test cases for the {@link TcpNettyModbusClient} class.
+ * Test cases for the {@link RtuNettyModbusClient} class.
  *
  * @author matt
  * @version 1.0
  */
-public class TcpNettyModbusClientTests {
+public class RtuNettyModbusClientTests {
 
-	private static final class TestTcpNettyModbusClient extends TcpNettyModbusClient {
+	private static final class TestRtuNettyModbusClient extends RtuNettyModbusClient {
 
 		private final EmbeddedChannel channel;
 
-		private TestTcpNettyModbusClient(TcpModbusClientConfig clientConfig, EmbeddedChannel channel,
+		private TestRtuNettyModbusClient(RtuModbusClientConfig clientConfig, EmbeddedChannel channel,
 				ConcurrentMap<ModbusMessage, PendingMessage> pending,
-				ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
-				IntSupplier transactionIdSupplier) {
-			super(clientConfig, null, pending, channel.eventLoop(), null, pendingMessages,
-					transactionIdSupplier);
+				SerialPortProvider serialPortProvider) {
+			super(clientConfig, null, pending, channel.eventLoop(), serialPortProvider);
 			this.channel = channel;
 			setWireLogging(true);
 		}
@@ -92,28 +91,13 @@ public class TcpNettyModbusClientTests {
 	}
 
 	private ConcurrentMap<ModbusMessage, PendingMessage> pending;
-	private ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
-	private AtomicInteger idSupplier = new AtomicInteger();
 	private EmbeddedChannel channel;
-	private TcpNettyModbusClient client;
+	private RtuNettyModbusClient client;
 
 	@BeforeEach
 	public void setup() {
-		pendingMessages = new ConcurrentHashMap<>(8, 0.9f, 2);
 		pending = new ConcurrentHashMap<>(8, 0.9f, 2);
 		channel = new EmbeddedChannel();
-		client = new TestTcpNettyModbusClient(new NettyTcpModbusClientConfig() {
-
-			@Override
-			public String getHost() {
-				return "test.localhost";
-			}
-
-			@Override
-			public String getDescription() {
-				return "Test";
-			}
-		}, channel, pending, pendingMessages, idSupplier::incrementAndGet);
 	}
 
 	@AfterEach
@@ -123,10 +107,37 @@ public class TcpNettyModbusClientTests {
 		}
 	}
 
+	private static class TestSerialPortProvider implements SerialPortProvider {
+
+		private final SerialPort serialPort;
+
+		private TestSerialPortProvider(SerialPort serialPort) {
+			super();
+			this.serialPort = serialPort;
+		}
+
+		@Override
+		public SerialPort getSerialPort(String name) {
+			return serialPort;
+		}
+
+	}
+
 	@Test
 	public void construct_defaults() {
-		NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig("localhost", 502);
-		TcpNettyModbusClient c = new TcpNettyModbusClient(config);
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		RtuNettyModbusClient c = new RtuNettyModbusClient(config, new TestSerialPortProvider(null));
+
+		assertThat("Provided client config returned", c.getClientConfig(), is(sameInstance(config)));
+	}
+
+	@Test
+	public void construct_partial_defaults() {
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		RtuNettyModbusClient c = new RtuNettyModbusClient(config, null, null,
+				new TestSerialPortProvider(null));
 
 		assertThat("Provided client config returned", c.getClientConfig(), is(sameInstance(config)));
 	}
@@ -134,25 +145,21 @@ public class TcpNettyModbusClientTests {
 	@Test
 	public void construct_nulls() {
 		assertThrows(IllegalArgumentException.class, () -> {
-			new TcpNettyModbusClient(new NettyTcpModbusClientConfig("localhost", 502), null, pending,
-					channel.eventLoop(), null, null, SimpleTransactionIdSupplier.INSTANCE);
-		}, "Null pendingMessages not allowed");
-		assertThrows(IllegalArgumentException.class, () -> {
-			new TcpNettyModbusClient(new NettyTcpModbusClientConfig("localhost", 502), null, pending,
-					channel.eventLoop(), null, new ConcurrentHashMap<>(), null);
-		}, "Null transactionIdSupplier not allowed");
+			new RtuNettyModbusClient(new NettyRtuModbusClientConfig("COM1", new BasicSerialParameters()),
+					null);
+		}, "Null serialPortProvider not allowed");
 	}
 
 	@Test
-	public void start_nullHost() {
-		final TcpNettyModbusClient c = new TcpNettyModbusClient(
-				new NettyTcpModbusClientConfig(null, 502), null, pending, channel.eventLoop(), null,
-				new ConcurrentHashMap<>(), SimpleTransactionIdSupplier.INSTANCE);
+	public void start_nullDeviceName() {
+		final RtuNettyModbusClient c = new RtuNettyModbusClient(
+				new NettyRtuModbusClientConfig(null, new BasicSerialParameters()), null, pending,
+				channel.eventLoop(), new TestSerialPortProvider(null));
 		try {
 			ExecutionException e = assertThrows(ExecutionException.class, () -> {
 				c.start().get();
-			}, "Null host throws exception");
-			assertThat("Null host throws IllegalArgumentException", e.getCause(),
+			}, "Null device name throws exception");
+			assertThat("Null device name throws IllegalArgumentException", e.getCause(),
 					is(instanceOf(IllegalArgumentException.class)));
 		} finally {
 			if ( c != null ) {
@@ -162,10 +169,10 @@ public class TcpNettyModbusClientTests {
 	}
 
 	@Test
-	public void start_emptyHost() {
-		final TcpNettyModbusClient c = new TcpNettyModbusClient(new NettyTcpModbusClientConfig("", 502),
-				null, pending, channel.eventLoop(), null, new ConcurrentHashMap<>(),
-				SimpleTransactionIdSupplier.INSTANCE);
+	public void start_emptyDeviceName() {
+		final RtuNettyModbusClient c = new RtuNettyModbusClient(
+				new NettyRtuModbusClientConfig("", new BasicSerialParameters()), null, pending,
+				channel.eventLoop(), new TestSerialPortProvider(null));
 		try {
 			ExecutionException e = assertThrows(ExecutionException.class, () -> {
 				c.start().get();
@@ -181,6 +188,13 @@ public class TcpNettyModbusClientTests {
 
 	@Test
 	public void start_twice() throws Exception {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+
+		// WHEN
 		client.start().get();
 		client.start().get(); // should not cause exception
 	}
@@ -188,6 +202,11 @@ public class TcpNettyModbusClientTests {
 	@Test
 	public void send() throws Exception {
 		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+
 		final int unitId = 1;
 		final int addr = 2;
 		final int count = 3;
@@ -206,22 +225,18 @@ public class TcpNettyModbusClientTests {
 		ByteBuf buf = channel.readOutbound();
 		assertThat("Bytes produced", buf, is(notNullValue()));
 
-		final int txId = idSupplier.get();
+		final short crc = RtuModbusMessage.computeCrc(unitId, req);
 		// @formatter:off
 		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
 				byteObjectArray(new byte[] {
-						(byte)(txId >>> 8 & 0xFF),
-						(byte)(txId & 0xFF),
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x06,
 						(byte)(unitId & 0xFF),
 						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
 						(byte)(addr >>> 8 & 0xFF),
 						(byte)(addr & 0xFF),
 						(byte)(count >>> 8 & 0xFF),
 						(byte)(count & 0xFF),
+						(byte)(crc & 0xFF),
+						(byte)(crc >>> 8 & 0xFF),
 				})));
 		// @formatter:on
 	}
@@ -229,6 +244,11 @@ public class TcpNettyModbusClientTests {
 	@Test
 	public void responseTimeout() throws Exception {
 		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+
 		final int unitId = 1;
 		final int addr = 2;
 		final int count = 3;
@@ -250,22 +270,18 @@ public class TcpNettyModbusClientTests {
 		ByteBuf buf = channel.readOutbound();
 		assertThat("Bytes produced", buf, is(notNullValue()));
 
-		final int txId = idSupplier.get();
+		final short crc = RtuModbusMessage.computeCrc(unitId, req);
 		// @formatter:off
 		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
 				byteObjectArray(new byte[] {
-						(byte)(txId >>> 8 & 0xFF),
-						(byte)(txId & 0xFF),
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x06,
 						(byte)(unitId & 0xFF),
 						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
 						(byte)(addr >>> 8 & 0xFF),
 						(byte)(addr & 0xFF),
 						(byte)(count >>> 8 & 0xFF),
 						(byte)(count & 0xFF),
+						(byte)(crc & 0xFF),
+						(byte)(crc >>> 8 & 0xFF),
 				})));
 		// @formatter:on
 	}
@@ -273,6 +289,11 @@ public class TcpNettyModbusClientTests {
 	@Test
 	public void send_recv() throws InterruptedException, ExecutionException {
 		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+
 		final int unitId = 1;
 		final int addr = 2;
 		final int count = 3;
@@ -283,24 +304,25 @@ public class TcpNettyModbusClientTests {
 		Future<ModbusMessage> f = client.sendAsync(req);
 
 		// provide response
-		final int txId = idSupplier.get();
 		// @formatter:off
+		final short resCrc = RtuModbusMessage.computeCrc(unitId,
+				RegistersModbusMessage.readHoldingsResponse(unitId, addr, new short[] { 
+						(short) 0xFFFE,
+						(short) 0xFDFC,
+						(short) 0xFBFA,
+		}));
 		final byte[] responseData = new byte[] {
-				(byte)(txId >>> 8 & 0xFF),
-				(byte)(txId & 0xFF),
-				(byte)0x00,
-				(byte)0x00,
-				(byte)0x00,
-				(byte)0x09,
 				(byte)(unitId & 0xFF),
 				ModbusFunctionCodes.READ_HOLDING_REGISTERS,
 				(byte)0x06,
-				(byte)0x02,
-				(byte)0x2B,
-				(byte)0x00,
-				(byte)0x00,
-				(byte)0x00,
-				(byte)0x64,
+				(byte)0xFF,
+				(byte)0xFE,
+				(byte)0xFD,
+				(byte)0xFC,
+				(byte)0xFB,
+				(byte)0xFA,
+				(byte)(resCrc & 0xFF),
+				(byte)(resCrc >>> 8 & 0xFF),
 		};
 		ByteBuf response = Unpooled.copiedBuffer(responseData);
 		// @formatter:on
@@ -313,21 +335,18 @@ public class TcpNettyModbusClientTests {
 		ByteBuf requestData = channel.readOutbound();
 		assertThat("Request bytes produced", requestData, is(notNullValue()));
 
+		final short crc = RtuModbusMessage.computeCrc(unitId, req);
 		// @formatter:off
 		assertThat("Request message encoded", byteObjectArray(ByteBufUtil.getBytes(requestData)), arrayContaining(
 				byteObjectArray(new byte[] {
-						(byte)(txId >>> 8 & 0xFF),
-						(byte)(txId & 0xFF),
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x06,
 						(byte)(unitId & 0xFF),
 						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
 						(byte)(addr >>> 8 & 0xFF),
 						(byte)(addr & 0xFF),
 						(byte)(count >>> 8 & 0xFF),
 						(byte)(count & 0xFF),
+						(byte)(crc & 0xFF),
+						(byte)(crc >>> 8 & 0xFF),
 				})));
 		// @formatter:on
 
@@ -342,6 +361,11 @@ public class TcpNettyModbusClientTests {
 	@Test
 	public void send_recvError() throws InterruptedException, ExecutionException {
 		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+
 		final int unitId = 1;
 		final int addr = 2;
 		final int count = 3;
@@ -352,18 +376,15 @@ public class TcpNettyModbusClientTests {
 		Future<ModbusMessage> f = client.sendAsync(req);
 
 		// provide response
-		final int txId = idSupplier.get();
+		final short resCrc = RtuModbusMessage.computeCrc(unitId, new BaseModbusMessage(unitId,
+				ModbusFunctionCode.ReadHoldingRegisters, ModbusErrorCode.IllegalDataAddress));
 		// @formatter:off
 		final byte[] responseData = new byte[] {
-				(byte)(txId >>> 8 & 0xFF),
-				(byte)(txId & 0xFF),
-				(byte)0x00,
-				(byte)0x00,
-				(byte)0x00,
-				(byte)0x03,
 				(byte)(unitId & 0xFF),
 				ModbusFunctionCodes.READ_HOLDING_REGISTERS + ModbusFunctionCodes.ERROR_OFFSET,
 				ModbusErrorCodes.ILLEGAL_DATA_ADDRESS,
+				(byte)(resCrc & 0xFF),
+				(byte)(resCrc >>> 8 & 0xFF),
 		};
 		ByteBuf response = Unpooled.copiedBuffer(responseData);
 		// @formatter:on
@@ -376,21 +397,18 @@ public class TcpNettyModbusClientTests {
 		ByteBuf requestData = channel.readOutbound();
 		assertThat("Request bytes produced", requestData, is(notNullValue()));
 
+		final short crc = RtuModbusMessage.computeCrc(unitId, req);
 		// @formatter:off
 		assertThat("Request message encoded", byteObjectArray(ByteBufUtil.getBytes(requestData)), arrayContaining(
 				byteObjectArray(new byte[] {
-						(byte)(txId >>> 8 & 0xFF),
-						(byte)(txId & 0xFF),
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x06,
 						(byte)(unitId & 0xFF),
 						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
 						(byte)(addr >>> 8 & 0xFF),
 						(byte)(addr & 0xFF),
 						(byte)(count >>> 8 & 0xFF),
 						(byte)(count & 0xFF),
+						(byte)(crc & 0xFF),
+						(byte)(crc >>> 8 & 0xFF),
 				})));
 		// @formatter:on
 
@@ -402,6 +420,11 @@ public class TcpNettyModbusClientTests {
 	@Test
 	public void send_recvJunk() throws InterruptedException, ExecutionException {
 		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+
 		final int unitId = 1;
 		final int addr = 2;
 		final int count = 3;
@@ -412,17 +435,16 @@ public class TcpNettyModbusClientTests {
 		Future<ModbusMessage> f = client.sendAsync(req);
 
 		// provide response
-		final int txId = idSupplier.get();
 		// @formatter:off
 		final byte[] responseData = new byte[] {
 				(byte)0x00,
-				(byte)0x01,
+				(byte)0x65,
 				(byte)0x02,
 				(byte)0x03,
 				(byte)0x04,
 				(byte)0x05,
 				(byte)0x06,
-				(byte)0x65,
+				(byte)0x07,
 		};
 		ByteBuf response = Unpooled.copiedBuffer(responseData);
 		// @formatter:on
@@ -430,36 +452,27 @@ public class TcpNettyModbusClientTests {
 
 		// THEN
 		assertThat("Future returned", f, is(notNullValue()));
-		assertThat("Request should not be pending", pending.keySet(), hasSize(0));
+		assertThat("Request should still be pending", pending.keySet(), hasSize(1));
 
 		ByteBuf requestData = channel.readOutbound();
 		assertThat("Request bytes produced", requestData, is(notNullValue()));
 
+		final short crc = RtuModbusMessage.computeCrc(unitId, req);
 		// @formatter:off
 		assertThat("Request message encoded", byteObjectArray(ByteBufUtil.getBytes(requestData)), arrayContaining(
 				byteObjectArray(new byte[] {
-						(byte)(txId >>> 8 & 0xFF),
-						(byte)(txId & 0xFF),
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x00,
-						(byte)0x06,
 						(byte)(unitId & 0xFF),
 						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
 						(byte)(addr >>> 8 & 0xFF),
 						(byte)(addr & 0xFF),
 						(byte)(count >>> 8 & 0xFF),
 						(byte)(count & 0xFF),
+						(byte)(crc & 0xFF),
+						(byte)(crc >>> 8 & 0xFF),
 				})));
 		// @formatter:on
 
-		assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
-		ModbusMessage resp = f.get();
-		assertThat("Response is not an error", resp.getError(), is(nullValue()));
-		assertThat("Response function is user function", resp.getFunction(),
-				is(instanceOf(UserModbusFunction.class)));
-		assertThat("Response function is from junk", resp.getFunction().getCode(),
-				is(equalTo((byte) 0x65)));
+		assertThat("Response has been received and processed", f.isDone(), is(equalTo(false)));
 	}
 
 }

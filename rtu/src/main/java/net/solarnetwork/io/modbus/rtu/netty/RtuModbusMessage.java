@@ -48,7 +48,7 @@ public class RtuModbusMessage
 	 * 
 	 * <p>
 	 * The current system time will be used for the timestamp value, and the CRC
-	 * will be calculated from the {@code body} value.
+	 * will be calculated from the {@code unitId} and {@code body} values.
 	 * </p>
 	 * 
 	 * @param unitId
@@ -61,6 +61,28 @@ public class RtuModbusMessage
 	 */
 	public RtuModbusMessage(int unitId, ModbusMessage body) {
 		this(System.currentTimeMillis(), body, computeCrc(unitId, body));
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * <p>
+	 * The CRC will be calculated from the {@code unitId} and {@code body}
+	 * values.
+	 * </p>
+	 * 
+	 * @param timestamp
+	 *        the timestamp
+	 * @param unitId
+	 *        the unit ID
+	 * @param body
+	 *        the message body, must implement {@link ModbusPayloadEncoder}.
+	 * 
+	 * @throws ClassCastException
+	 *         if {@code body} does not implement {@link ModbusPayloadEncoder}
+	 */
+	public RtuModbusMessage(long timestamp, int unitId, ModbusMessage body) {
+		this(timestamp, body, computeCrc(unitId, body));
 	}
 
 	/**
@@ -118,12 +140,7 @@ public class RtuModbusMessage
 		if ( crc != other.crc ) {
 			return false;
 		}
-		if ( body == null ) {
-			if ( other.body != null ) {
-				return false;
-			}
-		}
-		return body.equals(other.body);
+		return body.isSameAs(other.body);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -142,13 +159,19 @@ public class RtuModbusMessage
 		builder.append(timestamp);
 		builder.append(", crc=");
 		builder.append(Short.toUnsignedInt(crc));
-		builder.append(", ");
-		if ( body != null ) {
-			builder.append("body=");
-			builder.append(body);
-		}
+		builder.append(", body=");
+		builder.append(body);
 		builder.append("}");
 		return builder.toString();
+	}
+
+	/**
+	 * Get the wrapped message.
+	 * 
+	 * @return the wrapped message
+	 */
+	public ModbusMessage getBody() {
+		return body;
 	}
 
 	@Override
@@ -176,7 +199,7 @@ public class RtuModbusMessage
 	 * @return the computed CRC
 	 */
 	public static short computeCrc(int unitId, ModbusMessage body) {
-		if ( body == null ) {
+		if ( !(body instanceof ModbusPayloadEncoder) ) {
 			return (short) 0;
 		}
 		ModbusPayloadEncoder enc = (ModbusPayloadEncoder) body;

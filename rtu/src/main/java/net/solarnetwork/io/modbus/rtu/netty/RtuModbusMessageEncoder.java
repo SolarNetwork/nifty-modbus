@@ -48,13 +48,11 @@ public class RtuModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessa
 			// outbound response
 			rtu = new RtuModbusMessage(msg.getUnitId(), msg);
 		}
-		if ( rtu != null ) {
-			int len = rtu.payloadLength();
-			ByteBuf buf = ctx.alloc().buffer(len);
-			rtu.encodeModbusPayload(buf);
-			out.add(buf);
-			ctx.channel().attr(NettyModbusClient.LAST_ENCODED_MESSAGE).set(msg);
-		}
+		int len = rtu.payloadLength();
+		ByteBuf buf = ctx.alloc().buffer(len);
+		rtu.encodeModbusPayload(buf);
+		out.add(buf);
+		ctx.channel().attr(NettyModbusClient.LAST_ENCODED_MESSAGE).set(msg);
 	}
 
 }

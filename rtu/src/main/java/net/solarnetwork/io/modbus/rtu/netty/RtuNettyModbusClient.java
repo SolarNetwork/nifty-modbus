@@ -37,7 +37,7 @@ import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
 import net.solarnetwork.io.modbus.rtu.RtuModbusClientConfig;
 import net.solarnetwork.io.modbus.serial.SerialAddress;
-import net.solarnetwork.io.modbus.serial.SerialChannel;
+import net.solarnetwork.io.modbus.serial.SerialPortChannel;
 import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 
 /**
@@ -47,7 +47,7 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * @version 1.0
  */
 public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfig>
-		implements ChannelFactory<SerialChannel> {
+		implements ChannelFactory<SerialPortChannel> {
 
 	private final EventLoopGroup eventLoopGroup;
 	private final boolean privateEventLoopGroup;
@@ -108,6 +108,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 			SerialPortProvider serialPortProvider) {
 		super(clientConfig, scheduler, pending);
 		if ( eventLoopGroup == null ) {
+			// TODO: need a non-deprecated replacement
 			eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
 			this.privateEventLoopGroup = true;
 		} else {
@@ -121,8 +122,8 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	}
 
 	@Override
-	public SerialChannel newChannel() {
-		SerialChannel channel = new SerialChannel(serialPortProvider);
+	public SerialPortChannel newChannel() {
+		SerialPortChannel channel = new SerialPortChannel(serialPortProvider);
 		channel.config().setSerialParameters(clientConfig.getSerialParameters());
 		return channel;
 	}
@@ -158,10 +159,10 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		super.initChannel(channel);
 	}
 
-	private final class HandlerInitializer extends ChannelInitializer<SerialChannel> {
+	private final class HandlerInitializer extends ChannelInitializer<SerialPortChannel> {
 
 		@Override
-		protected void initChannel(SerialChannel ch) throws Exception {
+		protected void initChannel(SerialPortChannel ch) throws Exception {
 			RtuNettyModbusClient.this.initChannel(ch);
 		}
 
