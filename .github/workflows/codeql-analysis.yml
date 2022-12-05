@@ -55,5 +55,4 @@ jobs:
         files: ./core/build/reports/jacoco/test/jacocoTestReport.xml,./rtu/build/reports/jacoco/test/jacocoTestReport.xml,./tcp/build/reports/jacoco/test/jacocoTestReport.xml
         flags: unittests
         name: codecov-umbrella
-        path_to_write_report: ./coverage/codecov_report.txt
         verbose: true
