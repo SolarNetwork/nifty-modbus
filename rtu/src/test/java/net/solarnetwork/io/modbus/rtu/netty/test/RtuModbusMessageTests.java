@@ -285,7 +285,7 @@ public class RtuModbusMessageTests {
 	}
 
 	@Test
-	public void toStringMethod() {
+	public void stringValue() {
 		// GIVEN
 		RegistersModbusMessage body = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
 		RtuModbusMessage msg = new RtuModbusMessage(1, body);

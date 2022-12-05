@@ -98,11 +98,9 @@ public enum ModbusBlockType {
 	 * 
 	 * @param code
 	 *        the code value to get the enumeration for
-	 * @return the enumeration
-	 * @throws IllegalArgumentException
-	 *         if {@literal code} is not a valid value
+	 * @return the enumeration, or {@literal null} if not supported
 	 */
-	public static ModbusBlockType forCode(int code) {
+	public static ModbusBlockType valueOf(int code) {
 		switch (code) {
 			case 0:
 				return Coil;
@@ -120,8 +118,25 @@ public enum ModbusBlockType {
 				return Diagnostic;
 
 			default:
-				throw new IllegalArgumentException("ModbusBlockType code [" + code + "] not supported.");
+				return null;
 		}
+	}
+
+	/**
+	 * Get an enumeration instance for a code value.
+	 * 
+	 * @param code
+	 *        the code value to get the enumeration for
+	 * @return the enumeration
+	 * @throws IllegalArgumentException
+	 *         if {@literal code} is not a valid value
+	 */
+	public static ModbusBlockType forCode(int code) {
+		ModbusBlockType b = valueOf(code);
+		if ( b != null ) {
+			return b;
+		}
+		throw new IllegalArgumentException("ModbusBlockType code [" + code + "] not supported.");
 	}
 
 }

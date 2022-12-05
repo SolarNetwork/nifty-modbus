@@ -148,40 +148,11 @@ public enum ModbusErrorCode implements ModbusError {
 	 *         if {@code code} is not a valid value
 	 */
 	public static ModbusErrorCode forCode(byte code) {
-		switch (code) {
-			case ModbusErrorCodes.ILLEGAL_FUNCTION:
-				return ModbusErrorCode.IllegalFunction;
-
-			case ModbusErrorCodes.ILLEGAL_DATA_ADDRESS:
-				return ModbusErrorCode.IllegalDataAddress;
-
-			case ModbusErrorCodes.ILLEGAL_DATA_VALUE:
-				return ModbusErrorCode.IllegalDataValue;
-
-			case ModbusErrorCodes.SERVER_DEVICE_FAILURE:
-				return ModbusErrorCode.ServerDeviceFailure;
-
-			case ModbusErrorCodes.ACKNOWLEDGE:
-				return ModbusErrorCode.Acknowledge;
-
-			case ModbusErrorCodes.SERVER_DEVICE_BUSY:
-				return ModbusErrorCode.ServerDeviceBusy;
-
-			case ModbusErrorCodes.NEGATIVE_ACKNOWLEDGE:
-				return ModbusErrorCode.NegativeAcknowledge;
-
-			case ModbusErrorCodes.MEMORY_PARITY_ERROR:
-				return ModbusErrorCode.MemoryParityError;
-
-			case ModbusErrorCodes.GATEWAY_PATH_UNAVAILABLE:
-				return ModbusErrorCode.GatewayPathUnavailable;
-
-			case ModbusErrorCodes.GATEWAY_TIMEOUT:
-				return ModbusErrorCode.GatewayTimeout;
-
-			default:
-				throw new IllegalArgumentException("Unknown Modbus error code [" + (code & 0xFF) + "]");
+		ModbusError err = valueOf(code);
+		if ( err instanceof ModbusErrorCode ) {
+			return (ModbusErrorCode) err;
 		}
+		throw new IllegalArgumentException("Unknown Modbus error code [" + (code & 0xFF) + "]");
 	}
 
 }

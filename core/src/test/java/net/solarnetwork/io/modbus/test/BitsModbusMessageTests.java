@@ -25,10 +25,15 @@ package net.solarnetwork.io.modbus.test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import java.math.BigInteger;
 import java.util.BitSet;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.BitsModbusMessage;
+import net.solarnetwork.io.modbus.ModbusError;
+import net.solarnetwork.io.modbus.ModbusFunction;
+import net.solarnetwork.io.modbus.ModbusMessage;
 
 /**
  * Test cases for the {@link BitsModbusMessage} class.
@@ -61,6 +66,109 @@ public class BitsModbusMessageTests {
 
 		// THEN
 		assertThat("BigInteger created from null BitSet", bi, is(equalTo(BigInteger.ZERO)));
+	}
+
+	private BitsModbusMessage msg(BigInteger bits) {
+		return new BitsModbusMessage() {
+
+			@Override
+			public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+				return null;
+			}
+
+			@Override
+			public boolean isSameAs(ModbusMessage obj) {
+				return false;
+			}
+
+			@Override
+			public int getUnitId() {
+				return 0;
+			}
+
+			@Override
+			public ModbusFunction getFunction() {
+				return null;
+			}
+
+			@Override
+			public ModbusError getError() {
+				return null;
+			}
+
+			@Override
+			public int getCount() {
+				return 0;
+			}
+
+			@Override
+			public int getAddress() {
+				return 0;
+			}
+
+			@Override
+			public BigInteger getBits() {
+				return bits;
+			}
+		};
+	}
+
+	@Test
+	public void isBitEnabled() {
+		// GIVEN
+		BigInteger bi = new BigInteger("0100101", 2);
+		BitsModbusMessage msg = msg(bi);
+
+		// THEN
+		assertThat("BigInteger bit tests", msg.isBitEnabled(-1), is(equalTo(false)));
+		assertThat("BigInteger bit tests", msg.isBitEnabled(0), is(equalTo(true)));
+		assertThat("BigInteger bit tests", msg.isBitEnabled(1), is(equalTo(false)));
+		assertThat("BigInteger bit tests", msg.isBitEnabled(2), is(equalTo(true)));
+		assertThat("BigInteger bit tests", msg.isBitEnabled(3), is(equalTo(false)));
+		assertThat("BigInteger bit tests", msg.isBitEnabled(4), is(equalTo(false)));
+		assertThat("BigInteger bit tests", msg.isBitEnabled(5), is(equalTo(true)));
+		assertThat("BigInteger bit tests", msg.isBitEnabled(6), is(equalTo(false)));
+	}
+
+	@Test
+	public void isBitEnabled_null() {
+		// GIVEN
+		BitsModbusMessage msg = msg(null);
+
+		// THEN
+		assertThat("BigInteger bit tests", msg.isBitEnabled(0), is(equalTo(false)));
+	}
+
+	@Test
+	public void toBitSet() {
+		// GIVEN
+		BigInteger bi = new BigInteger("0100101", 2);
+		BitsModbusMessage msg = msg(bi);
+
+		// WHEN
+		BitSet set = msg.toBitSet();
+
+		// THEN		
+		assertThat("BitSet generated", set, is(notNullValue()));
+		assertThat("BitSet bit tests", set.get(0), is(equalTo(true)));
+		assertThat("BitSet bit tests", set.get(1), is(equalTo(false)));
+		assertThat("BitSet bit tests", set.get(2), is(equalTo(true)));
+		assertThat("BitSet bit tests", set.get(3), is(equalTo(false)));
+		assertThat("BitSet bit tests", set.get(4), is(equalTo(false)));
+		assertThat("BitSet bit tests", set.get(5), is(equalTo(true)));
+		assertThat("BitSet bit tests", set.get(6), is(equalTo(false)));
+	}
+
+	@Test
+	public void toBitSet_null() {
+		// GIVEN
+		BitsModbusMessage msg = msg(null);
+
+		// WHEN
+		BitSet set = msg.toBitSet();
+
+		// THEN		
+		assertThat("BitSet not generated if bits are null", set, is(nullValue()));
 	}
 
 }

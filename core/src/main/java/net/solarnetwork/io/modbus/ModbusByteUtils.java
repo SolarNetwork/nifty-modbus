@@ -185,7 +185,7 @@ public final class ModbusByteUtils {
 		StringBuilder hexData = new StringBuilder(
 				2 * (toIndex - fromIndex) + (space ? (toIndex - fromIndex) : 0));
 		char[] buffer = new char[2];
-		for ( int i = fromIndex; i < toIndex; i++ ) {
+		for ( int i = fromIndex, len = data.length; i < toIndex && i < len; i++ ) {
 			if ( space && i > fromIndex ) {
 				hexData.append(' ');
 			}

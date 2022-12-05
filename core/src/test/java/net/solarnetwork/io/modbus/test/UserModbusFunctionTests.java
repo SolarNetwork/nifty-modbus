@@ -65,6 +65,16 @@ public class UserModbusFunctionTests {
 	}
 
 	@Test
+	public void equals_ident() {
+		// GIVEN
+		final byte code = (byte) 0x56;
+		UserModbusFunction fn1 = new UserModbusFunction("Name 1", code);
+
+		// THEN
+		assertThat("Equality works for identity", fn1, is(equalTo(fn1)));
+	}
+
+	@Test
 	public void equals_different() {
 		// GIVEN
 		final byte code = (byte) 0x56;
@@ -73,6 +83,16 @@ public class UserModbusFunctionTests {
 
 		// THEN
 		assertThat("Difference is based on code value", fn1, is(not(equalTo(fn2))));
+	}
+
+	@Test
+	public void equals_different_class() {
+		// GIVEN
+		final byte code = (byte) 0x56;
+		UserModbusFunction fn1 = new UserModbusFunction(code);
+
+		// THEN
+		assertThat("Difference is based on code value", fn1, is(not(equalTo("foo"))));
 	}
 
 	@Test
@@ -147,5 +167,14 @@ public class UserModbusFunctionTests {
 				is(equalTo(readFunction)));
 		assertThat("Getter oppositeFunction is from constructor", fn.oppositeFunction(),
 				is(equalTo(oppositeFunction)));
+	}
+
+	@Test
+	public void stringValue() {
+		// GIVEN
+		byte code = (byte) 0x65;
+		UserModbusFunction fn = new UserModbusFunction(code);
+		assertThat("String value", fn.toString(),
+				is(equalTo(format("UserModbusFunction{%d}", Byte.toUnsignedInt(code)))));
 	}
 }

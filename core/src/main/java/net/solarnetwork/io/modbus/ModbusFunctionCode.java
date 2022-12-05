@@ -72,13 +72,13 @@ public enum ModbusFunctionCode implements ModbusFunction {
 	ReadHoldingRegisters(READ_HOLDING_REGISTERS, ModbusBlockType.Holding, true),
 
 	/** Write a holding register. */
-	WriteHoldingRegister(WRITE_HOLDING_REGISTER, ModbusBlockType.Holding, true),
+	WriteHoldingRegister(WRITE_HOLDING_REGISTER, ModbusBlockType.Holding, false),
 
 	/** Write multiple holding registers. */
 	WriteHoldingRegisters(WRITE_HOLDING_REGISTERS, ModbusBlockType.Holding, false),
 
 	/** Write then read multiple holding registers. */
-	ReadWriteHoldingRegisters(READ_WRITE_HOLDING_REGISTERS, ModbusBlockType.Holding, true),
+	ReadWriteHoldingRegisters(READ_WRITE_HOLDING_REGISTERS, ModbusBlockType.Holding, false),
 
 	/** Mask write a holding register. */
 	MaskWriteHoldingRegister(MASK_WRITE_HOLDING_REGISTER, ModbusBlockType.Holding, false),

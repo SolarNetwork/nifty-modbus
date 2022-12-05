@@ -60,6 +60,16 @@ public class UserModbusErrorTests {
 	}
 
 	@Test
+	public void equals_ident() {
+		// GIVEN
+		final byte code = (byte) 0x56;
+		UserModbusError err1 = new UserModbusError(code);
+
+		// THEN
+		assertThat("Equality works for identity", err1, is(equalTo(err1)));
+	}
+
+	@Test
 	public void equals_different() {
 		// GIVEN
 		final byte code = (byte) 0x56;
@@ -68,6 +78,16 @@ public class UserModbusErrorTests {
 
 		// THEN
 		assertThat("Difference is based on code value", err1, is(not(equalTo(err2))));
+	}
+
+	@Test
+	public void equals_different_class() {
+		// GIVEN
+		final byte code = (byte) 0x56;
+		UserModbusError err1 = new UserModbusError(code);
+
+		// THEN
+		assertThat("Difference is based on code value", err1, is(not(equalTo("foo"))));
 	}
 
 	@Test

@@ -250,7 +250,7 @@ public class TcpModbusMessageTests {
 	}
 
 	@Test
-	public void toStringMethod() {
+	public void stringValue() {
 		// GIVEN
 		RegistersModbusMessage body = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
 		TcpModbusMessage msg = new TcpModbusMessage(1, body);
