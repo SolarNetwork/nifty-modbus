@@ -27,12 +27,17 @@ import static net.solarnetwork.io.modbus.ModbusFunctionCodes.READ_COILS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
+import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
+import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 
 /**
@@ -53,6 +58,14 @@ public class BaseModbusMessageTests {
 		// THEN
 		assertThat("Unit ID saved", msg.getUnitId(), is(equalTo(unitId)));
 		assertThat("Function saved", msg.getError(), is(nullValue()));
+	}
+
+	@Test
+	public void construct_null() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			new BaseModbusMessage(1, null, null);
+		}, "Function is required");
+
 	}
 
 	@Test
@@ -101,6 +114,7 @@ public class BaseModbusMessageTests {
 
 		// THEN
 		assertThat("Sameness is based on properties", msg1.isSameAs(msg2), is(equalTo(true)));
+		assertThat("Sameness ok for instance", msg1.isSameAs(msg1), is(equalTo(true)));
 		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
 	}
 
@@ -115,4 +129,58 @@ public class BaseModbusMessageTests {
 		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
 	}
 
+	@Test
+	public void isNotSameAs_otherClass() {
+		// GIVEN
+		BaseModbusMessage msg1 = new BaseModbusMessage(1, READ_COILS);
+		ModbusMessage msg2 = new ModbusMessage() {
+
+			@Override
+			public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+				return null;
+			}
+
+			@Override
+			public boolean isSameAs(ModbusMessage obj) {
+				return false;
+			}
+
+			@Override
+			public int getUnitId() {
+				return 0;
+			}
+
+			@Override
+			public ModbusFunction getFunction() {
+				return null;
+			}
+
+			@Override
+			public ModbusError getError() {
+				return null;
+			}
+		};
+		// THEN
+		assertThat("Difference is based on properties", msg1.isSameAs(msg2), is(equalTo(false)));
+		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
+	}
+
+	@Test
+	public void stringValue() {
+		// GIVEN
+		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadInputRegisters, null);
+
+		// THEN
+		assertThat("String value", msg.toString(), matchesRegex("ModbusMessage\\{.*\\}"));
+	}
+
+	@Test
+	public void stringValue_error() {
+		// GIVEN
+		BaseModbusMessage msg = new BaseModbusMessage(1, ModbusFunctionCode.ReadInputRegisters,
+				ModbusErrorCode.IllegalDataAddress);
+
+		// THEN
+		assertThat("String value", msg.toString(), matchesRegex("ModbusMessage\\{.*\\}"));
+	}
 }

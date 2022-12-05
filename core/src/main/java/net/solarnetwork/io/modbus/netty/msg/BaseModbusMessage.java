@@ -28,6 +28,7 @@ import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
+import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
 /**
@@ -119,14 +120,11 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
-		builder.append("BaseModbusMessage{unitId=");
+		builder.append("ModbusMessage{unitId=");
 		builder.append(unitId);
+		builder.append(", function=");
+		builder.append(function);
 		builder.append(", ");
-		if ( function != null ) {
-			builder.append("function=");
-			builder.append(function);
-			builder.append(", ");
-		}
 		if ( error != null ) {
 			builder.append("error=");
 			builder.append(error);
@@ -152,7 +150,11 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 
 	@Override
 	public void encodeModbusPayload(ByteBuf out) {
-		out.writeByte(function.getCode());
+		byte fn = function.getCode();
+		if ( error != null ) {
+			fn += ModbusFunctionCodes.ERROR_OFFSET;
+		}
+		out.writeByte(fn);
 	}
 
 	@Override

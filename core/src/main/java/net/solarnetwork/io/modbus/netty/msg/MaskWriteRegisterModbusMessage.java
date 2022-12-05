@@ -139,8 +139,8 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 *        the 16-bit or mask
 	 * @return the new message
 	 */
-	public static MaskWriteRegisterModbusMessage maskWriteRequest(int unitId, int address, int andMask,
-			int orMask) {
+	public static MaskWriteRegisterModbusMessage maskWriteHoldingRequest(int unitId, int address,
+			int andMask, int orMask) {
 		byte[] data = new byte[4];
 		ModbusByteUtils.encode16(data, 0, andMask);
 		ModbusByteUtils.encode16(data, 2, orMask);
@@ -161,9 +161,9 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 	 *        the 16-bit or mask
 	 * @return the new message
 	 */
-	public static MaskWriteRegisterModbusMessage maskWriteResponse(int unitId, int address, int andMask,
-			int orMask) {
-		return maskWriteRequest(unitId, address, andMask, orMask);
+	public static MaskWriteRegisterModbusMessage maskWriteHoldingResponse(int unitId, int address,
+			int andMask, int orMask) {
+		return maskWriteHoldingRequest(unitId, address, andMask, orMask);
 	}
 
 	/**
@@ -245,7 +245,7 @@ public class MaskWriteRegisterModbusMessage extends RegistersModbusMessage
 					return null;
 			}
 		}
-		return new MaskWriteRegisterModbusMessage(unitId, function, error, addr, data);
+		return new MaskWriteRegisterModbusMessage(unitId, fn, error, addr, data);
 	}
 
 	@Override

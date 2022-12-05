@@ -1,5 +1,5 @@
 /* ==================================================================
- * MaskWriteRegisterMessageTests.java - 28/11/2022 4:39:50 pm
+ * ReadWriteRegistersModbusMessageTests.java - 6/12/2022 8:22:09 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -22,17 +22,15 @@
 
 package net.solarnetwork.io.modbus.netty.msg.test;
 
-import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusErrorCodes;
@@ -40,85 +38,37 @@ import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.UserModbusFunction;
-import net.solarnetwork.io.modbus.netty.msg.MaskWriteRegisterModbusMessage;
+import net.solarnetwork.io.modbus.netty.msg.ReadWriteRegistersModbusMessage;
 
 /**
- * Test cases for the {@link MaskWriteRegisterModbusMessage} class.
+ * Test cases for the {@link ReadWriteRegistersModbusMessage} class.
  *
  * @author matt
  * @version 1.0
  */
-public class MaskWriteRegisterMessageTests {
-
-	@Test
-	public void encode_maskWriteRegisters_request() {
-		MaskWriteRegisterModbusMessage msg = MaskWriteRegisterModbusMessage.maskWriteHoldingRequest(1, 4,
-				0x00F2, 0x0025);
-
-		// WHEN
-		ByteBuf buf = Unpooled.buffer();
-		msg.encodeModbusPayload(buf);
-
-		// THEN
-		// @formatter:off
-		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
-				byteObjectArray(new byte[] {
-						ModbusFunctionCodes.MASK_WRITE_HOLDING_REGISTER,
-						(byte)0x00,
-						(byte)0x04,
-						(byte)0x00,
-						(byte)0xF2,
-						(byte)0x00,
-						(byte)0x25,
-				})));
-		// @formatter:on
-		assertThat("Message length", msg.payloadLength(), is(equalTo(7)));
-	}
-
-	@Test
-	public void encode_maskWriteRegisters_response() {
-		MaskWriteRegisterModbusMessage msg = MaskWriteRegisterModbusMessage.maskWriteHoldingResponse(1,
-				0x1A, 0x01F3, 0x0227);
-
-		// WHEN
-		ByteBuf buf = Unpooled.buffer();
-		msg.encodeModbusPayload(buf);
-
-		// THEN
-		// @formatter:off
-		assertThat("Message encoded", byteObjectArray(ByteBufUtil.getBytes(buf)), arrayContaining(
-				byteObjectArray(new byte[] {
-						ModbusFunctionCodes.MASK_WRITE_HOLDING_REGISTER,
-						(byte)0x00,
-						(byte)0x1A,
-						(byte)0x01,
-						(byte)0xF3,
-						(byte)0x02,
-						(byte)0x27,
-				})));
-		// @formatter:on
-		assertThat("Message length", msg.payloadLength(), is(equalTo(7)));
-	}
+public class ReadWriteRegistersModbusMessageTests {
 
 	@Test
 	public void construct_primitive() {
 		// GIVEN
 		final int unitId = 1;
-		final byte fn = ModbusFunctionCodes.MASK_WRITE_HOLDING_REGISTER;
+		final byte fn = ModbusFunctionCodes.READ_WRITE_HOLDING_REGISTERS;
 		final int addr = 2;
+		final int count = 3;
 
 		// WHEN
-		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(unitId, fn, addr);
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(unitId, fn, addr,
+				count);
 
 		// THEN
 		assertThat("Function code decoded", msg.getFunction(),
-				is(equalTo(ModbusFunctionCode.MaskWriteHoldingRegister)));
+				is(equalTo(ModbusFunctionCode.ReadWriteHoldingRegisters)));
 		assertThat("No error decoded", msg.getError(), is(nullValue()));
 		assertThat("Function decoded", msg.getFunction(),
-				is(equalTo(ModbusFunctionCode.MaskWriteHoldingRegister)));
+				is(equalTo(ModbusFunctionCode.ReadWriteHoldingRegisters)));
 		assertThat("Unit preserved", msg.getUnitId(), is(equalTo(unitId)));
 		assertThat("Address preserved", msg.getAddress(), is(equalTo(addr)));
-		assertThat("Count fixed", msg.getCount(), is(equalTo(1)));
+		assertThat("Count preserved", msg.getCount(), is(equalTo(count)));
 		assertThat("No data", msg.dataCopy(), is(nullValue()));
 	}
 
@@ -126,52 +76,113 @@ public class MaskWriteRegisterMessageTests {
 	public void construct_primitive_data() {
 		// GIVEN
 		final int unitId = 1;
-		final byte fn = ModbusFunctionCodes.MASK_WRITE_HOLDING_REGISTER;
+		final byte fn = ModbusFunctionCodes.READ_WRITE_HOLDING_REGISTERS;
 		final int addr = 2;
+		final int count = 3;
 		final byte[] data = new byte[] { 1, 2 };
 
 		// WHEN
-		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(unitId, fn, addr, data);
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(unitId, fn, addr,
+				count, data);
 
 		// THEN
 		assertThat("Function code decoded", msg.getFunction(),
-				is(equalTo(ModbusFunctionCode.MaskWriteHoldingRegister)));
+				is(equalTo(ModbusFunctionCode.ReadWriteHoldingRegisters)));
 		assertThat("No error decoded", msg.getError(), is(nullValue()));
 		assertThat("Function decoded", msg.getFunction(),
-				is(equalTo(ModbusFunctionCode.MaskWriteHoldingRegister)));
+				is(equalTo(ModbusFunctionCode.ReadWriteHoldingRegisters)));
 		assertThat("Unit preserved", msg.getUnitId(), is(equalTo(unitId)));
 		assertThat("Address preserved", msg.getAddress(), is(equalTo(addr)));
-		assertThat("Count fixed", msg.getCount(), is(equalTo(1)));
+		assertThat("Count preserved", msg.getCount(), is(equalTo(count)));
 	}
 
 	@Test
 	public void construct_error_primitive() {
 		// GIVEN
-		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(1,
-				ModbusFunctionCodes.MASK_WRITE_HOLDING_REGISTER, ModbusErrorCodes.ILLEGAL_FUNCTION, 0,
-				null);
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(1,
+				ModbusFunctionCodes.READ_WRITE_HOLDING_REGISTERS, ModbusErrorCodes.ILLEGAL_FUNCTION, 0,
+				0, null);
 
 		// THEN
 		assertThat("Function code decoded", msg.getFunction(),
-				is(equalTo(ModbusFunctionCode.MaskWriteHoldingRegister)));
+				is(equalTo(ModbusFunctionCode.ReadWriteHoldingRegisters)));
 		assertThat("Error code decoded", msg.getError(), is(equalTo(ModbusErrorCode.IllegalFunction)));
 	}
 
 	@Test
 	public void construct_null() {
 		// GIVEN
-		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(1,
-				ModbusFunctionCode.MaskWriteHoldingRegister, null, 0, null);
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(1,
+				ModbusFunctionCode.ReadWriteHoldingRegisters, null, 0, 0, null);
 
 		// THEN
 		assertThat("Error code null", msg.getError(), is(nullValue()));
 	}
 
 	@Test
+	public void readWriteHoldingsRequest_count_zero() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			ReadWriteRegistersModbusMessage.readWriteHoldingsRequest(1, 2, 0, 0, null);
+		}, "Count less than 1 throws IllegalArgumentException");
+	}
+
+	@Test
+	public void readWriteHoldingsRequest_count_overshoot() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			ReadWriteRegistersModbusMessage.readWriteHoldingsRequest(1, 2,
+					ReadWriteRegistersModbusMessage.MAX_READ_REGISTERS_COUNT + 1, 0, null);
+		}, "Count overshoot throws IllegalArgumentException");
+	}
+
+	@Test
+	public void readWriteHoldingsRequest_data_overshoot() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			ReadWriteRegistersModbusMessage.readWriteHoldingsRequest(1, 2, 1, 0,
+					new short[ReadWriteRegistersModbusMessage.MAX_WRITE_REGISTERS_COUNT + 1]);
+		}, "Write count overshoot throws IllegalArgumentException");
+	}
+
+	@Test
+	public void readWriteHoldingsRequest_data_null() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			ReadWriteRegistersModbusMessage.readWriteHoldingsRequest(1, 2, 1, 0, null);
+		}, "Write null throws IllegalArgumentException");
+	}
+
+	@Test
+	public void readWriteHoldingsRequest_data_empty() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			ReadWriteRegistersModbusMessage.readWriteHoldingsRequest(1, 2, 1, 0, new short[0]);
+		}, "Write empty throws IllegalArgumentException");
+	}
+
+	@Test
+	public void readWriteHoldingsResponse_data_null() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			ReadWriteRegistersModbusMessage.readWriteHoldingsResponse(1, 2, null);
+		}, "Write null throws IllegalArgumentException");
+	}
+
+	@Test
+	public void readWriteHoldingsResponse_data_empty() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			ReadWriteRegistersModbusMessage.readWriteHoldingsResponse(1, 2, new short[0]);
+		}, "Write empty throws IllegalArgumentException");
+	}
+
+	@Test
+	public void readWriteHoldingsResponse_count_overshoot() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			ReadWriteRegistersModbusMessage.readWriteHoldingsResponse(1, 2,
+					new short[ReadWriteRegistersModbusMessage.MAX_READ_REGISTERS_COUNT + 1]);
+		}, "Count overshoot throws IllegalArgumentException");
+	}
+
+	@Test
 	public void decodeRequestPayload_error() {
 		// GIVEN
 		// @formatter:off
-		final byte fn = ModbusFunctionCodes.MASK_WRITE_HOLDING_REGISTER + ModbusFunctionCodes.ERROR_OFFSET;
+		final byte fn = ModbusFunctionCodes.READ_WRITE_HOLDING_REGISTERS + ModbusFunctionCodes.ERROR_OFFSET;
 		ByteBuf buf = Unpooled.copiedBuffer(new byte[] {
 				ModbusErrorCodes.ILLEGAL_DATA_ADDRESS,
 		});
@@ -181,14 +192,14 @@ public class MaskWriteRegisterMessageTests {
 		final int unitId = 1;
 		final int address = 0;
 		final int count = 0;
-		ModbusMessage msg = MaskWriteRegisterModbusMessage.decodeRequestPayload(unitId, fn, address,
+		ModbusMessage msg = ReadWriteRegistersModbusMessage.decodeRequestPayload(unitId, fn, address,
 				count, buf);
 
 		// THEN
 		assertThat("Message decoded", msg, is(notNullValue()));
 		assertThat("Unit ID preserved", msg.getUnitId(), is(equalTo(unitId)));
 		assertThat("Function is decoded", msg.getFunction(),
-				is(equalTo(ModbusFunctionCode.MaskWriteHoldingRegister)));
+				is(equalTo(ModbusFunctionCode.ReadWriteHoldingRegisters)));
 		assertThat("Is an exception", msg.isException(), is(equalTo(true)));
 		assertThat("Error decoded", msg.getError(), is(equalTo(ModbusErrorCode.IllegalDataAddress)));
 	}
@@ -207,7 +218,7 @@ public class MaskWriteRegisterMessageTests {
 		final int unitId = 1;
 		final int address = 0;
 		final int count = 0;
-		ModbusMessage msg = MaskWriteRegisterModbusMessage.decodeRequestPayload(unitId, fn, address,
+		ModbusMessage msg = ReadWriteRegistersModbusMessage.decodeRequestPayload(unitId, fn, address,
 				count, buf);
 
 		// THEN
@@ -229,7 +240,7 @@ public class MaskWriteRegisterMessageTests {
 		final int unitId = 1;
 		final int address = 0;
 		final int count = 0;
-		ModbusMessage msg = MaskWriteRegisterModbusMessage.decodeRequestPayload(unitId, fn, address,
+		ModbusMessage msg = ReadWriteRegistersModbusMessage.decodeRequestPayload(unitId, fn, address,
 				count, buf);
 
 		// THEN
@@ -244,7 +255,7 @@ public class MaskWriteRegisterMessageTests {
 	public void decodeResponsePayload_error() {
 		// GIVEN
 		// @formatter:off
-		final byte fn = ModbusFunctionCodes.MASK_WRITE_HOLDING_REGISTER + ModbusFunctionCodes.ERROR_OFFSET;
+		final byte fn = ModbusFunctionCodes.READ_WRITE_HOLDING_REGISTERS + ModbusFunctionCodes.ERROR_OFFSET;
 		ByteBuf buf = Unpooled.copiedBuffer(new byte[] {
 				ModbusErrorCodes.ILLEGAL_DATA_ADDRESS,
 		});
@@ -254,14 +265,14 @@ public class MaskWriteRegisterMessageTests {
 		final int unitId = 1;
 		final int address = 0;
 		final int count = 0;
-		ModbusMessage msg = MaskWriteRegisterModbusMessage.decodeResponsePayload(unitId, fn, address,
+		ModbusMessage msg = ReadWriteRegistersModbusMessage.decodeResponsePayload(unitId, fn, address,
 				count, buf);
 
 		// THEN
 		assertThat("Message decoded", msg, is(notNullValue()));
 		assertThat("Unit ID preserved", msg.getUnitId(), is(equalTo(unitId)));
 		assertThat("Function is decoded", msg.getFunction(),
-				is(equalTo(ModbusFunctionCode.MaskWriteHoldingRegister)));
+				is(equalTo(ModbusFunctionCode.ReadWriteHoldingRegisters)));
 		assertThat("Is an exception", msg.isException(), is(equalTo(true)));
 		assertThat("Error decoded", msg.getError(), is(equalTo(ModbusErrorCode.IllegalDataAddress)));
 	}
@@ -280,7 +291,7 @@ public class MaskWriteRegisterMessageTests {
 		final int unitId = 1;
 		final int address = 0;
 		final int count = 0;
-		ModbusMessage msg = MaskWriteRegisterModbusMessage.decodeResponsePayload(unitId, fn, address,
+		ModbusMessage msg = ReadWriteRegistersModbusMessage.decodeResponsePayload(unitId, fn, address,
 				count, buf);
 
 		// THEN
@@ -302,62 +313,18 @@ public class MaskWriteRegisterMessageTests {
 		final int unitId = 1;
 		final int address = 0;
 		final int count = 0;
-		ModbusMessage msg = MaskWriteRegisterModbusMessage.decodeResponsePayload(unitId, fn, address,
+		ModbusMessage msg = ReadWriteRegistersModbusMessage.decodeResponsePayload(unitId, fn, address,
 				count, buf);
 
 		// THEN
-		assertThat("Message decoded", msg, is(instanceOf(MaskWriteRegisterModbusMessage.class)));
+		assertThat("Message decoded", msg, is(instanceOf(ReadWriteRegistersModbusMessage.class)));
 		assertThat("Unit ID preserved", msg.getUnitId(), is(equalTo(unitId)));
 		assertThat("Function is decoded", msg.getFunction(), is(equalTo(new UserModbusFunction(fn))));
 		assertThat("Not an exception", msg.isException(), is(equalTo(false)));
 		assertThat("Error not present", msg.getError(), is(nullValue()));
 
-		MaskWriteRegisterModbusMessage m = (MaskWriteRegisterModbusMessage) msg;
+		ReadWriteRegistersModbusMessage m = (ReadWriteRegistersModbusMessage) msg;
 		assertThat("Payload length", m.payloadLength(), is(equalTo(1)));
-	}
-
-	@Test
-	public void getMasks() {
-		// GIVEN
-		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(1,
-				ModbusFunctionCode.MaskWriteHoldingRegister, null, 2, new byte[] { 1, 2, 3, 4 });
-
-		// THEN
-		assertThat("And mask decoded from data", msg.getAndMask(), is(equalTo(0x0102)));
-		assertThat("Or mask decoded frmo data", msg.getOrMask(), is(equalTo(0x0304)));
-	}
-
-	@Test
-	public void getMasks_data_null() {
-		// GIVEN
-		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(1,
-				ModbusFunctionCode.MaskWriteHoldingRegister, null, 2, null);
-
-		// THEN
-		assertThat("And mask forced when null data", msg.getAndMask(), is(equalTo(0)));
-		assertThat("Or mask forced when null data", msg.getOrMask(), is(equalTo(0)));
-	}
-
-	@Test
-	public void getMasks_data_empty() {
-		// GIVEN
-		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(1,
-				ModbusFunctionCode.MaskWriteHoldingRegister, null, 2, new byte[0]);
-
-		// THEN
-		assertThat("And mask forced when null data", msg.getAndMask(), is(equalTo(0)));
-		assertThat("Or mask forced when null data", msg.getOrMask(), is(equalTo(0)));
-	}
-
-	@Test
-	public void getMasks_data_undershoot() {
-		// GIVEN
-		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(1,
-				ModbusFunctionCode.MaskWriteHoldingRegister, null, 2, new byte[] { 1, 2 });
-
-		// THEN
-		assertThat("And mask forced when null data", msg.getAndMask(), is(equalTo(0)));
-		assertThat("Or mask forced when null data", msg.getOrMask(), is(equalTo(0)));
 	}
 
 }

@@ -22,6 +22,7 @@
 
 package net.solarnetwork.io.modbus.netty.msg;
 
+import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusByteUtils;
 import net.solarnetwork.io.modbus.ModbusError;
@@ -302,6 +303,59 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	private boolean isResponse(final byte[] data) {
 		return (data != null && data.length > 1 && data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
 				&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE);
+	}
+
+	@Override
+	public int payloadLength() {
+		final ModbusFunctionCode fn = getFunction().functionCode();
+		if ( fn != null ) {
+			switch (fn) {
+				case ReadWriteHoldingRegisters: {
+					final byte[] data = data();
+					if ( data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
+							&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE ) {
+						return data.length;
+					} else {
+						return 8 + data.length;
+					}
+				}
+
+				default:
+					// fall through
+			}
+		}
+		return super.payloadLength();
+	}
+
+	@Override
+	public void encodeModbusPayload(ByteBuf out) {
+		final ModbusFunctionCode fn = getFunction().functionCode();
+		final int count = getCount();
+		byte[] header = null;
+		final byte[] data_src = data();
+		byte[] data;
+		if ( data_src[0] == READ_WRITE_RESPONSE_FLAG_BYTE
+				&& data_src[1] == READ_WRITE_RESPONSE_FLAG_BYTE ) {
+			// response
+			header = new byte[2];
+			header[0] = fn.getCode();
+			header[1] = (byte) (data_src.length - 2);
+			data = new byte[header[1]];
+			System.arraycopy(data_src, 2, data, 0, header[1]);
+		} else {
+			// request
+			header = new byte[10];
+			header[0] = fn.getCode();
+			encode16(header, 1, getAddress());
+			encode16(header, 3, count);
+			System.arraycopy(data_src, 0, header, 5, 2);
+			encode16(header, 7, data_src.length / 2 - 1);
+			header[9] = (byte) (data_src.length - 2);
+			data = new byte[header[9]];
+			System.arraycopy(data_src, 2, data, 0, data.length);
+		}
+		out.writeBytes(header);
+		out.writeBytes(data);
 	}
 
 	@Override

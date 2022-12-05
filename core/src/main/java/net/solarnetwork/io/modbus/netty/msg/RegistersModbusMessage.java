@@ -501,13 +501,6 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 					cnt = in.readUnsignedShort();
 					break;
 
-				case MaskWriteHoldingRegister:
-					addr = in.readUnsignedShort();
-					cnt = 1;
-					data = new byte[4];
-					in.readBytes(data);
-					break;
-
 				case ReadFifoQueue:
 					data = new byte[in.readUnsignedShort() - 2];
 					cnt = in.readUnsignedShort();
@@ -548,10 +541,8 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 		builder.append("RegistersModbusMessage{");
 		builder.append("unitId=");
 		builder.append(getUnitId());
-		if ( getFunction() != null ) {
-			builder.append(", function=");
-			builder.append(getFunction());
-		}
+		builder.append(", function=");
+		builder.append(getFunction());
 		if ( getError() != null ) {
 			builder.append(", error=");
 			builder.append(getError());
@@ -606,19 +597,11 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 				case WriteHoldingRegisters:
 					return (data != null ? 6 + getCount() * 2 : 5);
 
-				case ReadWriteHoldingRegisters:
-					if ( data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
-							&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE ) {
-						return data.length;
-					} else {
-						return 8 + data.length;
-					}
-
 				default:
 					// fall through
 			}
 		}
-		return super.payloadLength();
+		return super.payloadLength() + (data != null ? data.length : 0);
 	}
 
 	private static int byteCount(int count) {
@@ -628,96 +611,77 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	@Override
 	public void encodeModbusPayload(ByteBuf out) {
 		final ModbusFunctionCode fn = getFunction().functionCode();
-		final int count = getCount();
-		final int byteCount = byteCount(count);
-		byte[] header = null;
-		byte[] data = this.data;
-		switch (fn) {
-			case ReadInputRegisters:
-			case ReadHoldingRegisters:
-				if ( data == null ) {
-					// request
-					header = new byte[5];
-					header[0] = fn.getCode();
-					encode16(header, 1, getAddress());
-					encode16(header, 3, count);
-				} else {
-					// response
-					header = new byte[2];
-					header[0] = fn.getCode();
-					header[1] = (byte) byteCount;
-				}
-				break;
+		if ( fn != null ) {
+			final int count = getCount();
+			final int byteCount = byteCount(count);
+			byte[] header = null;
+			byte[] data = this.data;
+			switch (fn) {
+				case ReadInputRegisters:
+				case ReadHoldingRegisters:
+					if ( data == null ) {
+						// request
+						header = new byte[5];
+						header[0] = fn.getCode();
+						encode16(header, 1, getAddress());
+						encode16(header, 3, count);
+					} else {
+						// response
+						header = new byte[2];
+						header[0] = fn.getCode();
+						header[1] = (byte) byteCount;
+					}
+					break;
 
-			case WriteHoldingRegister:
-				header = new byte[3];
-				header[0] = fn.getCode();
-				encode16(header, 1, getAddress());
-				break;
-
-			case WriteHoldingRegisters:
-				if ( data != null ) {
-					// request
-					header = new byte[6];
-					header[0] = fn.getCode();
-					encode16(header, 1, getAddress());
-					encode16(header, 3, count);
-					header[5] = (byte) byteCount;
-				} else {
-					// response
-					header = new byte[5];
-					header[0] = fn.getCode();
-					encode16(header, 1, getAddress());
-					encode16(header, 3, count);
-				}
-				break;
-
-			case ReadWriteHoldingRegisters:
-				if ( data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
-						&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE ) {
-					// response
-					header = new byte[2];
-					header[0] = fn.getCode();
-					header[1] = (byte) (data.length - 2);
-					data = new byte[header[1]];
-					System.arraycopy(this.data, 2, data, 0, header[1]);
-				} else {
-					// request
-					header = new byte[10];
-					header[0] = fn.getCode();
-					encode16(header, 1, getAddress());
-					encode16(header, 3, count);
-					System.arraycopy(data, 0, header, 5, 2);
-					encode16(header, 7, data.length / 2 - 1);
-					header[9] = (byte) (data.length - 2);
-					data = new byte[header[9]];
-					System.arraycopy(this.data, 2, data, 0, data.length);
-				}
-				break;
-
-			case ReadFifoQueue:
-				if ( data == null ) {
-					// request
+				case WriteHoldingRegister:
 					header = new byte[3];
 					header[0] = fn.getCode();
 					encode16(header, 1, getAddress());
-				} else {
-					// response
-					header = new byte[5];
-					header[0] = fn.getCode();
-					encode16(header, 1, 2 + byteCount);
-					encode16(header, 3, count);
-				}
-				break;
+					break;
 
-			default:
-				super.encodeModbusPayload(out);
-		}
-		if ( header != null ) {
-			out.writeBytes(header);
-		}
-		if ( data != null ) {
-			out.writeBytes(data);
+				case WriteHoldingRegisters:
+					if ( data != null ) {
+						// request
+						header = new byte[6];
+						header[0] = fn.getCode();
+						encode16(header, 1, getAddress());
+						encode16(header, 3, count);
+						header[5] = (byte) byteCount;
+					} else {
+						// response
+						header = new byte[5];
+						header[0] = fn.getCode();
+						encode16(header, 1, getAddress());
+						encode16(header, 3, count);
+					}
+					break;
+
+				case ReadFifoQueue:
+					if ( data == null ) {
+						// request
+						header = new byte[3];
+						header[0] = fn.getCode();
+						encode16(header, 1, getAddress());
+					} else {
+						// response
+						header = new byte[5];
+						header[0] = fn.getCode();
+						encode16(header, 1, 2 + byteCount);
+						encode16(header, 3, count);
+					}
+					break;
+
+				default:
+					super.encodeModbusPayload(out);
+			}
+			if ( header != null ) {
+				out.writeBytes(header);
+			}
+			if ( data != null ) {
+				out.writeBytes(data);
+			}
+		} else {
+			super.encodeModbusPayload(out);
 		}
 	}
 

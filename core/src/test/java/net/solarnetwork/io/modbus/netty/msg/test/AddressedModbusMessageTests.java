@@ -29,8 +29,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
+import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.netty.msg.AddressedModbusMessage;
+import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 
 /**
  * Test cases for the {@link AddressedModbusMessage} class.
@@ -39,6 +42,46 @@ import net.solarnetwork.io.modbus.netty.msg.AddressedModbusMessage;
  * @version 1.0
  */
 public class AddressedModbusMessageTests {
+
+	@Test
+	public void construct_primitive_error() {
+		// GIVEN
+		int unitId = 1;
+		byte fn = READ_COILS;
+		byte err = ModbusErrorCodes.ILLEGAL_DATA_ADDRESS;
+		int addr = 2;
+		int count = 3;
+
+		// WHEN
+		AddressedModbusMessage msg = new AddressedModbusMessage(unitId, fn, err, addr, count);
+
+		// THEN
+		assertThat("Unit ID saved", msg.getUnitId(), is(equalTo(unitId)));
+		assertThat("Function saved", msg.getFunction(), is(equalTo(ModbusFunctionCode.ReadCoils)));
+		assertThat("Error saved", msg.getError(), is(equalTo(ModbusErrorCode.IllegalDataAddress)));
+		assertThat("Address saved", msg.getAddress(), is(equalTo(addr)));
+		assertThat("Count saved", msg.getCount(), is(equalTo(count)));
+	}
+
+	@Test
+	public void construct_negative() {
+		// GIVEN
+		int unitId = 1;
+		byte fn = READ_COILS;
+		byte err = ModbusErrorCodes.ILLEGAL_DATA_ADDRESS;
+		int addr = -1;
+		int count = -1;
+
+		// WHEN
+		AddressedModbusMessage msg = new AddressedModbusMessage(unitId, fn, err, addr, count);
+
+		// THEN
+		assertThat("Unit ID saved", msg.getUnitId(), is(equalTo(unitId)));
+		assertThat("Function saved", msg.getFunction(), is(equalTo(ModbusFunctionCode.ReadCoils)));
+		assertThat("Error saved", msg.getError(), is(equalTo(ModbusErrorCode.IllegalDataAddress)));
+		assertThat("Negative address forced to zero", msg.getAddress(), is(equalTo(0)));
+		assertThat("Negative ount forced to zero", msg.getCount(), is(equalTo(0)));
+	}
 
 	@Test
 	public void base() {
@@ -118,6 +161,18 @@ public class AddressedModbusMessageTests {
 
 		assertThat("Difference is based on properties", msg1.isSameAs(msg6), is(equalTo(false)));
 		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg6))));
+	}
+
+	@Test
+	public void isNotSameAs_differentClass() {
+		// GIVEN
+		AddressedModbusMessage msg1 = new AddressedModbusMessage(1, ModbusFunctionCode.ReadCoils, null,
+				2, 3);
+		BaseModbusMessage msg2 = new BaseModbusMessage(1, ModbusFunctionCodes.READ_COILS);
+
+		// THEN
+		assertThat("Difference is based on properties", msg1.isSameAs(msg2), is(equalTo(false)));
+		assertThat("Equality is based on instance", msg1, is(not(equalTo(msg2))));
 	}
 
 }

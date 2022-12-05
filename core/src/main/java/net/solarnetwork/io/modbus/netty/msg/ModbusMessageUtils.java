@@ -44,12 +44,15 @@ public final class ModbusMessageUtils {
 	 *        the message to encode
 	 * @param out
 	 *        the buffer to encode the message into
+	 * @throws IllegalArgumentException
+	 *         if message is not {@literal null} but does not implement
+	 *         {@link ModbusPayloadEncoder}
 	 */
 	public static void encodePayload(final ModbusMessage message, ByteBuf out) {
 		if ( message == null ) {
 			return;
 		} else if ( !(message instanceof ModbusPayloadEncoder) ) {
-			throw new UnsupportedOperationException(
+			throw new IllegalArgumentException(
 					"Only messages that implement ModbusPayloadEncoder are supported; got " + message);
 		}
 		((ModbusPayloadEncoder) message).encodeModbusPayload(out);
@@ -57,6 +60,10 @@ public final class ModbusMessageUtils {
 
 	/**
 	 * Determine the expected payload length for Modbus request message.
+	 * 
+	 * <p>
+	 * The input is expected to be positioned at the Modbus function code byte.
+	 * </p>
 	 * 
 	 * @param in
 	 *        the input; the reader index is not changed by this method
@@ -124,7 +131,7 @@ public final class ModbusMessageUtils {
 				if ( in.readableBytes() < 2 ) {
 					return -1;
 				}
-				return in.getByte(idx + 1) + 1;
+				return in.getByte(idx + 1) + 2;
 
 			case MaskWriteHoldingRegister:
 				// fn, addr, and, or
@@ -142,8 +149,7 @@ public final class ModbusMessageUtils {
 				return 3;
 
 			case EncapsulatedInterfaceTransport:
-				throw new UnsupportedOperationException(
-						"Modbus function [" + function + "] not supported.");
+				// fall though
 
 		}
 		return -1;
@@ -151,6 +157,10 @@ public final class ModbusMessageUtils {
 
 	/**
 	 * Determine the expected payload length for Modbus response message.
+	 * 
+	 * <p>
+	 * The input is expected to be positioned at the Modbus function code byte.
+	 * </p>
 	 * 
 	 * @param in
 	 *        the input; the reader index is not changed by this method
@@ -186,7 +196,7 @@ public final class ModbusMessageUtils {
 				if ( in.readableBytes() < 2 ) {
 					return -1;
 				}
-				return in.getByte(idx + 1) + 1;
+				return in.getByte(idx + 1) + 2;
 
 			case WriteCoil:
 			case WriteHoldingRegister:
@@ -226,8 +236,8 @@ public final class ModbusMessageUtils {
 				return 7;
 
 			case EncapsulatedInterfaceTransport:
-				throw new UnsupportedOperationException(
-						"Modbus function [" + function + "] not supported.");
+				// fall through
+				break;
 
 		}
 		return -1;
@@ -296,11 +306,12 @@ public final class ModbusMessageUtils {
 			case Diagnostics:
 			case ReportServerId:
 			case EncapsulatedInterfaceTransport:
-				throw new UnsupportedOperationException(
-						"Modbus function [" + function + "] not supported.");
+				// fall though
+				break;
 
 		}
-		return null;
+		throw new UnsupportedOperationException(
+				"Modbus function [" + Byte.toUnsignedInt(fn) + "] not supported.");
 	}
 
 	/**
@@ -366,11 +377,12 @@ public final class ModbusMessageUtils {
 			case Diagnostics:
 			case ReportServerId:
 			case EncapsulatedInterfaceTransport:
-				throw new UnsupportedOperationException(
-						"Modbus function [" + function + "] not supported.");
+				// fall through
+				break;
 
 		}
-		return null;
+		throw new UnsupportedOperationException(
+				"Modbus function [" + Byte.toUnsignedInt(fn) + "] not supported.");
 
 	}
 

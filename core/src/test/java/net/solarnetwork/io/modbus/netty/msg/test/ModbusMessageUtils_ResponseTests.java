@@ -22,12 +22,14 @@
 
 package net.solarnetwork.io.modbus.netty.msg.test;
 
+import static java.lang.String.format;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.math.BigInteger;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import net.solarnetwork.io.modbus.BitsModbusMessage;
 import net.solarnetwork.io.modbus.MaskWriteRegisterModbusMessage;
+import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
@@ -647,4 +651,48 @@ public class ModbusMessageUtils_ResponseTests {
 		assertThat("Error is preserved", msg.getError().getCode(), is(equalTo(errorCode)));
 	}
 
+	@Test
+	public void decodeResponse_error() {
+		// GIVEN
+		// @formatter:off
+		final byte fn = ModbusFunctionCodes.READ_COILS + ModbusFunctionCodes.ERROR_OFFSET;
+		final byte[] data = new byte[] {
+				fn,
+				ModbusErrorCodes.ILLEGAL_DATA_ADDRESS,
+		};
+		ByteBuf buf = Unpooled.copiedBuffer(data);
+		// @formatter:on
+
+		// WHEN
+		ModbusMessage msg = ModbusMessageUtils.decodeResponsePayload(buf);
+
+		// THEN
+		assertThat("Message decoded", msg, is(notNullValue()));
+		assertThat("Unit ID defaulted", msg.getUnitId(), is(equalTo(0)));
+		assertThat("Function is decoded", msg.getFunction(), is(ModbusFunctionCode.ReadCoils));
+		assertThat("Is an exception", msg.isException(), is(equalTo(true)));
+		assertThat("Error decoded", msg.getError(), is(ModbusErrorCode.IllegalDataAddress));
+	}
+
+	@Test
+	public void decodeResponse_unsupported() {
+		// @formatter:off
+		byte[] unsupportedFunctions = new byte[] {
+				ModbusFunctionCodes.GET_COMM_EVENT_COUNTER,
+				ModbusFunctionCodes.GET_COMM_EVENT_LOG,
+				ModbusFunctionCodes.READ_FILE_RECORD,
+				ModbusFunctionCodes.WRITE_FILE_RECORD,
+				ModbusFunctionCodes.READ_EXCEPTION_STATUS,
+				ModbusFunctionCodes.DIAGNOSTICS,
+				ModbusFunctionCodes.REPORT_SERVER_ID,
+				ModbusFunctionCodes.ENCAPSULATED_INTERFACE_TRANSPORT,
+		};
+		// @formatter:on
+		for ( byte fn : unsupportedFunctions ) {
+			ByteBuf buf = Unpooled.wrappedBuffer(new byte[] { fn });
+			assertThrows(UnsupportedOperationException.class, () -> {
+				ModbusMessageUtils.decodeResponsePayload(buf);
+			}, format("Unsupported function %x throws exception", fn));
+		}
+	}
 }

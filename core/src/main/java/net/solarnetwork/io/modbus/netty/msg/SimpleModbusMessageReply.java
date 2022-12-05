@@ -88,6 +88,9 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 
 	@Override
 	public boolean isSameAs(ModbusMessage obj) {
+		if ( obj == this ) {
+			return true;
+		}
 		return reply.isSameAs(obj);
 	}
 

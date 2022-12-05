@@ -415,10 +415,8 @@ public class BitsModbusMessage extends AddressedModbusMessage
 		builder.append("BitsModbusMessage{");
 		builder.append("unitId=");
 		builder.append(getUnitId());
-		if ( getFunction() != null ) {
-			builder.append(", function=");
-			builder.append(getFunction());
-		}
+		builder.append(", function=");
+		builder.append(getFunction());
 		if ( getError() != null ) {
 			builder.append(", error=");
 			builder.append(getError());
@@ -443,24 +441,25 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	@Override
 	public int payloadLength() {
 		final ModbusFunctionCode fn = getFunction().functionCode();
+		final int byteCount = byteCount(getCount());
 		if ( fn != null ) {
 			switch (fn) {
 				case ReadCoils:
 				case ReadDiscreteInputs:
-					return (bits == null ? 5 : 2 + byteCount(getCount()));
+					return (bits == null ? 5 : 2 + byteCount);
 
 				case WriteCoil:
 					return 5;
 
 				case WriteCoils:
-					return (bits != null ? 6 + byteCount(getCount()) : 5);
+					return (bits != null ? 6 + byteCount : 5);
 
 				default:
 					// fall through
 
 			}
 		}
-		return super.payloadLength();
+		return super.payloadLength() + byteCount;
 	}
 
 	@Override
