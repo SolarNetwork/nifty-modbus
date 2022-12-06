@@ -519,6 +519,7 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 	public static void main(String... args) {
 		if ( args == null || args.length < 1 ) {
 			System.err.println("Must provide the serial port name -port argument.");
+			return;
 		}
 		String deviceName = null;
 		String hostName = null;
