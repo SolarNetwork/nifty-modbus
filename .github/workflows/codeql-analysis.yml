@@ -37,16 +37,13 @@ jobs:
       with:
         distribution: 'liberica'
         java-version: ${{ matrix.java }}
-        
+
     # Instead of autobuild, manually run Gradle to get full build w/coverage reports
     - name: Setup Gradle
       uses: gradle/gradle-build-action@v2
-    
+
     - name: Execute Gradle build
       run: ./gradlew check
-      
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -57,3 +54,7 @@ jobs:
         flags: unittests
         name: codecov-umbrella
         verbose: true
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
