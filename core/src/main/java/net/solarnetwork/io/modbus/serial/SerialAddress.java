@@ -41,7 +41,7 @@ public class SerialAddress extends SocketAddress {
 	/**
 	 * Creates an address representing the name of a serial port.
 	 *
-	 * @param value
+	 * @param name
 	 *        the name of the device, such as {@literal COM1} or
 	 *        {@literal /dev/ttyUSB0}
 	 */

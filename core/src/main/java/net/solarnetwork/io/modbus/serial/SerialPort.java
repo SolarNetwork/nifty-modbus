@@ -45,7 +45,7 @@ public interface SerialPort {
 	/**
 	 * Open the stream.
 	 *
-	 * @param parameter
+	 * @param parameters
 	 *        the desired serial parameters
 	 * @throws IOException
 	 *         if any communication error occurs
@@ -71,7 +71,8 @@ public interface SerialPort {
 	 * Get the serial input stream.
 	 * 
 	 * <p>
-	 * The stream must have been opened via {@link #open()} before calling this.
+	 * The stream must have been opened via {@link #open(SerialParameters)}
+	 * before calling this.
 	 * </p>
 	 *
 	 * @return the input stream
@@ -82,7 +83,8 @@ public interface SerialPort {
 	 * Get the serial output stream.
 	 * 
 	 * <p>
-	 * The stream must have been opened via {@link #open()} before calling this.
+	 * The stream must have been opened via {@link #open(SerialParameters)}
+	 * before calling this.
 	 * </p>
 	 * 
 	 * @return the output stream

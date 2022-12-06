@@ -162,8 +162,8 @@ public enum SerialParity {
 	 * Mark, and Space. Lower-case versions of these are supported.
 	 * </p>
 	 * 
-	 * @param code
-	 *        the code
+	 * @param abbreviation
+	 *        the abbreviation
 	 * @return the enum
 	 * @throws IllegalArgumentException
 	 *         if {@code code} is not a valid value

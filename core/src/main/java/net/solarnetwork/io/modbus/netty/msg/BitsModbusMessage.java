@@ -204,8 +204,6 @@ public class BitsModbusMessage extends AddressedModbusMessage
 	 *        the coil register address to start writing to
 	 * @param count
 	 *        the number of bits to set
-	 * @param bits
-	 *        the bit values
 	 * @return the new message
 	 */
 	public static BitsModbusMessage writeCoilsResponse(int unitId, int address, int count) {

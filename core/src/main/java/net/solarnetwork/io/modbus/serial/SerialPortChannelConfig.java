@@ -108,7 +108,7 @@ public interface SerialPortChannelConfig extends ChannelConfig, SerialParameters
 	 *        the maximum number of milliseconds to wait
 	 * @return this instance
 	 * @throws IllegalArgumentException
-	 *         if the supplied value is < 0
+	 *         if the supplied value is &lt; 0
 	 */
 	SerialPortChannelConfig setWaitTime(int waitTime);
 
@@ -119,12 +119,13 @@ public interface SerialPortChannelConfig extends ChannelConfig, SerialParameters
 	 *        the maximum time to wait, in milliseconds
 	 * @return this instance
 	 */
-	SerialPortChannelConfig setReadTimeout(int readTimout);
+	SerialPortChannelConfig setReadTimeout(int readTimeout);
 
 	@Override
 	SerialPortChannelConfig setConnectTimeoutMillis(int connectTimeoutMillis);
 
 	@Override
+	@Deprecated
 	SerialPortChannelConfig setMaxMessagesPerRead(int maxMessagesPerRead);
 
 	@Override

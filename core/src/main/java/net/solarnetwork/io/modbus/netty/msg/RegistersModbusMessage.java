@@ -188,8 +188,6 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 *        the unit ID
 	 * @param address
 	 *        the input register address to start reading from
-	 * @param count
-	 *        the number of registers to read
 	 * @param values
 	 *        the values
 	 * @return the new message
@@ -231,8 +229,6 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	 *        the unit ID
 	 * @param address
 	 *        the holding register address to start reading from
-	 * @param count
-	 *        the number of registers to read
 	 * @param values
 	 *        the values
 	 * @return the new message
