@@ -37,6 +37,10 @@ import net.solarnetwork.io.modbus.ModbusMessage;
  */
 public final class ModbusMessageUtils {
 
+	private ModbusMessageUtils() {
+		// not allowed
+	}
+
 	/**
 	 * Encode a Modbus message.
 	 * 

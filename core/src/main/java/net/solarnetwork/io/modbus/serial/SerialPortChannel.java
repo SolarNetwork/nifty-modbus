@@ -120,7 +120,7 @@ public class SerialPortChannel extends AbstractChannel {
 		return new SerialUnsafe();
 	}
 
-	private void doConnect(SocketAddress remoteAddress, SocketAddress localAddress) throws Exception {
+	private void doConnect(SocketAddress remoteAddress) throws Exception {
 		SerialAddress remote = (SerialAddress) remoteAddress;
 		serialPort = serialPortProvider.getSerialPort(remote.name());
 		deviceAddress = remote;
@@ -455,7 +455,7 @@ public class SerialPortChannel extends AbstractChannel {
 			};
 
 			try {
-				doConnect(remoteAddress, localAddress);
+				doConnect(remoteAddress);
 				int waitTime = config().getOption(SerialPortChannelOption.WAIT_TIME);
 				if ( waitTime > 0 ) {
 					eventLoop().schedule(task, waitTime, TimeUnit.MILLISECONDS);

@@ -52,7 +52,7 @@ public enum SerialStopBits {
 
 	private final int code;
 
-	private SerialStopBits(int code) {
+	SerialStopBits(int code) {
 		this.code = code;
 	}
 

@@ -206,7 +206,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 						// TODO: could offer a "connection lost" callback API here
 						scheduleConnectIfRequired(true);
 					});
-					NettyModbusClient.this.channel = c;
+					channel = c;
 					completable.complete(null);
 				} else {
 					scheduleConnectIfRequired(reconnecting);

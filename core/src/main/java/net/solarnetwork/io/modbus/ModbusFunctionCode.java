@@ -137,7 +137,7 @@ public enum ModbusFunctionCode implements ModbusFunction {
 	private final boolean read;
 	private final String displayName;
 
-	private ModbusFunctionCode(byte code, ModbusBlockType blockType, boolean read) {
+	ModbusFunctionCode(byte code, ModbusBlockType blockType, boolean read) {
 		this.code = code;
 		this.blockType = blockType;
 		this.read = read;

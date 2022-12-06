@@ -51,7 +51,7 @@ public enum ModbusBlockType {
 	private final int bitCount;
 	private final boolean readOnly;
 
-	private ModbusBlockType(int code, int bitCount, boolean readOnly) {
+	ModbusBlockType(int code, int bitCount, boolean readOnly) {
 		this.code = code;
 		this.bitCount = bitCount;
 		this.readOnly = readOnly;

@@ -35,7 +35,7 @@ public interface ModbusError {
 	 * 
 	 * @return the code value
 	 */
-	public byte getCode();
+	byte getCode();
 
 	/**
 	 * Get this function as a {@link ModbusFunctionCode}.

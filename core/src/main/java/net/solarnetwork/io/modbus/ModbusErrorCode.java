@@ -87,7 +87,7 @@ public enum ModbusErrorCode implements ModbusError {
 
 	private byte code;
 
-	private ModbusErrorCode(byte code) {
+	ModbusErrorCode(byte code) {
 		this.code = code;
 	}
 

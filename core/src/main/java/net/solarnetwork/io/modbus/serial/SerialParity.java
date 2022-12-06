@@ -85,7 +85,7 @@ public enum SerialParity {
 
 	private final int code;
 
-	private SerialParity(int code) {
+	SerialParity(int code) {
 		this.code = code;
 	}
 

@@ -91,7 +91,7 @@ public final class ModbusByteUtils {
 	 *        the ending index (exclusive)
 	 * @return the computed CRC value
 	 */
-	public static final short computeCrc(byte[] data, int start, int end) {
+	public static short computeCrc(byte[] data, int start, int end) {
 		int hi = 0xFF;
 		int lo = 0xFF;
 		int next = 0;
