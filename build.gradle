@@ -71,6 +71,7 @@ allprojects {
 
 subprojects {
 	group = "net.solarnetwork.common"
+	version = '0.1.0'
 
 	repositories {
 		mavenCentral()
@@ -183,8 +184,8 @@ subprojects {
 
 	jacocoTestReport {
 		reports {
-			xml.enabled true
-			html.enabled true
+			xml.required
+			html.required
 		}
 	}
 
@@ -192,8 +193,8 @@ subprojects {
 }
 
 jacoco {
-    toolVersion = "0.8.5"
-    reportsDir = file("$buildDir/reports/jacoco")
+    toolVersion = "0.8.7"
+    reportsDirectory = file("$buildDir/reports/jacoco")
 }
 
 /*

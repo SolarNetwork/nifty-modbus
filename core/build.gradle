@@ -6,7 +6,6 @@ plugins {
 apply plugin: 'java-library'
 
 description = 'Nifty Modbus: Core'
-version = '1.0.0'
 archivesBaseName = 'nifty-modbus-core'
 
 dependencies {
