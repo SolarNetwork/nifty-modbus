@@ -177,8 +177,8 @@ subprojects {
 
 	jacocoTestReport {
 		reports {
-			xml.required
-			html.required
+			xml.enabled = true
+			html.enabled = true
 		}
 	}
 
