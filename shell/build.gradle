@@ -40,3 +40,11 @@ task runWithJavaExec(type: JavaExec) {
 	mainClass = 'net.solarnetwork.io.modbus.shell.ModbusShell'
 	standardInput = System.in
 }
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
+		}
+	}
+}
