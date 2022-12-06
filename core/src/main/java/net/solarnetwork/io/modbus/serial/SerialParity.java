@@ -68,6 +68,21 @@ public enum SerialParity {
 	/** Code value for space parity. */
 	public static final int SPACE_PARITY = 4;
 
+	/** Abbreviation value for no parity. */
+	public static final String NO_PARITY_ABBREVIATION = "N";
+
+	/** Abbreviation value for odd parity. */
+	public static final String ODD_PARITY_ABBREVIATION = "O";
+
+	/** Abbreviation value for even parity. */
+	public static final String EVEN_PARITY_ABBREVIATION = "E";
+
+	/** Abbreviation value for mark parity. */
+	public static final String MARK_PARITY_ABBREVIATION = "M";
+
+	/** Abbreviation value for space parity. */
+	public static final String SPACE_PARITY_ABBREVIATION = "S";
+
 	private final int code;
 
 	private SerialParity(int code) {
@@ -92,19 +107,19 @@ public enum SerialParity {
 	public String getAbbreviation() {
 		switch (this) {
 			case Odd:
-				return "O";
+				return ODD_PARITY_ABBREVIATION;
 
 			case Even:
-				return "E";
+				return EVEN_PARITY_ABBREVIATION;
 
 			case Mark:
-				return "M";
+				return MARK_PARITY_ABBREVIATION;
 
 			case Space:
-				return "S";
+				return SPACE_PARITY_ABBREVIATION;
 
 			default:
-				return "N";
+				return NO_PARITY_ABBREVIATION;
 		}
 	}
 

@@ -68,7 +68,8 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
 
 	@Override
 	public Map<ChannelOption<?>, Object> getOptions() {
-		return getOptions(super.getOptions(), BAUD_RATE, STOP_BITS, DATA_BITS, PARITY, WAIT_TIME);
+		return getOptions(super.getOptions(), BAUD_RATE, STOP_BITS, DATA_BITS, PARITY, WAIT_TIME,
+				READ_TIMEOUT);
 	}
 
 	@SuppressWarnings("unchecked")

@@ -38,6 +38,25 @@ public class BasicSerialParameters implements SerialParameters {
 	private int readTimeout = DEFAULT_READ_TIMEOUT;
 
 	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("SerialParameters{");
+		builder.append(baudRate);
+		builder.append(" ");
+		builder.append(bitsShortcut());
+		if ( waitTime > 0 ) {
+			builder.append(", waitTime=");
+			builder.append(waitTime);
+		}
+		if ( readTimeout > 0 ) {
+			builder.append(", readTimeout=");
+			builder.append(readTimeout);
+		}
+		builder.append("}");
+		return builder.toString();
+	}
+
+	@Override
 	public int getBaudRate() {
 		return baudRate;
 	}

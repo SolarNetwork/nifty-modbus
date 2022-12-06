@@ -51,7 +51,7 @@ public class SerialPortChannelOption<T> extends ChannelOption<T> {
 	public static final ChannelOption<Integer> READ_TIMEOUT = valueOf("READ_TIMEOUT");
 
 	@SuppressWarnings("deprecation")
-	private SerialPortChannelOption() {
+	protected SerialPortChannelOption() {
 		super(null);
 	}
 

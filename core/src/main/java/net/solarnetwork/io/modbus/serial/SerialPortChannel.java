@@ -48,7 +48,7 @@ import io.netty.util.internal.StringUtil;
  */
 public class SerialPortChannel extends AbstractChannel {
 
-	private static final ChannelMetadata METADATA = new ChannelMetadata(false);
+	private static final ChannelMetadata METADATA = new ChannelMetadata(true);
 
 	private static final SerialAddress LOCAL_ADDRESS = new SerialAddress("localhost");
 
@@ -81,6 +81,8 @@ public class SerialPortChannel extends AbstractChannel {
 	 * 
 	 * @param serialPortProvider
 	 *        the serial port provider
+	 * @throws IllegalArgumentException
+	 *         if any argument is {@literal null}
 	 */
 	public SerialPortChannel(SerialPortProvider serialPortProvider) {
 		super(null);
@@ -156,12 +158,6 @@ public class SerialPortChannel extends AbstractChannel {
 
 	@Override
 	protected void doDisconnect() throws Exception {
-		doClose();
-	}
-
-	@Override
-	protected void doClose() throws Exception {
-		open = false;
 		if ( serialPortIn != null ) {
 			try {
 				serialPortIn.close();
@@ -187,6 +183,12 @@ public class SerialPortChannel extends AbstractChannel {
 				serialPort = null;
 			}
 		}
+	}
+
+	@Override
+	protected void doClose() throws Exception {
+		open = false;
+		doDisconnect();
 	}
 
 	@Override
@@ -312,20 +314,17 @@ public class SerialPortChannel extends AbstractChannel {
 				// nothing left to write
 				break;
 			}
-			if ( msg instanceof ByteBuf ) {
-				ByteBuf buf = (ByteBuf) msg;
-				int readableBytes = buf.readableBytes();
-				while ( readableBytes > 0 ) {
-					doWriteBytes(buf);
-					int newReadableBytes = buf.readableBytes();
-					in.progress(readableBytes - newReadableBytes);
-					readableBytes = newReadableBytes;
-				}
-				in.remove();
-			} else {
-				in.remove(new UnsupportedOperationException(
-						"Unsupported message type: " + StringUtil.simpleClassName(msg)));
+
+			// only expect ByteBuf here because of filterOutputMessage() implementation
+			ByteBuf buf = (ByteBuf) msg;
+			int readableBytes = buf.readableBytes();
+			while ( readableBytes > 0 ) {
+				doWriteBytes(buf);
+				int newReadableBytes = buf.readableBytes();
+				in.progress(readableBytes - newReadableBytes);
+				readableBytes = newReadableBytes;
 			}
+			in.remove();
 		}
 	}
 
