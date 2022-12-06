@@ -28,14 +28,3 @@ eclipse {
 		javaRuntimeName 'JavaSE-1.8'
 	}
 }
-
-// to run ModbusShell, run like
-// ../gradlew -q --console=plain runWithJavaExec --args='--device /dev/ttyUSB0 --baud 4800 --bits 8N1'
-
-task runWithJavaExec(type: JavaExec) {
-	group = "Execution"
-	description = "Run the ModbusShell"
-	classpath = sourceSets.test.runtimeClasspath
-	mainClass = 'net.solarnetwork.io.modbus.rtu.jsc.JscModbusShell'
-	standardInput = System.in
-}
