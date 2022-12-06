@@ -36,6 +36,7 @@ buildscript {
 
 plugins {
 	id 'com.google.osdetector' version '1.7.1'
+	id 'maven-publish'
 }
 
 ext {
@@ -67,6 +68,10 @@ allprojects {
         mavenCentral()
 		maven { url "https://plugins.gradle.org/m2/" }
     }
+	java {
+		withJavadocJar()
+		withSourcesJar()
+	}
 }
 
 subprojects {
@@ -156,18 +161,6 @@ subprojects {
 	//checkstyleTest {
 	//	  source = fileTree(dir: "src/test", include: "**/*.java")
 	//}
-
-	task javadocJar(type: Jar) {
-		from javadoc
-		classifier = 'javadoc'
-		archiveClassifier = 'javadoc'
-	}
-
-	task sourcesJar(type: Jar) {
-		from sourceSets.main.allSource
-		classifier = 'sources'
-		archiveClassifier = 'sources'
-	}
 
 	// At a test failure, log the stack trace to the console so that we don't
 	// have to open the HTML in a browser.

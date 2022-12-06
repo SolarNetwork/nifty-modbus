@@ -4,6 +4,7 @@ plugins {
 }
 
 apply plugin: 'java-library'
+apply plugin: 'maven-publish'
 
 description = 'Nifty Modbus: RTU jSerialComm'
 archivesBaseName = 'nifty-modbus-rtu-jsc'

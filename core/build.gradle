@@ -4,6 +4,7 @@ plugins {
 }
 
 apply plugin: 'java-library'
+apply plugin: 'maven-publish'
 
 description = 'Nifty Modbus: Core'
 archivesBaseName = 'nifty-modbus-core'
@@ -24,5 +25,13 @@ jar.manifest {
 eclipse {
 	jdt {
 		javaRuntimeName 'JavaSE-1.8'
+	}
+}
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
+		}
 	}
 }
