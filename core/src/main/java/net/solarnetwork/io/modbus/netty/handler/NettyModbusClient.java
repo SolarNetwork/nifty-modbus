@@ -146,9 +146,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		this.pending = pending;
 	}
 
-	/**
-	 * Start the client.
-	 */
+	@Override
 	public synchronized Future<?> start() {
 		if ( connFuture != null ) {
 			return connFuture;
@@ -167,9 +165,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		return result;
 	}
 
-	/**
-	 * Stop the client.
-	 */
+	@Override
 	public synchronized void stop() {
 		this.stopped = true;
 		if ( privateScheduler && !scheduler.isShutdown() ) {
@@ -277,11 +273,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	 */
 	protected abstract ChannelFuture connect() throws IOException;
 
-	/**
-	 * Test if the connection is active.
-	 * 
-	 * @return {@literal true} if the connection is active
-	 */
+	@Override
 	public boolean isConnected() {
 		return !stopped && channel != null && channel.isActive();
 	}

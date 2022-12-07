@@ -33,6 +33,46 @@ import java.util.concurrent.Future;
 public interface ModbusClient {
 
 	/**
+	 * Start the client.
+	 * 
+	 * <p>
+	 * This method must be called before using the {@link #send(ModbusMessage)}
+	 * or {@link #sendAsync(ModbusMessage)} methods. Calling this method on a
+	 * client that has already been started is allowed, and will return the same
+	 * result as first returned.
+	 * </p>
+	 * 
+	 * @return a future that completes when the client is ready to be used
+	 */
+	Future<?> start();
+
+	/**
+	 * Stop the client.
+	 * 
+	 * <p>
+	 * This method shuts the client down, disconnecting it from whatever Modbus
+	 * network it had been connected to. It can be started again by calling
+	 * {@link #start()}. Calling this method on a client that has already been
+	 * stopped is allowed and will not result in any error.
+	 * </p>
+	 * 
+	 */
+	void stop();
+
+	/**
+	 * Test if the client is started and connected to the Modbus network.
+	 * 
+	 * <p>
+	 * Some clients may automatically reconnect to the network if the connection
+	 * fails for any reason. After the connection has failed, and until it
+	 * reconnects, this method will return {@literal false}.
+	 * </p>
+	 * 
+	 * @return {@literal true} if the client is connected
+	 */
+	boolean isConnected();
+
+	/**
 	 * Send a request and receive a response, synchronously.
 	 * 
 	 * @param request
