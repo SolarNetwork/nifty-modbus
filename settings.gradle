@@ -1,3 +1,9 @@
+pluginManagement {
+  plugins {
+    id "biz.aQute.bnd.builder" version "6.4.0"
+  }
+}
+
 rootProject.name = 'nifty-modbus'
 
 include('core')

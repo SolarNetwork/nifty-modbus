@@ -1,0 +1,8 @@
+Bundle-SymbolicName: net.solarnetwork.common.io.modbus.rtu
+Bundle-Name: SolarNetwork Modbus RTU (Core)
+Bundle-Description: RTU Modbus support.
+Bundle-Vendor: SolarNetwork
+Export-Package: \
+	net.solarnetwork.io.modbus.rtu.*
+Import-Package: \
+	*

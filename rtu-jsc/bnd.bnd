@@ -1,0 +1,8 @@
+Bundle-SymbolicName: net.solarnetwork.common.io.modbus.rtu.jsc
+Bundle-Name: SolarNetwork Modbus RTU (jSerialComm)
+Bundle-Description: RTU Modbus support using the jSerialComm library.
+Bundle-Vendor: SolarNetwork
+Export-Package: \
+	net.solarnetwork.io.modbus.rtu.jsc.*
+Import-Package: \
+	*
