@@ -85,6 +85,8 @@ public class NettyTcpModbusServer {
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
 	private boolean wireLogging;
 
+	private EventLoopGroup bossGroup;
+	private EventLoopGroup workerGroup;
 	private Channel channel;
 
 	/**
@@ -139,8 +141,8 @@ public class NettyTcpModbusServer {
 			return;
 		}
 		try {
-			final EventLoopGroup bossGroup = new NioEventLoopGroup();
-			final EventLoopGroup workerGroup = new NioEventLoopGroup();
+			bossGroup = new NioEventLoopGroup();
+			workerGroup = new NioEventLoopGroup();
 
 			// @formatter:off
 			ServerBootstrap bootstrap = new ServerBootstrap();
@@ -184,6 +186,14 @@ public class NettyTcpModbusServer {
 	 * Stop the server.
 	 */
 	public synchronized void stop() {
+		if ( workerGroup != null ) {
+			workerGroup.shutdownGracefully();
+			workerGroup = null;
+		}
+		if ( bossGroup != null ) {
+			bossGroup.shutdownGracefully();
+			bossGroup = null;
+		}
 		if ( cleanupTask != null ) {
 			cleanupTask.cancel(true);
 			cleanupTask = null;
