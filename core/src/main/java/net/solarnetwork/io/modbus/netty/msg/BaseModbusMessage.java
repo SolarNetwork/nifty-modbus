@@ -155,11 +155,14 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 			fn += ModbusFunctionCodes.ERROR_OFFSET;
 		}
 		out.writeByte(fn);
+		if ( error != null ) {
+			out.writeByte(error.getCode());
+		}
 	}
 
 	@Override
 	public int payloadLength() {
-		return 1;
+		return 1 + (error != null ? 1 : 0);
 	}
 
 }

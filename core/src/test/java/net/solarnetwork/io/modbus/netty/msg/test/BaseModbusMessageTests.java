@@ -24,7 +24,9 @@ package net.solarnetwork.io.modbus.netty.msg.test;
 
 import static net.solarnetwork.io.modbus.ModbusErrorCodes.ILLEGAL_DATA_ADDRESS;
 import static net.solarnetwork.io.modbus.ModbusFunctionCodes.READ_COILS;
+import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -32,12 +34,17 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
 import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.UserModbusFunction;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 
 /**
@@ -183,4 +190,41 @@ public class BaseModbusMessageTests {
 		// THEN
 		assertThat("String value", msg.toString(), matchesRegex("ModbusMessage\\{.*\\}"));
 	}
+
+	@Test
+	public void encodeModbusPayload() {
+		// GIVEN
+		BaseModbusMessage msg = new BaseModbusMessage(1, new UserModbusFunction((byte) 0x56), null);
+
+		// WHEN
+		ByteBuf buf = Unpooled.buffer(8);
+		msg.encodeModbusPayload(buf);
+
+		// THEN
+		assertThat("Payload encoded as function code", byteObjectArray(ByteBufUtil.getBytes(buf)),
+				is(arrayContaining(byteObjectArray(new byte[] { (byte) 0x56 }))));
+		assertThat("Payload length", msg.payloadLength(), is(equalTo(1)));
+	}
+
+	@Test
+	public void encodeModbusPayload_exception() {
+		// GIVEN
+		BaseModbusMessage msg = new BaseModbusMessage(1, new UserModbusFunction((byte) 0x56),
+				ModbusErrorCode.IllegalFunction);
+
+		// WHEN
+		ByteBuf buf = Unpooled.buffer(8);
+		msg.encodeModbusPayload(buf);
+
+		// THEN
+		// @formatter:off
+		assertThat("Payload encoded as exception", byteObjectArray(ByteBufUtil.getBytes(buf)),
+				is(arrayContaining(byteObjectArray(new byte[] { 
+						(byte) 0x56 + ModbusFunctionCodes.ERROR_OFFSET,
+						ModbusErrorCodes.ILLEGAL_FUNCTION,
+		}))));
+		// @formatter:on
+		assertThat("Payload length", msg.payloadLength(), is(equalTo(2)));
+	}
+
 }
