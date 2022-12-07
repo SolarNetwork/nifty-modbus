@@ -106,6 +106,7 @@ public class TcpServerExample {
 
 		try {
 			server.start();
+			System.out.println("Modbus server listening on port " + bindPort);
 			while ( true ) {
 				Thread.sleep(60_000);
 			}
