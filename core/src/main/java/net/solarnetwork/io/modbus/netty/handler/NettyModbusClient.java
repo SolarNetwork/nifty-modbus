@@ -515,6 +515,15 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	/**
 	 * Set the "wire logging" setting.
 	 * 
+	 * <p>
+	 * Wire-level logging causes raw Modbus frames to be logged using a logger
+	 * name starting with <code>net.solarnetwork.io.modbus.</code> followed by
+	 * the {@link ModbusClientConfig#getDescription()}. The <code>TRACE</code>
+	 * log level is used, and must be enabled for the log messages to be
+	 * actually generated. <b>Note</b> there is a performance penalty for
+	 * generating the wire-level log messages.
+	 * </p>
+	 * 
 	 * @param wireLogging
 	 *        {@literal true} to enable wire-level logging of all messages
 	 */
