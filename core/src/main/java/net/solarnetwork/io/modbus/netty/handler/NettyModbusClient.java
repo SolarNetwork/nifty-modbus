@@ -247,8 +247,8 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	protected void initChannel(Channel channel) {
 		ChannelPipeline pipeline = channel.pipeline();
 		if ( wireLogging ) {
-			pipeline.addFirst(
-					new LoggingHandler("net.solarnetwork.io.modbus." + clientConfig.getDescription()));
+			pipeline.addFirst(new LoggingHandler(
+					"net.solarnetwork.io.modbus." + clientConfig.getDescription(), LogLevel.TRACE));
 		}
 		pipeline.addLast("modbusClient", new ModbusChannelHandler());
 	}
