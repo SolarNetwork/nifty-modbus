@@ -43,6 +43,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.AttributeKey;
 import net.solarnetwork.io.modbus.ModbusClient;
@@ -151,6 +152,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		if ( connFuture != null ) {
 			return connFuture;
 		}
+		this.stopped = false;
 		CompletableFuture<?> result = handleConnect(false);
 		connFuture = result;
 		if ( cleanupTask == null ) {
@@ -166,6 +168,11 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	}
 
 	@Override
+	public boolean isStarted() {
+		return !stopped && connFuture != null;
+	}
+
+	@Override
 	public synchronized void stop() {
 		this.stopped = true;
 		if ( privateScheduler && !scheduler.isShutdown() ) {
@@ -178,8 +185,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			connFuture = null;
 		}
 		if ( channel != null ) {
-			channel.disconnect();
-			channel = null;
+			channel.disconnect(); // will call closeAndScheduleReconnectIfRequired() and set channel to null
 		}
 		if ( cleanupTask != null ) {
 			cleanupTask.cancel(true);
@@ -195,17 +201,13 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 				if ( f.isSuccess() ) {
 					Channel c = f.channel();
 					c.closeFuture().addListener((ChannelFutureListener) chFuture -> {
-						if ( isConnected() ) {
-							return;
-						}
-						// Needed? NettyModbusClient.this.channel = null;
-						// TODO: could offer a "connection lost" callback API here
-						scheduleConnectIfRequired(true);
+						// TODO: could offer a "connection closed" callback API here
+						closeAndScheduleReconnectIfRequired(true);
 					});
 					channel = c;
 					completable.complete(null);
 				} else {
-					scheduleConnectIfRequired(reconnecting);
+					closeAndScheduleReconnectIfRequired(reconnecting);
 					if ( !reconnecting ) {
 						completable.completeExceptionally(f.cause());
 					}
@@ -217,18 +219,24 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		return completable;
 	}
 
-	private synchronized void scheduleConnectIfRequired(boolean reconnecting) {
+	private synchronized void closeAndScheduleReconnectIfRequired(boolean reconnecting) {
 		if ( channel != null ) {
-			try {
-				channel.close().sync();
-			} catch ( InterruptedException e ) {
-				// ignore
+			if ( isConnected() ) {
+				return;
 			}
+			channel.close().addListener((f) -> {
+				try {
+					channel.eventLoop().shutdownGracefully();
+				} catch ( Exception e ) {
+					log.warn("Error shutting down {} event loop: {}", clientConfig.getDescription(),
+							e.toString());
+				}
+				if ( clientConfig.isAutoReconnect() && !stopped ) {
+					scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
+							clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
+				}
+			});
 			channel = null;
-		}
-		if ( clientConfig.isAutoReconnect() && !stopped ) {
-			scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
-					clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
 		}
 	}
 

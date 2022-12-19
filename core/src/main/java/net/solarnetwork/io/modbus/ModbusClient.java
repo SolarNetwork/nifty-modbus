@@ -47,6 +47,19 @@ public interface ModbusClient {
 	Future<?> start();
 
 	/**
+	 * Test if the client has been started by a call to {@link #start()}
+	 * already.
+	 * 
+	 * <p>
+	 * This will return {@literal true} if {@link #start()} has been called,
+	 * until {@link #stop()} is called.
+	 * </p>
+	 * 
+	 * @return {@literal true} if the client has been started (and not stopped)
+	 */
+	boolean isStarted();
+
+	/**
 	 * Stop the client.
 	 * 
 	 * <p>
@@ -56,6 +69,10 @@ public interface ModbusClient {
 	 * stopped is allowed and will not result in any error.
 	 * </p>
 	 * 
+	 * <p>
+	 * After calling this method {@link #isStarted()} will return
+	 * {@literal false}.
+	 * </p>
 	 */
 	void stop();
 

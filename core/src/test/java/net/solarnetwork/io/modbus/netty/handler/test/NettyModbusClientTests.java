@@ -66,20 +66,20 @@ public class NettyModbusClientTests {
 
 	private static final class TestNettyModbusClient extends NettyModbusClient<ModbusClientConfig> {
 
-		private final EmbeddedChannel channel;
+		private final EmbeddedChannel testChannel;
 
 		private TestNettyModbusClient(ModbusClientConfig clientConfig, EmbeddedChannel channel,
 				ConcurrentMap<ModbusMessage, PendingMessage> pending) {
 			super(clientConfig, channel.eventLoop(), pending);
-			this.channel = channel;
+			this.testChannel = channel;
 			setWireLogging(true);
 		}
 
 		@Override
 		protected ChannelFuture connect() {
-			channel.pipeline().addLast(new ModbusMessageEncoder(), new ModbusMessageDecoder(true));
-			super.initChannel(channel);
-			return channel.newSucceededFuture();
+			testChannel.pipeline().addLast(new ModbusMessageEncoder(), new ModbusMessageDecoder(true));
+			super.initChannel(testChannel);
+			return testChannel.newSucceededFuture();
 		}
 
 	}
@@ -104,6 +104,30 @@ public class NettyModbusClientTests {
 	@AfterEach
 	public void teardown() {
 		client.stop();
+	}
+
+	@Test
+	public void isStarted_no() {
+		assertThat("Client has not been started", client.isStarted(), is(equalTo(false)));
+	}
+
+	@Test
+	public void isStarted_yes() {
+		// GIVEN
+		client.start();
+
+		// THEN
+		assertThat("Client has been started", client.isStarted(), is(equalTo(true)));
+	}
+
+	@Test
+	public void isStarted_afterStop() throws Exception {
+		// GIVEN
+		client.start().get();
+		client.stop();
+
+		// THEN
+		assertThat("Client is no longer started", client.isStarted(), is(equalTo(false)));
 	}
 
 	@Test
