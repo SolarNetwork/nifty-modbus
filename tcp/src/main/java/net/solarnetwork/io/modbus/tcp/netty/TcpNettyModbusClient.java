@@ -83,6 +83,23 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	/**
 	 * Constructor.
 	 * 
+	 * @param clientConfig
+	 *        the client configuration
+	 * @param eventLoopGroup
+	 *        the event loop group, or {@literal null} to create an internal one
+	 * @param channelClass
+	 *        the channel class, or {@literal null} to use
+	 *        {@link NioEventLoopGroup}
+	 */
+	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig, EventLoopGroup eventLoopGroup,
+			Class<? extends Channel> channelClass) {
+		this(clientConfig, null, new ConcurrentHashMap<>(8, 0.9f, 2), eventLoopGroup, channelClass,
+				new ConcurrentHashMap<>(8, 0.9f, 2), SimpleTransactionIdSupplier.INSTANCE);
+	}
+
+	/**
+	 * Constructor.
+	 * 
 	 * <p>
 	 * A default {@link NioEventLoopGroup} will be used.
 	 * </p>
