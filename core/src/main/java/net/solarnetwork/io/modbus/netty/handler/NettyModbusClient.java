@@ -351,7 +351,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 				try {
 					obs.connectionOpened(NettyModbusClient.this, clientConfig);
 				} catch ( Exception t ) {
-					log.warn("Connection observer [{}] threw exception: ");
+					log.warn("Connection observer [{}] threw exception: ", obs, t);
 				}
 			}
 		}
@@ -365,7 +365,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 					obs.connectionClosed(NettyModbusClient.this, clientConfig, null,
 							clientConfig.isAutoReconnect() && !stopped);
 				} catch ( Exception t ) {
-					log.warn("Connection observer [{}] threw exception: ");
+					log.warn("Connection observer [{}] threw exception: ", obs, t);
 				}
 			}
 		}
