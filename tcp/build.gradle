@@ -24,6 +24,17 @@ jar.manifest {
     attributes('Implementation-Version': version)
 }
 
+sourcesJar.manifest {
+	attributes(
+		'Bundle-SymbolicName': 'net.solarnetwork.common.io.modbus.tcp.sources',
+		'Bundle-Name': 'SolarNetwork Modbus TCP Sources',
+		'Bundle-Version': version,
+		'Bundle-ManifestVersion': '2',
+		'Eclipse-SourceBundle': 'net.solarnetwork.common.io.modbus.tcp;version="'
+			+ version + '";roots:="."'
+	)
+}
+
 eclipse {
 	jdt {
 		javaRuntimeName 'JavaSE-1.8'
