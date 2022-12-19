@@ -141,12 +141,14 @@ public class NettyTcpModbusServer {
 			return;
 		}
 		try {
-			bossGroup = new NioEventLoopGroup();
-			workerGroup = new NioEventLoopGroup();
+			NioEventLoopGroup bGroup = new NioEventLoopGroup();
+			this.bossGroup = bGroup;
+			NioEventLoopGroup wGroup = new NioEventLoopGroup();
+			this.workerGroup = wGroup;
 
 			// @formatter:off
 			ServerBootstrap bootstrap = new ServerBootstrap();
-			bootstrap.group(bossGroup, workerGroup)
+			bootstrap.group(bGroup, wGroup)
 					.channel(NioServerSocketChannel.class)
 					.childHandler(new ChildHandlerInitializer())
 					.option(ChannelOption.SO_REUSEADDR, true)
@@ -158,15 +160,15 @@ public class NettyTcpModbusServer {
 
 				@Override
 				public void operationComplete(ChannelFuture future) throws Exception {
-					workerGroup.shutdownGracefully();
-					bossGroup.shutdownGracefully();
+					wGroup.shutdownGracefully();
+					bGroup.shutdownGracefully();
 				}
 			});
 			this.channel = channel;
 			if ( cleanupTask == null ) {
 				long period = getPendingMessageTtl() * 2;
 				if ( period > 0 ) {
-					cleanupTask = bossGroup.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(),
+					cleanupTask = bGroup.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(),
 							period, period, TimeUnit.MILLISECONDS);
 				}
 			}
