@@ -185,7 +185,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			connFuture = null;
 		}
 		if ( channel != null ) {
-			channel.disconnect(); // will call closeAndScheduleReconnectIfRequired() and set channel to null
+			channel.close(); // will call closeAndScheduleReconnectIfRequired() and set channel to null
 		}
 		if ( cleanupTask != null ) {
 			cleanupTask.cancel(true);
