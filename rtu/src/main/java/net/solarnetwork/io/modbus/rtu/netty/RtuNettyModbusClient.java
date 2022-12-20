@@ -73,12 +73,30 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	 * 
 	 * @param clientConfig
 	 *        the client configuration
+	 * @param eventLoopGroup
+	 *        the event loop group, or {@literal null} to create an internal one
+	 * @param serialPortProvider
+	 *        the serial port provider
+	 * @throws IllegalArgumentException
+	 *         if any argument except {@code eventLoopGroup} is {@literal null}
+	 */
+	public RtuNettyModbusClient(RtuModbusClientConfig clientConfig, EventLoopGroup eventLoopGroup,
+			SerialPortProvider serialPortProvider) {
+		this(clientConfig, null, new ConcurrentHashMap<>(8, 0.9f, 2), eventLoopGroup,
+				serialPortProvider);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param clientConfig
+	 *        the client configuration
 	 * @param scheduler
 	 *        the scheduler, or {@literal null} to create an internal one
 	 * @param serialPortProvider
 	 *        the serial port provider
 	 * @throws IllegalArgumentException
-	 *         if any argument is {@literal null}
+	 *         if any argument except {@code eventLoopGroup} is {@literal null}
 	 */
 	public RtuNettyModbusClient(RtuModbusClientConfig clientConfig, ScheduledExecutorService scheduler,
 			EventLoopGroup eventLoopGroup, SerialPortProvider serialPortProvider) {
@@ -100,7 +118,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	 * @param serialPortProvider
 	 *        the serial port provider
 	 * @throws IllegalArgumentException
-	 *         if any argument is {@literal null}
+	 *         if any argument except {@code eventLoopGroup} is {@literal null}
 	 */
 	@SuppressWarnings("deprecation")
 	public RtuNettyModbusClient(RtuModbusClientConfig clientConfig, ScheduledExecutorService scheduler,
