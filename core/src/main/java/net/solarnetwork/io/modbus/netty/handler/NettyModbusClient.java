@@ -185,7 +185,12 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			connFuture = null;
 		}
 		if ( channel != null ) {
-			channel.close(); // will call closeAndScheduleReconnectIfRequired() and set channel to null
+			try {
+				channel.close().sync();
+			} catch ( InterruptedException e ) {
+				// ignore
+			}
+			this.channel = null;
 		}
 		if ( cleanupTask != null ) {
 			cleanupTask.cancel(true);
@@ -198,16 +203,16 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		try {
 			ChannelFuture channelFuture = connect();
 			channelFuture.addListener((ChannelFutureListener) f -> {
+				Channel c = f.channel();
 				if ( f.isSuccess() ) {
-					Channel c = f.channel();
 					c.closeFuture().addListener((ChannelFutureListener) chFuture -> {
 						// TODO: could offer a "connection closed" callback API here
-						closeAndScheduleReconnectIfRequired(true);
+						handleCloseAndScheduleReconnectIfRequired(true);
 					});
 					channel = c;
 					completable.complete(null);
 				} else {
-					closeAndScheduleReconnectIfRequired(reconnecting);
+					handleCloseAndScheduleReconnectIfRequired(reconnecting);
 					if ( !reconnecting ) {
 						completable.completeExceptionally(f.cause());
 					}
@@ -219,24 +224,10 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		return completable;
 	}
 
-	private synchronized void closeAndScheduleReconnectIfRequired(boolean reconnecting) {
-		if ( channel != null ) {
-			if ( isConnected() ) {
-				return;
-			}
-			channel.close().addListener((f) -> {
-				try {
-					channel.eventLoop().shutdownGracefully();
-				} catch ( Exception e ) {
-					log.warn("Error shutting down {} event loop: {}", clientConfig.getDescription(),
-							e.toString());
-				}
-				if ( clientConfig.isAutoReconnect() && !stopped ) {
-					scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
-							clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
-				}
-			});
-			channel = null;
+	private void handleCloseAndScheduleReconnectIfRequired(boolean reconnecting) {
+		if ( clientConfig.isAutoReconnect() && !stopped ) {
+			scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
+					clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
 		}
 	}
 
