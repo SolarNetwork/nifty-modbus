@@ -27,6 +27,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusBlockType;
@@ -177,4 +178,18 @@ public class UserModbusFunctionTests {
 		assertThat("String value", fn.toString(),
 				is(equalTo(format("UserModbusFunction{%d}", Byte.toUnsignedInt(code)))));
 	}
+
+	@Test
+	public void functionCode() {
+		// GIVEN
+		byte code = (byte) 0x65;
+		UserModbusFunction fn = new UserModbusFunction(code);
+
+		// WHEN
+		ModbusFunctionCode function = fn.functionCode();
+
+		// THEN
+		assertThat("Function enum not available for user function", function, is(nullValue()));
+	}
+
 }
