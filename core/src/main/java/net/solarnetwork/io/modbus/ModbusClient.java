@@ -107,4 +107,12 @@ public interface ModbusClient {
 	 */
 	Future<ModbusMessage> sendAsync(ModbusMessage request);
 
+	/**
+	 * Configure a connection observer.
+	 * 
+	 * @param connectionObserver
+	 *        the observer to set, or {@literal null} to clear
+	 */
+	void setConnectionObserver(ModbusClientConnectionObserver connectionObserver);
+
 }

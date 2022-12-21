@@ -499,12 +499,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		return connectionObserver;
 	}
 
-	/**
-	 * Set the connection observer.
-	 * 
-	 * @param connectionObserver
-	 *        the connection observer to set, or {@literal null}
-	 */
+	@Override
 	public void setConnectionObserver(ModbusClientConnectionObserver connectionObserver) {
 		this.connectionObserver = connectionObserver;
 	}
