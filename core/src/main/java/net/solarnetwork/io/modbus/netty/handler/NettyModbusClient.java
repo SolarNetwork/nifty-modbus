@@ -65,6 +65,9 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	/** The {@code pendingMessageTtl} property default value. */
 	public static final long DEFAULT_PENDING_MESSAGE_TTL = TimeUnit.MINUTES.toMillis(2);
 
+	/** The {@code replyTimeout} property default value. */
+	public static final long DEFAULT_REPLY_TIMEOUT = TimeUnit.MINUTES.toMillis(1);
+
 	/**
 	 * A channel attribute key for the last encoded message.
 	 * 
@@ -91,6 +94,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	private ModbusClientConnectionObserver connectionObserver;
 	private boolean wireLogging;
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
+	private long replyTimeout = DEFAULT_REPLY_TIMEOUT;
 
 	private ScheduledFuture<?> cleanupTask;
 	private Future<?> connFuture;
@@ -281,7 +285,10 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	public ModbusMessage send(ModbusMessage request) {
 		Future<ModbusMessage> f = sendAsync(request);
 		try {
-			return f.get(1, TimeUnit.MINUTES);
+			if ( replyTimeout > 0 ) {
+				return f.get(replyTimeout, TimeUnit.MILLISECONDS);
+			}
+			return f.get();
 		} catch ( InterruptedException e ) {
 			log.warn("Interrupted waiting for response to {}", request);
 			throw new RuntimeException(e); // TODO: use sensible exception
@@ -554,6 +561,25 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	 */
 	public void setPendingMessageTtl(long pendingMessageTtl) {
 		this.pendingMessageTtl = pendingMessageTtl;
+	}
+
+	/**
+	 * Get the Modbus message reply timeout.
+	 * 
+	 * @return the reply timeout, in milliseconds
+	 */
+	public long getReplyTimeout() {
+		return replyTimeout;
+	}
+
+	/**
+	 * Set the Modbus message reply timeout.
+	 * 
+	 * @param replyTimeout
+	 *        the reply timeout to set, in milliseconds
+	 */
+	public void setReplyTimeout(long replyTimeout) {
+		this.replyTimeout = replyTimeout;
 	}
 
 }
