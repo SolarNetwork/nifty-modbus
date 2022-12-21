@@ -42,6 +42,7 @@ public class NettyTcpModbusClientConfig extends NettyModbusClientConfig
 	 */
 	public NettyTcpModbusClientConfig() {
 		super();
+		this.port = DEFAULT_PORT;
 	}
 
 	/**

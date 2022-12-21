@@ -25,8 +25,10 @@ package net.solarnetwork.io.modbus.tcp.netty.test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
 
 /**
@@ -36,6 +38,16 @@ import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
  * @version 1.0
  */
 public class NettyTcpModbusClientConfigTests {
+
+	@Test
+	public void defaults() {
+		// GIVEN
+		final NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig();
+
+		// THEN
+		assertThat("No default host", config.getHost(), is(nullValue()));
+		assertThat("Default port", config.getPort(), is(equalTo(TcpModbusClientConfig.DEFAULT_PORT)));
+	}
 
 	@Test
 	public void setHost() {
