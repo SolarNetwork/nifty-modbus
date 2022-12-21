@@ -200,7 +200,7 @@ public final class ModbusMessageUtils {
 				if ( in.readableBytes() < 2 ) {
 					return -1;
 				}
-				return in.getByte(idx + 1) + 2;
+				return Byte.toUnsignedInt(in.getByte(idx + 1)) + 2;
 
 			case WriteCoil:
 			case WriteHoldingRegister:
