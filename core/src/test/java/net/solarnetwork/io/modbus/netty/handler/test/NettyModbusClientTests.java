@@ -27,15 +27,18 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -260,6 +263,26 @@ public class NettyModbusClientTests {
 		assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
 		ModbusMessage resp = f.get();
 		assertThat("Response is an error", resp.getError(), is(ModbusErrorCode.IllegalDataAddress));
+	}
+
+	@Test
+	public void send_recvTimeout() throws InterruptedException, ExecutionException {
+		// GIVEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.setReplyTimeout(200);
+		client.start();
+
+		RuntimeException e = assertThrows(RuntimeException.class, () -> {
+			client.send(req);
+		});
+
+		// THEN
+		assertThat("Exception is timeout", e.getCause(), is(instanceOf(TimeoutException.class)));
 	}
 
 }
