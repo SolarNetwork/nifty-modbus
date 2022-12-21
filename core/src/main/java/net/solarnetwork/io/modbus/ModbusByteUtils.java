@@ -127,6 +127,62 @@ public final class ModbusByteUtils {
 	}
 
 	/**
+	 * Convert a hex-encoded string to a byte array.
+	 * 
+	 * <p>
+	 * If the string does not have an even number of characters, a {@literal 0}
+	 * will be inserted at the start of the string.
+	 * </p>
+	 * 
+	 * @param s
+	 *        the string to decode
+	 * @return the bytes, never {@literal null}
+	 * @see #decodeHexPadStart(char[])
+	 */
+	public static byte[] decodeHexString(String s) {
+		if ( s == null ) {
+			return new byte[0];
+		}
+		return decodeHexPadStart(s.toCharArray());
+	}
+
+	/**
+	 * Convert a hex-encoded string to a byte array.
+	 * 
+	 * <p>
+	 * If the string does not have an even number of characters, a {@literal 0}
+	 * will be inserted at the start of the string.
+	 * </p>
+	 * 
+	 * @param chars
+	 *        the characters to decode
+	 * @return the bytes, never {@literal null}
+	 */
+	public static byte[] decodeHexPadStart(final char[] chars) {
+		if ( chars == null || chars.length < 1 ) {
+			return new byte[0];
+		}
+		final int len = chars.length;
+		final boolean even = (len & 0x01) == 0;
+		final byte[] data = new byte[(even ? len : len + 1) / 2];
+		int i = 0;
+		int j = 0;
+		if ( !even ) {
+			data[i] = (byte) (Character.digit(chars[j], 16) & 0xFF);
+			i++;
+			j++;
+		}
+		for ( ; j < len; i++ ) {
+			int n = Character.digit(chars[j], 16) << 4;
+			j++;
+			n |= Character.digit(chars[j], 16);
+			j++;
+			data[i] = (byte) (n & 0xFF);
+		}
+		return data;
+	}
+
+	/**
 	 * Encode a byte array into a hex-encoded upper-case string without spaces.
 	 * 
 	 * @param data

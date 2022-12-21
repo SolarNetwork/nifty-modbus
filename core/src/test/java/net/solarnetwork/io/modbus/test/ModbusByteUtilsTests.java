@@ -22,7 +22,10 @@
 
 package net.solarnetwork.io.modbus.test;
 
+import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,6 +41,52 @@ import net.solarnetwork.io.modbus.ModbusByteUtils;
  * @version 1.0
  */
 public class ModbusByteUtilsTests {
+
+	@Test
+	public void decodeHexStringPadStart_null() {
+		byte[] data = ModbusByteUtils.decodeHexPadStart(null);
+		assertThat("Null input returns empty data", byteObjectArray(data), is(emptyArray()));
+	}
+
+	@Test
+	public void decodeHexString_null() {
+		byte[] data = ModbusByteUtils.decodeHexString(null);
+		assertThat("Null input returns empty data", byteObjectArray(data), is(emptyArray()));
+	}
+
+	@Test
+	public void decodeHexString_empty() {
+		byte[] data = ModbusByteUtils.decodeHexString("");
+		assertThat("Empty input returns empty data", byteObjectArray(data), is(emptyArray()));
+	}
+
+	@Test
+	public void decodeHexString_odd() {
+		byte[] data = ModbusByteUtils.decodeHexString("d");
+		assertThat("Odd length input pads with 0 at start", byteObjectArray(data),
+				is(arrayContaining(byteObjectArray(new byte[] { 0xd }))));
+	}
+
+	@Test
+	public void decodeHexString_odd_longer() {
+		byte[] data = ModbusByteUtils.decodeHexString("def1234");
+		assertThat("Odd length input pads with 0 at start", byteObjectArray(data),
+				is(arrayContaining(byteObjectArray(new byte[] { 0x0d, (byte) 0xef, 0x12, 0x34 }))));
+	}
+
+	@Test
+	public void decodeHexString_oneByte() {
+		byte[] data = ModbusByteUtils.decodeHexString("ad");
+		assertThat("Single byte decoded", byteObjectArray(data),
+				is(arrayContaining(byteObjectArray(new byte[] { (byte) 0xad }))));
+	}
+
+	@Test
+	public void decodeHexString_multipleBytes() {
+		byte[] data = ModbusByteUtils.decodeHexString("abc123");
+		assertThat("Odd length input pads with 0 at start", byteObjectArray(data),
+				is(arrayContaining(byteObjectArray(new byte[] { (byte) 0xab, (byte) 0xc1, 0x23 }))));
+	}
 
 	@Test
 	public void encodeHexString_null() {

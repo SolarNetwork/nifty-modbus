@@ -22,13 +22,21 @@
 
 package net.solarnetwork.io.modbus.test.support;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * Utilities to aid with testing.
  *
  * @author matt
  * @version 1.0
  */
-public class ModbusTestUtils {
+public final class ModbusTestUtils {
 
 	/**
 	 * Convert an array of bytes to Byte objects.
@@ -46,6 +54,46 @@ public class ModbusTestUtils {
 		final Byte[] result = new Byte[count];
 		for ( int i = 0; i < count; i++ ) {
 			result[i] = array[i];
+		}
+		return result;
+	}
+
+	/**
+	 * A pattern for matching the data portion of a Netty ByteBuf wire log
+	 * message.
+	 * 
+	 * <p>
+	 * The messages appear like:
+	 * </p>
+	 * 
+	 * <pre>{@code
+	 * |00000000| 00 00 3f 7f be 77 3f 7f be 77 3f 7f be 77 00 00 |..?..w?..w?..w..|
+	 * }</pre>
+	 */
+	public static final Pattern WIRE_LOG_LINE_PATTERN = Pattern
+			.compile("\\|\\d+\\|([0-9A-Fa-f ]+)\\|.*");
+
+	/**
+	 * Decode the byte content from Netty ByteBuf wire log messages.
+	 * 
+	 * @param in
+	 *        the wire log messages to parse
+	 * @param hexDecoder
+	 *        a function that decodes hex strings into bytes
+	 * @return the decoded data
+	 * @throws IOException
+	 *         if an IO error occurs
+	 */
+	public static List<byte[]> parseWireLogLines(BufferedReader in, Function<String, byte[]> hexDecoder)
+			throws IOException {
+		String line = null;
+		List<byte[]> result = new ArrayList<>(8);
+		while ( (line = in.readLine()) != null ) {
+			Matcher m = WIRE_LOG_LINE_PATTERN.matcher(line);
+			if ( m.matches() ) {
+				String hex = m.group(1).replace(" ", "");
+				result.add(hexDecoder.apply(hex));
+			}
 		}
 		return result;
 	}
