@@ -127,7 +127,7 @@ public final class ModbusMessageUtils {
 				if ( in.readableBytes() < 6 ) {
 					return -1;
 				}
-				return in.getByte(idx + 5) + 6;
+				return Byte.toUnsignedInt(in.getByte(idx + 5)) + 6;
 
 			case ReadFileRecord:
 			case WriteFileRecord:
@@ -135,7 +135,7 @@ public final class ModbusMessageUtils {
 				if ( in.readableBytes() < 2 ) {
 					return -1;
 				}
-				return in.getByte(idx + 1) + 2;
+				return Byte.toUnsignedInt(in.getByte(idx + 1)) + 2;
 
 			case MaskWriteHoldingRegister:
 				// fn, addr, and, or
@@ -146,7 +146,7 @@ public final class ModbusMessageUtils {
 				if ( in.readableBytes() < 10 ) {
 					return -1;
 				}
-				return in.getByte(idx + 9) + 10;
+				return Byte.toUnsignedInt(in.getByte(idx + 9)) + 10;
 
 			case ReadFifoQueue:
 				// fn, addr
