@@ -61,6 +61,8 @@ publishing {
 						id = 'msqr'
 						name = 'Matt Magoffin'
 						email = 'matt@solarnetwork.net'
+						organization = 'SolarNetwork Foundation'
+						organizationUrl = 'https://solarnetwork.org.nz'
 					}
 				}
 				scm {
