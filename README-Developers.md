@@ -2,6 +2,14 @@
 
 This document has information for developers of Nifty Modbus.
 
+# Publishing to Local Maven repository
+
+You can publish the artifacts to your local Maven repository (e.g. `~/.m2/repository`) like this:
+
+```sh
+./gradlew publishToMavenLocal
+```
+
 # Publishing to Maven Central
 
 To publish to Maven Central use the `publish` Gradle task. You must provide your Sonatype
