@@ -36,12 +36,15 @@ buildscript {
 
 plugins {
 	id 'maven-publish'
+	id 'signing'
 }
 
 ext {
 	checkstyleVersion = '8.34'
 	nettyVersion = '4.1.63.Final'
 	slf4jVersion = '1.7.36'
+	ossrhUsername = 'ossrh-username'
+	ossrhPassword = 'ossrh-password'
 	
 
 	libraries = [

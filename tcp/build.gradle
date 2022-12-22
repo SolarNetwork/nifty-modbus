@@ -6,6 +6,7 @@ plugins {
 
 apply plugin: 'java-library'
 apply plugin: 'maven-publish'
+apply plugin: 'signing'
 
 description = 'Nifty Modbus: TCP'
 archivesBaseName = 'nifty-modbus-tcp'
@@ -45,6 +46,44 @@ publishing {
 	publications {
 		mavenJava(MavenPublication) {
 			from components.java
+			pom {
+				name = project.description
+				description = 'Nifty Modbus TCP implementation.'
+				url = 'https://github.com/SolarNetwork/nifty-modbus/tcp'
+				licenses {
+					license {
+						name = 'GNU General Public License, Version 2.0'
+						url = 'https://opensource.org/licenses/GPL-2.0'
+					}
+				}
+				developers {
+					developer {
+						id = 'msqr'
+						name = 'Matt Magoffin'
+						email = 'matt@solarnetwork.net'
+					}
+				}
+				scm {
+					connection = 'scm:git:https://github.com/SolarNetwork/nifty-modbus.git'
+					developerConnection = 'scm:git:git@github.com:SolarNetwork/nifty-modbus.git'
+					url = 'https://github.com/SolarNetwork/nifty-modbus'
+				}
+			}
 		}
 	}
+	repositories {
+		maven {
+			name = "OSSRH"
+			url "https://oss.sonatype.org/service/local/staging/deploy/maven2"
+			credentials {
+				username = ossrhUsername
+				password = ossrhPassword
+			}
+		}
+	}
+}
+
+signing {
+	useGpgCmd()
+	sign publishing.publications.mavenJava
 }
