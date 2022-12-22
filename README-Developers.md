@@ -19,8 +19,17 @@ You can provide these using `-P` command line arguments, e.g.
 ./gradlew publish -Psigning.gnupg.keyName=ABC123DEF -PossrhUsername=user -PossrhPassword=pass
 ```
 
-You can also provide the credentials via environment variables (the signing key, as it contains dot
-characters, cannot so easily be provided this way):
+Alternatively you can create a `gradle.properties` file (which will be ignored by Git) and place
+the properties there, e.g.
+
+```
+signing.gnupg.keyName = ABC123DEF
+ossrhUsername = user
+ossrhPassword = password
+```
+
+Alternatively you can also provide the credentials via environment variables (the signing key, as it
+contains dot characters, cannot so easily be provided this way):
 
  * `ORG_GRADLE_PROJECT_ossrhUsername` - the username
  * `ORG_GRADLE_PROJECT_ossrhPassword` - the password
