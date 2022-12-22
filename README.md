@@ -97,7 +97,7 @@ More specifically, it requires the following direct dependencies:
 | Dependency | Version | Description |
 |:-----------|:--------|:------------|
 | Java                       | 8   | Java 8 is the _minimum_ runtime needed. |
-| `io.netty:netty-codec`     | 4.1 | Nifty Modbus implements a decoders/encoders for the Modbus protocol. |
+| `io.netty:netty-codec`     | 4.1 | Nifty Modbus implements decoders/encoders for the Modbus protocol. |
 | `io.netty:netty-handler`   | 4.1 | Provides wire-level logging support. |
 | `org.slf4j:slf4j-api`      | 1.7 | For logging. |
 | `com.fazecast:jSerialComm` | 2.9 | For RTU serial support. Not needed for TCP. |
