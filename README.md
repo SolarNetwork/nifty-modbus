@@ -105,9 +105,6 @@ More specifically, it requires the following direct dependencies:
 
 # Maven Central Repository coordinates
 
-> :construction: **Note** the artifacts have not been published to Maven Central yet, but will be
-> soon. For now you must [build](#building-from-source) the library from source.
-
 Nifty Modbus can be integrated into your project using the following coordinates:
 
 | Group | Artifact | Notes |
@@ -115,6 +112,7 @@ Nifty Modbus can be integrated into your project using the following coordinates
 | `net.solarnetwork.common` | `nifty-modbus-core` | Required in all cases. |
 | `net.solarnetwork.common` | `nifty-modbus-rtu` | Required for Modbus RTU support, along with a serial port implementation. |
 | `net.solarnetwork.common` | `nifty-modbus-rtu-jsc` | Provides a serial port implementation based on [jSerialComm][jSerialComm]. |
+| `net.solarnetwork.common` | `nifty-modbus-shell` | Provides an interactive Modbus command-line application.  |
 | `net.solarnetwork.common` | `nifty-modbus-tcp` | Required for Modbus TCP support. |
 
 Usually it is sufficient to declare just the RTU and/or TCP components in your project, and the
