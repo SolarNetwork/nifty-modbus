@@ -201,7 +201,9 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	@Override
 	protected void initChannel(Channel channel) {
 		ChannelPipeline pipeline = channel.pipeline();
-		pipeline.addLast(new TcpModbusMessageEncoder(pendingMessages, transactionIdSupplier),
+		pipeline.addLast(MESSAGE_ENCODER_HANDLER_NAME,
+				new TcpModbusMessageEncoder(pendingMessages, transactionIdSupplier));
+		pipeline.addLast(MESSAGE_DECODER_HANDLER_NAME,
 				new TcpModbusMessageDecoder(true, pendingMessages));
 		super.initChannel(channel);
 	}

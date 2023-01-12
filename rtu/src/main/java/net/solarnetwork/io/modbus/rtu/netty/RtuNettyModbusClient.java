@@ -173,7 +173,8 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	@Override
 	protected void initChannel(Channel channel) {
 		ChannelPipeline pipeline = channel.pipeline();
-		pipeline.addLast(new RtuModbusMessageEncoder(), new RtuModbusMessageDecoder(true));
+		pipeline.addLast(MESSAGE_ENCODER_HANDLER_NAME, new RtuModbusMessageEncoder());
+		pipeline.addLast(MESSAGE_DECODER_HANDLER_NAME, new RtuModbusMessageDecoder(true));
 		super.initChannel(channel);
 	}
 

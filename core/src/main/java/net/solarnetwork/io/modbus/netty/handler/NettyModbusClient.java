@@ -68,6 +68,24 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	/** The {@code replyTimeout} property default value. */
 	public static final long DEFAULT_REPLY_TIMEOUT = TimeUnit.MINUTES.toMillis(1);
 
+	/** The handler name used for wire logging. */
+	public static final String WIRE_LOGGING_HANDLER_NAME = "wireLogger";
+
+	/** The handler name used for the Modbus client. */
+	public static final String CLIENT_HANDLER_NAME = "modbusClient";
+
+	/**
+	 * A handler name for extending classes to use for the Modbus message
+	 * encoder handler.
+	 */
+	public static final String MESSAGE_ENCODER_HANDLER_NAME = "modbusMessageEncoder";
+
+	/**
+	 * A handler name for extending classes to use for the Modbus message
+	 * decoder handler.
+	 */
+	public static final String MESSAGE_DECODER_HANDLER_NAME = "modbusMessageDecoder";
+
 	/**
 	 * A channel attribute key for the last encoded message.
 	 * 
@@ -250,10 +268,10 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	protected void initChannel(Channel channel) {
 		ChannelPipeline pipeline = channel.pipeline();
 		if ( wireLogging ) {
-			pipeline.addFirst(new LoggingHandler(
+			pipeline.addFirst(WIRE_LOGGING_HANDLER_NAME, new LoggingHandler(
 					"net.solarnetwork.io.modbus." + clientConfig.getDescription(), LogLevel.TRACE));
 		}
-		pipeline.addLast("modbusClient", new ModbusChannelHandler());
+		pipeline.addLast(CLIENT_HANDLER_NAME, new ModbusChannelHandler());
 	}
 
 	private ChannelFuture sendAndFlushPacket(Channel channel, ModbusMessage message) {
