@@ -50,28 +50,36 @@ public interface SerialParameters {
 	 * 
 	 * @return the baud rate; defaults to {@link #DEFAULT_BAUD_RATE}
 	 */
-	int getBaudRate();
+	default int getBaudRate() {
+		return DEFAULT_BAUD_RATE;
+	}
 
 	/**
 	 * Get the data bits.
 	 * 
 	 * @return the data bits; defaults to {@link #DEFAULT_DATA_BITS}
 	 */
-	int getDataBits();
+	default int getDataBits() {
+		return DEFAULT_DATA_BITS;
+	}
 
 	/**
 	 * Get the stop bits.
 	 * 
 	 * @return the stop bits; defaults to {@link #DEFAULT_STOP_BITS}
 	 */
-	SerialStopBits getStopBits();
+	default SerialStopBits getStopBits() {
+		return DEFAULT_STOP_BITS;
+	}
 
 	/**
 	 * Get the parity.
 	 * 
 	 * @return the parity; defaults to {@link #DEFAULT_PARITY}
 	 */
-	SerialParity getParity();
+	default SerialParity getParity() {
+		return DEFAULT_PARITY;
+	}
 
 	/**
 	 * Get the wait time.
@@ -80,7 +88,9 @@ public interface SerialParameters {
 	 *         configuring its settings, in milliseconds; defaults to
 	 *         {@literal 0}
 	 */
-	int getWaitTime();
+	default int getWaitTime() {
+		return 0;
+	}
 
 	/**
 	 * Get the read timeout.
@@ -88,7 +98,9 @@ public interface SerialParameters {
 	 * @return the maximum amount of time to wait for data, in milliseconds;
 	 *         defaults to {@link #DEFAULT_READ_TIMEOUT}
 	 */
-	int getReadTimeout();
+	default int getReadTimeout() {
+		return DEFAULT_READ_TIMEOUT;
+	}
 
 	/**
 	 * Get a "shortcut" bits value in the form {@literal DPS} for data bits,
