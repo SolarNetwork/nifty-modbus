@@ -33,6 +33,13 @@ import java.util.concurrent.Future;
 public interface ModbusClient {
 
 	/**
+	 * Get the client configuration.
+	 * 
+	 * @return the client configuration
+	 */
+	ModbusClientConfig getClientConfig();
+
+	/**
 	 * Start the client.
 	 * 
 	 * <p>

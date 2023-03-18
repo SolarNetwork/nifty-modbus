@@ -499,11 +499,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 
 	}
 
-	/**
-	 * Get the client configuration.
-	 * 
-	 * @return the client configuration
-	 */
+	@Override
 	public C getClientConfig() {
 		return clientConfig;
 	}
