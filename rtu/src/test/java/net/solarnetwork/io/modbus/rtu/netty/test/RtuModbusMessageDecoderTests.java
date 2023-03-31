@@ -112,6 +112,53 @@ public class RtuModbusMessageDecoderTests {
 	}
 
 	@Test
+	public void controller_request_writeHoldings() {
+		// GIVEN
+		// @formatter:off
+		final byte[] data = new byte[] {
+				(byte)0x0B,
+				ModbusFunctionCodes.WRITE_HOLDING_REGISTERS,
+				(byte)0x02,
+				(byte)0x1A,
+				(byte)0x00,
+				(byte)0x01,
+				(byte)0x02,
+				(byte)0x00,
+				(byte)0x03,
+				(byte)0xB9,
+				(byte)0x0B,
+		};
+		ByteBuf buf = Unpooled.copiedBuffer(data);
+		// @formatter:on
+
+		// WHEN
+		boolean result = responderChannel.writeInbound(buf);
+
+		// THEN
+		assertThat("Decoder produced", result, is(equalTo(true)));
+		RtuModbusMessage msg = responderChannel.readInbound();
+
+		assertThat("Message decoded", msg, is(notNullValue()));
+		assertThat("Unit ID decoded", msg.getUnitId(), is(equalTo(0x0B)));
+		assertThat("Function is decoded", msg.getFunction(),
+				is(equalTo(ModbusFunctionCode.WriteHoldingRegisters)));
+		assertThat("Not an exception", msg.isException(), is(equalTo(false)));
+		assertThat("No error", msg.getError(), is(nullValue()));
+
+		RegistersModbusMessage rmm = msg.unwrap(RegistersModbusMessage.class);
+		assertThat("Type is Registers", msg, is(notNullValue()));
+		assertThat("Address decoded", rmm.getAddress(), is(equalTo(0x021A)));
+		assertThat("Count decoded", rmm.getCount(), is(equalTo(1)));
+		assertThat("Data", Arrays.equals(rmm.dataCopy(), new byte[] { 0x00, 0x03 }), is(true));
+		assertThat("Data (shorts)", Arrays.equals(rmm.dataDecode(), new short[] { (short) 0x03 }),
+				is(true));
+		assertThat("Data (ints)", Arrays.equals(rmm.dataDecodeUnsigned(), new int[] { 3 }), is(true));
+		assertThat("Provided CRC preserved", msg.getCrc(), is(equalTo((short) 0x0BB9)));
+		assertThat("Calculated CRC", msg.computeCrc(), is(equalTo((short) 0x0BB9)));
+		assertThat("CRC invalid", msg.isCrcValid(), is(equalTo(true)));
+	}
+
+	@Test
 	public void controller_response_readInputs_parts() {
 		// GIVEN
 		// @formatter:off
