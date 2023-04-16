@@ -7,8 +7,8 @@ apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
 
-description = 'Nifty Modbus: RTU jSerialComm'
-archivesBaseName = 'nifty-modbus-rtu-jsc'
+description = 'Nifty Modbus: Shell'
+archivesBaseName = 'nifty-modbus-shell'
 
 dependencies {
 	implementation project(':nifty-modbus-core');
