@@ -6,6 +6,8 @@ easy to extend.
 
 Nifty Modbus is built on top of the [Netty](https://netty.io/) asynchronous network library.
 
+[![javadoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-core/javadoc.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-core)
+
 # Example use
 
 Here is an example of using the Nifty Modbus TCP client to read some Modbus registers:
