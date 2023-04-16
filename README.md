@@ -35,7 +35,8 @@ try {
 }
 ```
 
-The above snippet was taken from the [TcpClientReadRegistersExample][ex-tcp-client] class.
+The above snippet was taken from the [TcpClientReadRegistersExample][ex-tcp-client] class. See the
+[examples project](examples/) project for more samples.
 
 
 # Modbus Shell
