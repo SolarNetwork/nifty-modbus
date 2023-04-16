@@ -1,0 +1,30 @@
+plugins {
+    id 'java-library'
+    id 'eclipse'
+}
+
+apply plugin: 'java-library'
+
+description = 'Nifty Modbus: Examples'
+archivesBaseName = 'nifty-modbus-examples'
+
+dependencies {
+	implementation project(':nifty-modbus-core');
+	implementation project(':nifty-modbus-rtu');
+	implementation project(':nifty-modbus-rtu-jsc');
+	implementation project(':nifty-modbus-tcp');
+	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+	implementation "io.netty:netty-codec:${nettyVersion}"
+	implementation 'com.fazecast:jSerialComm:2.9.2';
+	implementation 'ch.qos.logback:logback-classic:1.2.11'
+}
+
+jar.manifest {
+    attributes('Implementation-Version': version)
+}
+
+eclipse {
+	jdt {
+		javaRuntimeName 'JavaSE-1.8'
+	}
+}

@@ -11,6 +11,7 @@ include('rtu')
 include('rtu-jsc')
 include('shell')
 include('tcp')
+include('examples')
 include('test')
 
 project(':core').name = 'nifty-modbus-core'
@@ -18,4 +19,5 @@ project(':rtu').name = 'nifty-modbus-rtu'
 project(':rtu-jsc').name = 'nifty-modbus-rtu-jsc'
 project(':shell').name = 'nifty-modbus-shell'
 project(':tcp').name = 'nifty-modbus-tcp'
+project(':examples').name = 'nifty-modbus-examples'
 project(':test').name = 'nifty-modbus-test'
