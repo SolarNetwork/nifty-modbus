@@ -22,7 +22,7 @@
 
 package net.solarnetwork.io.modbus;
 
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * API for a Modbus client application.
@@ -51,7 +51,7 @@ public interface ModbusClient {
 	 * 
 	 * @return a future that completes when the client is ready to be used
 	 */
-	Future<?> start();
+	CompletableFuture<?> start();
 
 	/**
 	 * Test if the client has been started by a call to {@link #start()}
@@ -116,7 +116,7 @@ public interface ModbusClient {
 	 *        the request to send
 	 * @return the response future
 	 */
-	Future<ModbusMessage> sendAsync(ModbusMessage request);
+	CompletableFuture<ModbusMessage> sendAsync(ModbusMessage request);
 
 	/**
 	 * Configure a connection observer.

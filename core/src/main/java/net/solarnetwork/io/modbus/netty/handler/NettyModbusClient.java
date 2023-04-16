@@ -118,7 +118,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	private long replyTimeout = DEFAULT_REPLY_TIMEOUT;
 
 	private ScheduledFuture<?> cleanupTask;
-	private Future<?> connFuture;
+	private CompletableFuture<?> connFuture;
 	private volatile Channel channel;
 	private volatile boolean stopped;
 
@@ -173,7 +173,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	}
 
 	@Override
-	public synchronized Future<?> start() {
+	public synchronized CompletableFuture<?> start() {
 		if ( connFuture != null ) {
 			return connFuture;
 		}
@@ -325,7 +325,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	}
 
 	@Override
-	public Future<ModbusMessage> sendAsync(ModbusMessage request) {
+	public CompletableFuture<ModbusMessage> sendAsync(ModbusMessage request) {
 		final Channel channel = this.channel;
 		if ( channel == null ) {
 			CompletableFuture<ModbusMessage> fail = new CompletableFuture<>();
