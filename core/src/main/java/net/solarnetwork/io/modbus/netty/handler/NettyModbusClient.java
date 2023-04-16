@@ -275,9 +275,6 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	}
 
 	private ChannelFuture sendAndFlushPacket(Channel channel, ModbusMessage message) {
-		if ( channel == null ) {
-			return null;
-		}
 		if ( channel.isActive() ) {
 			return channel.writeAndFlush(message);
 		}
