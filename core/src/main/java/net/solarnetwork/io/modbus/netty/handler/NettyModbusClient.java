@@ -22,6 +22,7 @@
 
 package net.solarnetwork.io.modbus.netty.handler;
 
+import static java.lang.String.format;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
@@ -49,8 +50,10 @@ import io.netty.util.AttributeKey;
 import net.solarnetwork.io.modbus.ModbusClient;
 import net.solarnetwork.io.modbus.ModbusClientConfig;
 import net.solarnetwork.io.modbus.ModbusClientConnectionObserver;
+import net.solarnetwork.io.modbus.ModbusException;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessageReply;
+import net.solarnetwork.io.modbus.ModbusTimeoutException;
 
 /**
  * Netty implementation of {@link ModbusClient}.
@@ -306,17 +309,18 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			return f.get();
 		} catch ( InterruptedException e ) {
 			log.warn("Interrupted waiting for response to {}", request);
-			throw new RuntimeException(e); // TODO: use sensible exception
+			throw new ModbusException(format("Interrupted waiting for response to %s.", request), e);
 		} catch ( ExecutionException e ) {
 			Throwable t = e.getCause();
 			log.warn("Internal exception waiting for response to {}: {}", request, t.toString(), t);
 			if ( t instanceof RuntimeException ) {
 				throw (RuntimeException) t;
 			}
-			throw new RuntimeException(t); // TODO: use sensible exception
+			throw new ModbusException(format("Internal exception waiting for response to %s: %s.",
+					request, t.getMessage()), t);
 		} catch ( TimeoutException e ) {
 			log.warn("Timeout waiting for response to {}", request);
-			throw new RuntimeException(e); // TODO: use sensible exception
+			throw new ModbusTimeoutException(format("Timeout waiting for response to %s.", request), e);
 		}
 	}
 

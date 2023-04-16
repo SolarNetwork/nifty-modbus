@@ -102,6 +102,10 @@ public interface ModbusClient {
 	 * @param request
 	 *        the request to send
 	 * @return the response
+	 * @throws ModbusTimeoutException
+	 *         if a timeout occurs waiting for the response
+	 * @throws ModbusException
+	 *         if an error occurs
 	 */
 	ModbusMessage send(ModbusMessage request);
 
