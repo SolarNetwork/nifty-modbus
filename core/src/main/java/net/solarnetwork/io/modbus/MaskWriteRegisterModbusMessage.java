@@ -31,14 +31,14 @@ package net.solarnetwork.io.modbus;
 public interface MaskWriteRegisterModbusMessage extends RegistersModbusMessage {
 
 	/**
-	 * Get the 16-bit and mask value.
+	 * Get the 16-bit logical <em>and</em> mask value.
 	 * 
 	 * @return the and mask
 	 */
 	int getAndMask();
 
 	/**
-	 * Get the 16-bit org mask value.
+	 * Get the 16-bit logical <em>or</em> mask value.
 	 * 
 	 * @return the or mask
 	 */
