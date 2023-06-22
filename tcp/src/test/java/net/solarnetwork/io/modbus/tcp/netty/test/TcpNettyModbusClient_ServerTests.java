@@ -374,4 +374,17 @@ public class TcpNettyModbusClient_ServerTests {
 		}, "No response provided throws TimeoutException");
 	}
 
+	@Test
+	public void start_stop_start() throws Exception {
+		// GIVEN
+		server.start();
+
+		client.start().get(10, TimeUnit.SECONDS);
+
+		client.stop();
+
+		// WHEN
+		client.start().get(10, TimeUnit.SECONDS);
+	}
+
 }

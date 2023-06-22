@@ -22,9 +22,12 @@
 
 package net.solarnetwork.io.modbus.rtu.netty;
 
+import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFactory;
@@ -49,9 +52,9 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfig>
 		implements ChannelFactory<SerialPortChannel> {
 
-	private final EventLoopGroup eventLoopGroup;
 	private final boolean privateEventLoopGroup;
 	private final SerialPortProvider serialPortProvider;
+	private EventLoopGroup eventLoopGroup;
 
 	/**
 	 * Constructor.
@@ -120,14 +123,13 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	 * @throws IllegalArgumentException
 	 *         if any argument except {@code eventLoopGroup} is {@literal null}
 	 */
-	@SuppressWarnings("deprecation")
 	public RtuNettyModbusClient(RtuModbusClientConfig clientConfig, ScheduledExecutorService scheduler,
 			ConcurrentMap<ModbusMessage, PendingMessage> pending, EventLoopGroup eventLoopGroup,
 			SerialPortProvider serialPortProvider) {
 		super(clientConfig, scheduler, pending);
 		if ( eventLoopGroup == null ) {
 			// TODO: need a non-deprecated replacement
-			eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+			eventLoopGroup = defaultEventLoopGroup();
 			this.privateEventLoopGroup = true;
 		} else {
 			this.privateEventLoopGroup = false;
@@ -139,6 +141,12 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		this.serialPortProvider = serialPortProvider;
 	}
 
+	@SuppressWarnings("deprecation")
+	private static EventLoopGroup defaultEventLoopGroup() {
+		// TODO: need a non-deprecated replacement
+		return new io.netty.channel.oio.OioEventLoopGroup();
+	}
+
 	@Override
 	public SerialPortChannel newChannel() {
 		SerialPortChannel channel = new SerialPortChannel(serialPortProvider);
@@ -147,10 +155,17 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	}
 
 	@Override
-	protected ChannelFuture connect() {
+	protected ChannelFuture connect() throws IOException {
 		final String name = clientConfig.getName();
 		if ( name == null || name.isEmpty() ) {
 			throw new IllegalArgumentException("No serial device name configured, cannot connect.");
+		}
+		if ( eventLoopGroup.isShutdown() ) {
+			if ( privateEventLoopGroup ) {
+				eventLoopGroup = defaultEventLoopGroup();
+			} else {
+				throw new IOException("External EventLoopGroup is stopped.");
+			}
 		}
 		// @formatter:off
 		Bootstrap bootstrap = new Bootstrap()
@@ -166,7 +181,15 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	public synchronized void stop() {
 		super.stop();
 		if ( privateEventLoopGroup ) {
-			eventLoopGroup.shutdownGracefully();
+			try {
+				eventLoopGroup.shutdownGracefully().get(10, TimeUnit.SECONDS);
+			} catch ( TimeoutException e ) {
+				log.warn("Timeout waiting for {} EventLoopGroup to shutdown",
+						clientConfig.getDescription());
+			} catch ( Exception e ) {
+				log.warn("{} waiting for {} EventLoopGroup to shutdown", e.getClass().getSimpleName(),
+						clientConfig.getDescription());
+			}
 		}
 	}
 

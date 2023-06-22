@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -106,11 +107,11 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	/** The client configuration. */
 	protected final C clientConfig;
 
-	/** The scheduler. */
-	protected final ScheduledExecutorService scheduler;
-
 	/** Flag if the scheduler is internally created. */
 	private final boolean privateScheduler;
+
+	/** The scheduler. */
+	private ScheduledExecutorService scheduler;
 
 	private ModbusClientConnectionObserver connectionObserver;
 	private boolean wireLogging;
@@ -178,6 +179,9 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			return connFuture;
 		}
 		this.stopped = false;
+		if ( privateScheduler && scheduler.isShutdown() ) {
+			scheduler = Executors.newSingleThreadScheduledExecutor();
+		}
 		CompletableFuture<?> result = handleConnect(false);
 		connFuture = result;
 		if ( cleanupTask == null ) {
@@ -202,6 +206,11 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		this.stopped = true;
 		if ( privateScheduler && !scheduler.isShutdown() ) {
 			scheduler.shutdown();
+			try {
+				scheduler.awaitTermination(10, TimeUnit.SECONDS);
+			} catch ( InterruptedException e ) {
+				log.warn("Timeout waiting for {} scheduler to complete", clientConfig.getDescription());
+			}
 		}
 		if ( connFuture != null ) {
 			if ( !connFuture.isDone() ) {
@@ -251,8 +260,13 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 
 	private void handleCloseAndScheduleReconnectIfRequired(boolean reconnecting) {
 		if ( clientConfig.isAutoReconnect() && !stopped ) {
-			scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
-					clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
+			try {
+				scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
+						clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
+			} catch ( RejectedExecutionException e ) {
+				log.warn("Unable to schedule reconnection to {}: {}", clientConfig.getDescription(),
+						scheduler.isShutdown() ? "scheduler is shut down" : e.getMessage());
+			}
 		}
 	}
 

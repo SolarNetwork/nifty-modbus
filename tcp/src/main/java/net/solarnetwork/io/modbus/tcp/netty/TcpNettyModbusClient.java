@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.IntSupplier;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -50,9 +52,6 @@ import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
  */
 public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfig> {
 
-	/** The event loop group. */
-	private final EventLoopGroup eventLoopGroup;
-
 	/** Flag if event loop group is internal. */
 	private final boolean privateEventLoopGroup;
 
@@ -64,6 +63,9 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 
 	/** A provider of transaction IDs. */
 	private final IntSupplier transactionIdSupplier;
+
+	/** The event loop group. */
+	private EventLoopGroup eventLoopGroup;
 
 	/**
 	 * Constructor.
@@ -178,7 +180,11 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 			throw new IllegalArgumentException("No host configured, cannot connect.");
 		}
 		if ( eventLoopGroup.isShutdown() ) {
-			throw new IOException("Client is stopped.");
+			if ( privateEventLoopGroup ) {
+				eventLoopGroup = new NioEventLoopGroup();
+			} else {
+				throw new IOException("External EventLoopGroup is stopped.");
+			}
 		}
 		// @formatter:off
 		Bootstrap bootstrap = new Bootstrap()
@@ -194,7 +200,15 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	public synchronized void stop() {
 		super.stop();
 		if ( privateEventLoopGroup ) {
-			eventLoopGroup.shutdownGracefully();
+			try {
+				eventLoopGroup.shutdownGracefully().get(10, TimeUnit.SECONDS);
+			} catch ( TimeoutException e ) {
+				log.warn("Timeout waiting for {} EventLoopGroup to shutdown",
+						clientConfig.getDescription());
+			} catch ( Exception e ) {
+				log.warn("{} waiting for {} EventLoopGroup to shutdown", e.getClass().getSimpleName(),
+						clientConfig.getDescription());
+			}
 		}
 	}
 
