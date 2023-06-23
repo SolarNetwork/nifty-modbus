@@ -38,7 +38,7 @@ import net.solarnetwork.io.modbus.serial.SerialStopBits;
  */
 public class SerialParametersTests {
 
-	private SerialParameters params(int dataBits, SerialParity parity, SerialStopBits stopBits) {
+	private static SerialParameters params(int dataBits, SerialParity parity, SerialStopBits stopBits) {
 		return new SerialParameters() {
 
 			@Override
@@ -73,6 +73,11 @@ public class SerialParametersTests {
 		};
 	}
 
+	private static SerialParameters defaultParams() {
+		return new SerialParameters() {
+		};
+	}
+
 	@Test
 	public void bitsShortcut() {
 		assertThat("Bits shortcut 1", params(1, SerialParity.None, SerialStopBits.One).bitsShortcut(),
@@ -91,6 +96,24 @@ public class SerialParametersTests {
 		assertThat("Bits shortcut 2", params(2, SerialParity.Even, null).bitsShortcut(),
 				is(equalTo("2E1")));
 		assertThat("Bits shortcut 3", params(3, null, null).bitsShortcut(), is(equalTo("3N1")));
+	}
+
+	@Test
+	public void defaults() {
+		// GIVEN
+		SerialParameters p = defaultParams();
+
+		// THEN
+		assertThat("Default baud rate", p.getBaudRate(),
+				is(equalTo(SerialParameters.DEFAULT_BAUD_RATE)));
+		assertThat("Default data bits", p.getDataBits(),
+				is(equalTo(SerialParameters.DEFAULT_DATA_BITS)));
+		assertThat("Default stop bits", p.getStopBits(),
+				is(equalTo(SerialParameters.DEFAULT_STOP_BITS)));
+		assertThat("Default parity", p.getParity(), is(equalTo(SerialParameters.DEFAULT_PARITY)));
+		assertThat("Default wait time", p.getWaitTime(), is(equalTo(0)));
+		assertThat("Default read timeout", p.getReadTimeout(),
+				is(equalTo(SerialParameters.DEFAULT_READ_TIMEOUT)));
 	}
 
 }
