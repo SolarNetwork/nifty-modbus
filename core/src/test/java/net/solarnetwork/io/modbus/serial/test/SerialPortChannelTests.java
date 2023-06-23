@@ -154,14 +154,14 @@ public class SerialPortChannelTests {
 	private SerialPort simulatedSerialPort(CountDownLatch writeLatch,
 			Supplier<IOException> inCloseException, Supplier<IOException> outCloseException,
 			Supplier<IOException> closeException) {
-		return simulatedSerialPort(writeLatch, inCloseException, outCloseException, closeException, null,
-				null);
+		return simulatedSerialPort(writeLatch, null, inCloseException, outCloseException, closeException,
+				null, null);
 	}
 
-	private SerialPort simulatedSerialPort(CountDownLatch writeLatch,
+	private SerialPort simulatedSerialPort(CountDownLatch writeLatch, Supplier<Exception> openException,
 			Supplier<IOException> inCloseException, Supplier<IOException> outCloseException,
 			Supplier<IOException> closeException, Supplier<IOException> availException,
-			Supplier<IOException> readException) {
+			Supplier<Exception> readException) {
 		return new SerialPort() {
 
 			private boolean open = false;
@@ -173,6 +173,14 @@ public class SerialPortChannelTests {
 
 			@Override
 			public void open(SerialParameters parameters) throws IOException {
+				Exception e = (openException != null ? openException.get() : null);
+				if ( e instanceof IOException ) {
+					throw (IOException) e;
+				} else if ( e instanceof RuntimeException ) {
+					throw (RuntimeException) e;
+				} else if ( e != null ) {
+					throw new RuntimeException(e);
+				}
 				open = true;
 			}
 
@@ -217,9 +225,13 @@ public class SerialPortChannelTests {
 
 					@Override
 					public int read() throws IOException {
-						IOException e = (readException != null ? readException.get() : null);
-						if ( e != null ) {
-							throw e;
+						Exception e = (readException != null ? readException.get() : null);
+						if ( e instanceof IOException ) {
+							throw (IOException) e;
+						} else if ( e instanceof RuntimeException ) {
+							throw (RuntimeException) e;
+						} else if ( e != null ) {
+							throw new RuntimeException(e);
 						}
 						if ( in.available() < 1 ) {
 							return -1;
@@ -278,6 +290,34 @@ public class SerialPortChannelTests {
 		final SerialAddress remote = new SerialAddress("COM1");
 		final CountDownLatch writeLatch = new CountDownLatch(0);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+
+			// WHEN
+
+			ChannelFuture connectFuture = ch.connect(remote);
+
+			// THEN
+			assertThat("Connect future provided", connectFuture, is(notNullValue()));
+			connectFuture.sync();
+			assertThat("Channel is active", ch.isActive(), is(equalTo(true)));
+			assertThat("Remote address matches", ch.remoteAddress(), is(sameInstance(remote)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void connect_withWait() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(0);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+		ch.config().setWaitTime(200);
 
 		@SuppressWarnings("deprecation")
 		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
@@ -631,7 +671,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(4);
 		final AtomicBoolean thrown = new AtomicBoolean(false);
 		final SerialPortChannel ch = new SerialPortChannel(
-				provider(simulatedSerialPort(writeLatch, null, null, null, () -> {
+				provider(simulatedSerialPort(writeLatch, null, null, null, null, () -> {
 					thrown.set(true);
 					return new IOException();
 				}, null)));
@@ -668,13 +708,13 @@ public class SerialPortChannelTests {
 	}
 
 	@Test
-	public void read_throwsException() throws Exception {
+	public void read_throwsIOException() throws Exception {
 		// GIVEN
 		final SerialAddress remote = new SerialAddress("COM1");
 		final CountDownLatch writeLatch = new CountDownLatch(4);
 		final AtomicBoolean thrown = new AtomicBoolean(false);
 		final SerialPortChannel ch = new SerialPortChannel(
-				provider(simulatedSerialPort(writeLatch, null, null, null, null, () -> {
+				provider(simulatedSerialPort(writeLatch, null, null, null, null, null, () -> {
 					thrown.set(true);
 					return new IOException();
 				})));
@@ -704,6 +744,79 @@ public class SerialPortChannelTests {
 		}
 		// THEN
 		assertThat("Read threw exception", thrown.get(), is(equalTo(true)));
+	}
+
+	@Test
+	public void read_throwsException() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(4);
+		final AtomicBoolean thrown = new AtomicBoolean(false);
+		final SerialPortChannel ch = new SerialPortChannel(
+				provider(simulatedSerialPort(writeLatch, null, null, null, null, null, () -> {
+					thrown.set(true);
+					return new RuntimeException();
+				})));
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+
+			// provide read data
+			executor.execute(() -> {
+				try {
+					ByteBuf buf = Unpooled.wrappedBuffer(new byte[] { 4, 3, 2, 1, 0 });
+					pout.write(buf.array());
+				} catch ( IOException e ) {
+					throw new RuntimeException(e);
+				}
+			});
+
+			// WHEN
+			ch.read();
+			Thread.sleep(200);
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+		// THEN
+		assertThat("Read threw exception", thrown.get(), is(equalTo(true)));
+	}
+
+	@Test
+	public void open_throwsException() throws Exception {
+		// GIVEN
+		final RuntimeException t = new RuntimeException();
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(4);
+		final AtomicBoolean thrown = new AtomicBoolean(false);
+		final SerialPortChannel ch = new SerialPortChannel(
+				provider(simulatedSerialPort(writeLatch, () -> {
+					return t;
+				}, null, null, null, null, null)));
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		assertThrows(RuntimeException.class, () -> {
+			try {
+				eventLoopGroup.register(ch).sync();
+
+				// WHEN
+				ch.connect(remote).sync();
+			} catch ( Exception e ) {
+				if ( e == t ) {
+					thrown.set(true);
+				}
+				throw e;
+			} finally {
+				ch.close().sync();
+				eventLoopGroup.shutdownGracefully();
+			}
+		}, "Connect throws exception from channel.open() method.");
+		// THEN
+		assertThat("Open threw exception", thrown.get(), is((true)));
 	}
 
 }
