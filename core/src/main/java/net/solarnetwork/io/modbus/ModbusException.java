@@ -71,21 +71,4 @@ public class ModbusException extends RuntimeException {
 		super(message, cause);
 	}
 
-	/**
-	 * Constructor.
-	 * 
-	 * @param message
-	 *        the message
-	 * @param cause
-	 *        the cause
-	 * @param enableSuppression
-	 *        {@literal true} to enable stack trace suppression
-	 * @param writableStackTrace
-	 *        {@literal true} for a writable stack trace
-	 */
-	public ModbusException(String message, Throwable cause, boolean enableSuppression,
-			boolean writableStackTrace) {
-		super(message, cause, enableSuppression, writableStackTrace);
-	}
-
 }
