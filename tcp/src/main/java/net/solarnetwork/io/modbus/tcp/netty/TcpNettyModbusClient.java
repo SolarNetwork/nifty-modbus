@@ -179,7 +179,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 		if ( host == null || host.isEmpty() ) {
 			throw new IllegalArgumentException("No host configured, cannot connect.");
 		}
-		if ( eventLoopGroup.isShutdown() ) {
+		if ( eventLoopGroup.isShuttingDown() ) {
 			if ( privateEventLoopGroup ) {
 				eventLoopGroup = new NioEventLoopGroup();
 			} else {

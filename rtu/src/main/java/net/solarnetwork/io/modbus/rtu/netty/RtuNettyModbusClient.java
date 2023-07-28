@@ -160,7 +160,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		if ( name == null || name.isEmpty() ) {
 			throw new IllegalArgumentException("No serial device name configured, cannot connect.");
 		}
-		if ( eventLoopGroup.isShutdown() ) {
+		if ( eventLoopGroup.isShuttingDown() ) {
 			if ( privateEventLoopGroup ) {
 				eventLoopGroup = defaultEventLoopGroup();
 			} else {
