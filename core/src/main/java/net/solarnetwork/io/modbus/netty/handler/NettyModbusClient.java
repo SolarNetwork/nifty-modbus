@@ -120,6 +120,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 
 	private ScheduledFuture<?> cleanupTask;
 	private CompletableFuture<?> connFuture;
+	private CompletableFuture<?> stopFuture;
 	private volatile Channel channel;
 	private volatile boolean stopped;
 
@@ -179,6 +180,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			return connFuture;
 		}
 		this.stopped = false;
+		this.stopFuture = null;
 		if ( privateScheduler && scheduler.isShutdown() ) {
 			scheduler = Executors.newSingleThreadScheduledExecutor();
 		}
@@ -202,8 +204,12 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	}
 
 	@Override
-	public synchronized void stop() {
+	public synchronized CompletableFuture<?> stop() {
 		this.stopped = true;
+		if ( stopFuture != null ) {
+			return stopFuture;
+		}
+		stopFuture = new CompletableFuture<Void>();
 		if ( privateScheduler && !scheduler.isShutdown() ) {
 			scheduler.shutdown();
 			try {
@@ -230,6 +236,8 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			cleanupTask.cancel(true);
 			cleanupTask = null;
 		}
+		stopFuture.complete(null);
+		return stopFuture;
 	}
 
 	private synchronized CompletableFuture<?> handleConnect(boolean reconnecting) {

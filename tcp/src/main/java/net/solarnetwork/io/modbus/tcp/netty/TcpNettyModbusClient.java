@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.tcp.netty;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -66,6 +67,9 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 
 	/** The event loop group. */
 	private EventLoopGroup eventLoopGroup;
+
+	/** A future for stopping the private event loop group. */
+	private CompletableFuture<?> eventLoopGroupStopFuture;
 
 	/**
 	 * Constructor.
@@ -175,6 +179,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 
 	@Override
 	protected synchronized ChannelFuture connect() throws IOException {
+		eventLoopGroupStopFuture = null;
 		final String host = clientConfig.getHost();
 		if ( host == null || host.isEmpty() ) {
 			throw new IllegalArgumentException("No host configured, cannot connect.");
@@ -197,19 +202,27 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	}
 
 	@Override
-	public synchronized void stop() {
-		super.stop();
-		if ( privateEventLoopGroup ) {
+	public synchronized CompletableFuture<?> stop() {
+		CompletableFuture<?> f = super.stop();
+		if ( !privateEventLoopGroup ) {
+			return f;
+		}
+		if ( eventLoopGroupStopFuture == null ) {
+			eventLoopGroupStopFuture = new CompletableFuture<Void>();
 			try {
-				eventLoopGroup.shutdownGracefully().get(10, TimeUnit.SECONDS);
+				eventLoopGroup.shutdownGracefully().get(10L, TimeUnit.SECONDS);
+				eventLoopGroupStopFuture.complete(null);
 			} catch ( TimeoutException e ) {
 				log.warn("Timeout waiting for {} EventLoopGroup to shutdown",
 						clientConfig.getDescription());
+				eventLoopGroupStopFuture.completeExceptionally(e);
 			} catch ( Exception e ) {
 				log.warn("{} waiting for {} EventLoopGroup to shutdown", e.getClass().getSimpleName(),
 						clientConfig.getDescription());
+				eventLoopGroupStopFuture.completeExceptionally(e);
 			}
 		}
+		return f.thenCompose(s -> eventLoopGroupStopFuture);
 	}
 
 	@Override

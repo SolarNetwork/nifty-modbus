@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.rtu.netty;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -55,6 +56,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	private final boolean privateEventLoopGroup;
 	private final SerialPortProvider serialPortProvider;
 	private EventLoopGroup eventLoopGroup;
+	private CompletableFuture<?> eventLoopGroupStopFuture;
 
 	/**
 	 * Constructor.
@@ -156,6 +158,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 
 	@Override
 	protected ChannelFuture connect() throws IOException {
+		eventLoopGroupStopFuture = null;
 		final String name = clientConfig.getName();
 		if ( name == null || name.isEmpty() ) {
 			throw new IllegalArgumentException("No serial device name configured, cannot connect.");
@@ -178,19 +181,27 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	}
 
 	@Override
-	public synchronized void stop() {
-		super.stop();
-		if ( privateEventLoopGroup ) {
+	public synchronized CompletableFuture<?> stop() {
+		CompletableFuture<?> f = super.stop();
+		if ( !privateEventLoopGroup ) {
+			return f;
+		}
+		if ( eventLoopGroupStopFuture == null ) {
+			eventLoopGroupStopFuture = new CompletableFuture<Void>();
 			try {
-				eventLoopGroup.shutdownGracefully().get(10, TimeUnit.SECONDS);
+				eventLoopGroup.shutdownGracefully().get(10L, TimeUnit.SECONDS);
+				eventLoopGroupStopFuture.complete(null);
 			} catch ( TimeoutException e ) {
 				log.warn("Timeout waiting for {} EventLoopGroup to shutdown",
 						clientConfig.getDescription());
+				eventLoopGroupStopFuture.completeExceptionally(e);
 			} catch ( Exception e ) {
 				log.warn("{} waiting for {} EventLoopGroup to shutdown", e.getClass().getSimpleName(),
 						clientConfig.getDescription());
+				eventLoopGroupStopFuture.completeExceptionally(e);
 			}
 		}
+		return f.thenCompose(s -> eventLoopGroupStopFuture);
 	}
 
 	@Override

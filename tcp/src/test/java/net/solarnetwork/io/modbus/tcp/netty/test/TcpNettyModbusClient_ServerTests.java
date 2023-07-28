@@ -381,7 +381,7 @@ public class TcpNettyModbusClient_ServerTests {
 
 		client.start().get(10, TimeUnit.SECONDS);
 
-		client.stop();
+		client.stop().get(10, TimeUnit.SECONDS);
 
 		// WHEN
 		client.start().get(10, TimeUnit.SECONDS);

@@ -80,8 +80,10 @@ public interface ModbusClient {
 	 * After calling this method {@link #isStarted()} will return
 	 * {@literal false}.
 	 * </p>
+	 * 
+	 * @return a future that completes when the client is shut down completely
 	 */
-	void stop();
+	CompletableFuture<?> stop();
 
 	/**
 	 * Test if the client is started and connected to the Modbus network.
