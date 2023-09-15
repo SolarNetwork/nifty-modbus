@@ -29,11 +29,7 @@ allprojects {
     apply plugin: 'java'
     apply plugin: 'jacoco'
 
-    sourceCompatibility = 1.8
-    targetCompatibility = 1.8
-
     repositories {
-        mavenLocal()
         mavenCentral()
 		maven { url "https://plugins.gradle.org/m2/" }
     }
@@ -46,6 +42,12 @@ allprojects {
 subprojects {
 	group = "net.solarnetwork.common"
 	version = '0.5.0'
+
+	java {
+		toolchain {
+	        languageVersion = JavaLanguageVersion.of(8)
+	    }
+	}
 
 	repositories {
 		mavenCentral()
@@ -78,9 +80,7 @@ subprojects {
 		attributes('Implementation-Title': name,
 		'Implementation-Version': version,
 		'Built-By': System.getProperty('user.name'),
-		'Built-JDK': System.getProperty('java.version'),
-		'Source-Compatibility': sourceCompatibility,
-		'Target-Compatibility': targetCompatibility)
+		'Built-JDK': System.getProperty('java.version'))
 	}
 
 	javadoc.options {
@@ -95,21 +95,9 @@ subprojects {
 				libraries.hamcrest
 	}
 
-	// Disable JavaDoc doclint on Java 8. It's annoying.
-	if (JavaVersion.current().isJava8Compatible()) {
-		allprojects {
-			tasks.withType(Javadoc) {
-				options.addStringOption('Xdoclint:none', '-quiet')
-			}
-		}
-	}
-
-	// For jdk10 we must explicitly choose between html4 and html5, otherwise we get a warning
-	if (JavaVersion.current().isJava10Compatible()) {
-		allprojects {
-			tasks.withType(Javadoc) {
-				options.addBooleanOption('html5', true)
-			}
+	allprojects {
+		tasks.withType(Javadoc) {
+			options.addStringOption('Xdoclint:none', '-quiet')
 		}
 	}
 
@@ -128,8 +116,8 @@ subprojects {
 
 	jacocoTestReport {
 		reports {
-			xml.enabled = true
-			html.enabled = true
+			xml.required = true
+			html.required = true
 		}
 	}
 
