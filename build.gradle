@@ -116,7 +116,7 @@ subprojects {
 
 	jacocoTestReport {
 		reports {
-			html.required = true
+			xml.required = true
 		}
 	}
 
@@ -124,6 +124,6 @@ subprojects {
 }
 
 jacoco {
-    toolVersion = "0.8.7"
+    toolVersion = "0.8.10"
     reportsDirectory = file("$buildDir/reports/jacoco")
 }
