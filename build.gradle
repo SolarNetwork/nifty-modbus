@@ -12,7 +12,6 @@ plugins {
 }
 
 ext {
-	checkstyleVersion = '8.34'
 	nettyVersion = '4.1.63.Final'
 	slf4jVersion = '1.7.36'
 	ossrhUsername = 'ossrh-username'
@@ -113,23 +112,6 @@ subprojects {
 			}
 		}
 	}
-
-	/*checkstyle {
-		toolVersion = "8.34"
-		configFile = rootProject.file('config/checkstyle/checkstyle.xml')
-		ignoreFailures = false
-		if (rootProject.hasProperty("checkstyle.ignoreFailures")) {
-			ignoreFailures = rootProject.properties["checkstyle.ignoreFailures"].toBoolean()
-		}
-	}*/
-
-	//checkstyleMain {
-	//	  source = fileTree(dir: "src/main", include: "**/*.java")
-	//}
-
-	//checkstyleTest {
-	//	  source = fileTree(dir: "src/test", include: "**/*.java")
-	//}
 
 	// At a test failure, log the stack trace to the console so that we don't
 	// have to open the HTML in a browser.
