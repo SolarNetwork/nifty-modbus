@@ -1,31 +1,3 @@
-// the following is included to work with local Ivy repo during SN development
-// see https://docs.gradle.org/current/userguide/variant_model.html#sub:ivy-mapping-to-variants
-abstract class IvyVariantDerivationRule implements ComponentMetadataRule {
-	@Inject abstract ObjectFactory getObjects()
-
-	void execute(ComponentMetadataContext context) {
-		// This filters out any non Ivy module
-		if(context.getDescriptor(IvyModuleDescriptor) == null) {
-			return
-		}
-
-		context.details.addVariant("runtimeElements", "runtime") {
-			attributes {
-				attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements, LibraryElements.JAR))
-				attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category, Category.LIBRARY))
-				attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage, Usage.JAVA_RUNTIME))
-			}
-		}
-		context.details.addVariant("apiElements", "compile") {
-			attributes {
-				attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, getObjects().named(LibraryElements, LibraryElements.JAR))
-				attribute(Category.CATEGORY_ATTRIBUTE, getObjects().named(Category, Category.LIBRARY))
-				attribute(Usage.USAGE_ATTRIBUTE, getObjects().named(Usage, Usage.JAVA_API))
-			}
-		}
-	}
-}
-
 buildscript {
 	repositories {
 		mavenLocal()
@@ -120,7 +92,6 @@ subprojects {
 	}
 
 	dependencies {
-		components { all(IvyVariantDerivationRule) }
 		testImplementation libraries.junit,
 				libraries.hamcrest
 	}
