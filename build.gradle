@@ -14,6 +14,7 @@ plugins {
 ext {
 	jscVersion = '2.10.4'
 	nettyVersion = '4.1.97.Final'
+	pjcVersion = '1.0.2.SN20200831A'
 	slf4jVersion = '1.7.36'
 	ossrhUsername = 'ossrh-username'
 	ossrhPassword = 'ossrh-password'

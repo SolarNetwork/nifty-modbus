@@ -1,0 +1,92 @@
+plugins {
+    id 'java-library'
+    id 'eclipse'
+    id 'biz.aQute.bnd.builder'
+}
+
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+description = 'Nifty Modbus: RTU (PureJavaComm)'
+archivesBaseName = 'nifty-modbus-rtu-pjc'
+
+dependencies {
+	implementation project(':nifty-modbus-core');
+	implementation project(':nifty-modbus-rtu');
+	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+	implementation "io.netty:netty-codec:${nettyVersion}"
+	implementation "net.solarnetwork.external:net.solarnetwork.external.pjc:${pjcVersion}"
+	
+	// Testing
+	testImplementation project(':nifty-modbus-test')
+}
+
+jar.manifest {
+    attributes('Implementation-Version': version)
+}
+
+sourcesJar.manifest {
+	attributes(
+		'Bundle-SymbolicName': 'net.solarnetwork.common.io.modbus.rtu.pjc.sources',
+		'Bundle-Name': 'SolarNetwork Modbus RTU (PureJavaComm) Sources',
+		'Bundle-Version': version,
+		'Bundle-ManifestVersion': '2',
+		'Eclipse-SourceBundle': 'net.solarnetwork.common.io.modbus.rtu.pjc;version="'
+			+ version + '";roots:="."'
+	)
+}
+
+eclipse {
+	jdt {
+		javaRuntimeName 'JavaSE-1.8'
+	}
+}
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
+			pom {
+				name = project.description
+				description = 'Nifty Modbus RTU (serial network) PureJavaComm implementation.'
+				url = 'https://github.com/SolarNetwork/nifty-modbus/rtu-pjc'
+				licenses {
+					license {
+						name = 'GNU General Public License, Version 2.0'
+						url = 'https://opensource.org/licenses/GPL-2.0'
+					}
+				}
+				developers {
+					developer {
+						id = 'msqr'
+						name = 'Matt Magoffin'
+						email = 'matt@solarnetwork.net'
+						organization = 'SolarNetwork Foundation'
+						organizationUrl = 'https://solarnetwork.org.nz'
+					}
+				}
+				scm {
+					connection = 'scm:git:https://github.com/SolarNetwork/nifty-modbus.git'
+					developerConnection = 'scm:git:git@github.com:SolarNetwork/nifty-modbus.git'
+					url = 'https://github.com/SolarNetwork/nifty-modbus'
+				}
+			}
+		}
+	}
+	repositories {
+		maven {
+			name = "OSSRH"
+			url "https://oss.sonatype.org/service/local/staging/deploy/maven2"
+			credentials {
+				username = ossrhUsername
+				password = ossrhPassword
+			}
+		}
+	}
+}
+
+signing {
+	useGpgCmd()
+	sign publishing.publications.mavenJava
+}

@@ -1,0 +1,8 @@
+Bundle-SymbolicName: net.solarnetwork.common.io.modbus.rtu.pjc
+Bundle-Name: SolarNetwork Modbus RTU (PureJavaComm)
+Bundle-Description: RTU Modbus support using the PureJavaComm library.
+Bundle-Vendor: SolarNetwork
+Export-Package: \
+	net.solarnetwork.io.modbus.rtu.pjc.*
+Import-Package: \
+	*
