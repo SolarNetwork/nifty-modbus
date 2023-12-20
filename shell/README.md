@@ -5,7 +5,7 @@ Modbus devices.
 
 ![Modbus Shell](docs/nifty-modbus-shell.gif)
 
-A basic interactive Modbus shell application is provided, via the 
+A basic interactive Modbus shell application is provided, via the
 `net.solarnetwork.io.modbus.shell.ModbusShell` class. This can be run directly from Gradle
 using the `runWithJavaExec` task, for example:
 
@@ -31,6 +31,7 @@ The following application arguments are supported:
 | `--stop` `-s` | `1` | The number of stop bits. One of `1` or `2`. |
 | `--bits` | `8N1` | A shorthand form of the data, parity, and stop options. |
 | `--debug` |  | Enables support for wire-level message logging. See [below](#logging). |
+| `--pjc` |  | Use the [PureJavaComm](../rtu-pjc) serial port implementation, instead of the default jSerialComm implementation. |
 
 # Read registers
 
@@ -40,9 +41,9 @@ To read registers, use the `read` command, followed by the type of registers to 
  * `discretes`, `discrete`, `d` - read discrete input bit registers
  * `inputs`, `input`, `i` - read input 16-bit registers
  * `holdings`, `holding`, `h` - read holding 16-bit registers
- 
+
  The following arguments are supported:
- 
+
 | Argument | Example | Description |
 |:---------|:--------|:------------|
 | `-1` | `-1` | Use **one-based** register addressing, instead of **zero-based**. |
@@ -57,11 +58,11 @@ To write registers, use the `write` command, followed by the type of registers t
 
  * `coils`, `coil`, `c` - write coil bit registers
  * `holdings`, `holding`, `h` - write holding 16-bit registers
- 
+
  ![Modbus Shell writing](docs/nifty-modbus-shell-write.gif)
 
  The following arguments are supported:
- 
+
 | Argument | Example | Description |
 |:---------|:--------|:------------|
 | `-1` | `-1` | Use **one-based** register addressing, instead of **zero-based**. |
@@ -124,5 +125,3 @@ An example wire-level log message looks like this:
 |00000000| 01 03 00 00 00 0a c5 cd                         |........        |
 +--------+-------------------------------------------------+----------------+
 ```
-
-[jsc]: https://fazecast.github.io/jSerialComm/

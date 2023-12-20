@@ -46,6 +46,7 @@ import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.rtu.jsc.JscSerialPortProvider;
 import net.solarnetwork.io.modbus.rtu.netty.NettyRtuModbusClientConfig;
 import net.solarnetwork.io.modbus.rtu.netty.RtuNettyModbusClient;
+import net.solarnetwork.io.modbus.rtu.pjc.PjcSerialPortProvider;
 import net.solarnetwork.io.modbus.serial.BasicSerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
@@ -524,6 +525,7 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 		String deviceName = null;
 		String hostName = null;
 		int hostPort = 502;
+		boolean pjc = false;
 		BasicSerialParameters params = new BasicSerialParameters();
 		boolean wireLogging = false;
 		for ( int i = 0, len = args.length; i < len; i++ ) {
@@ -576,6 +578,10 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 						hostPort = Integer.parseInt(args[++i]);
 						break;
 
+					case "--pjc":
+						pjc = true;
+						break;
+
 					case "--debug":
 						wireLogging = true;
 						break;
@@ -596,7 +602,8 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 		if ( deviceName != null && !deviceName.trim().isEmpty() ) {
 			NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig(deviceName, params);
 			config.setAutoReconnect(false);
-			client = new RtuNettyModbusClient(config, new JscSerialPortProvider());
+			client = new RtuNettyModbusClient(config,
+					pjc ? new PjcSerialPortProvider() : new JscSerialPortProvider());
 		} else if ( hostName != null && !hostName.trim().isEmpty() ) {
 			NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig(hostName, hostPort);
 			config.setAutoReconnect(false);

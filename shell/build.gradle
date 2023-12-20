@@ -14,10 +14,12 @@ dependencies {
 	implementation project(':nifty-modbus-core');
 	implementation project(':nifty-modbus-rtu');
 	implementation project(':nifty-modbus-rtu-jsc');
+	implementation project(':nifty-modbus-rtu-pjc');
 	implementation project(':nifty-modbus-tcp');
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation "io.netty:netty-codec:${nettyVersion}"
 	implementation "com.fazecast:jSerialComm:${jscVersion}";
+	implementation "net.solarnetwork.external:net.solarnetwork.external.pjc:${pjcVersion}"
 	implementation 'ch.qos.logback:logback-classic:1.2.11'
 }
 
