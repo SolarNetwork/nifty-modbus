@@ -16,7 +16,7 @@ dependencies {
 	implementation project(':nifty-modbus-rtu');
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation "io.netty:netty-codec:${nettyVersion}"
-	implementation 'com.fazecast:jSerialComm:2.10.4';
+	implementation "com.fazecast:jSerialComm:${jscVersion}";
 	
 	// Testing
 	testImplementation project(':nifty-modbus-test')
