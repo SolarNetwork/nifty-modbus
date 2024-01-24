@@ -37,4 +37,4 @@ try {
 
 ```
 
-[jsc]: https://github.com/nyholku/purejavacomm/
+[pjc]: https://github.com/nyholku/purejavacomm/
