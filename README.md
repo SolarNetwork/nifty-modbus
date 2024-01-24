@@ -93,8 +93,8 @@ The above snippet was taken from the  [TcpServerExample][ex-tcp-server] class.
 
 # Dependencies
 
-Nifty Modbus requires a Java 8 or later runtime and has core dependencies on Netty 4.1 and slf4j 1.7.
-For Modbus RTU (serial port) the [rtu-jsc](./rtu-jsc/) component depends on jSerialComm 2.9.
+Nifty Modbus requires a Java 8 or later runtime and has core dependencies on Netty 4.1 and slf4j
+1.7. For Modbus RTU (serial port) the [rtu-jsc](./rtu-jsc/) component depends on jSerialComm 2.9.
 More specifically, it requires the following direct dependencies:
 
 | Dependency | Version | Description |
@@ -105,6 +105,14 @@ More specifically, it requires the following direct dependencies:
 | `org.slf4j:slf4j-api`      | 1.7 | For logging. |
 | `com.fazecast:jSerialComm` | 2.9 | For RTU serial support. Not needed for TCP. |
 
+The [rtu-pjc](./rtu-pjc/) component is an alternative RTU implementation that relies on the
+PureJavaComm serial library, and can be used instead of the jSerialComm. That requires the following
+dependencies:
+
+| Dependency | Version | Description |
+|:-----------|:--------|:------------|
+| `net.solarnetwork.external:net.solarnetwork.external.pjc` | 1.0.2 | Alternative RTU serial support. Not needed for TCP. |
+| `net.java.dev.jna:jna` | 5.6.0 | Required by PureJavaComm. |
 
 # Maven Central Repository coordinates
 
@@ -115,6 +123,7 @@ Nifty Modbus can be integrated into your project using the following coordinates
 | `net.solarnetwork.common` | `nifty-modbus-core` | Required in all cases. |
 | `net.solarnetwork.common` | `nifty-modbus-rtu` | Required for Modbus RTU support, along with a serial port implementation. |
 | `net.solarnetwork.common` | `nifty-modbus-rtu-jsc` | Provides a serial port implementation based on [jSerialComm][jSerialComm]. |
+| `net.solarnetwork.common` | `nifty-modbus-rtu-pjc` | Provides a serial port implementation based on [PureJavaComm][PureJavaComm]. |
 | `net.solarnetwork.common` | `nifty-modbus-shell` | Provides an interactive Modbus command-line application.  |
 | `net.solarnetwork.common` | `nifty-modbus-tcp` | Required for Modbus TCP support. |
 
@@ -163,3 +172,4 @@ uploaded to [Codecov](https://codecov.io/github/SolarNetwork/nifty-modbus/).
 [ex-tcp-client]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/test/java/net/solarnetwork/io/modbus/tcp/example/TcpClientReadRegistersExample.java
 [ex-tcp-server]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/test/java/net/solarnetwork/io/modbus/tcp/example/TcpServerExample.java
 [NettyTcpModbusServer]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/main/java/net/solarnetwork/io/modbus/tcp/netty/NettyTcpModbusServer.java
+[PureJavaComm]: http://www.sparetimelabs.com/purejavacomm/purejavacomm.php
