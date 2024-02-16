@@ -10,7 +10,7 @@ archivesBaseName = 'nifty-modbus-test'
 
 dependencies {
 	api "org.slf4j:slf4j-api:${slf4jVersion}"
-	api 'ch.qos.logback:logback-classic:1.2.11'
+	api "ch.qos.logback:logback-classic:${logbackClassicVersion}"
 	api 'org.hamcrest:hamcrest-library:2.2'
 	api 'org.junit.jupiter:junit-jupiter-api:5.9.1'
 }

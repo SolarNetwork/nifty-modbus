@@ -20,7 +20,7 @@ dependencies {
 	implementation "io.netty:netty-codec:${nettyVersion}"
 	implementation "com.fazecast:jSerialComm:${jscVersion}";
 	implementation "net.solarnetwork.external:net.solarnetwork.external.pjc:${pjcVersion}"
-	implementation 'ch.qos.logback:logback-classic:1.2.11'
+	implementation "ch.qos.logback:logback-classic:${logbackClassicVersion}"
 }
 
 jar.manifest {

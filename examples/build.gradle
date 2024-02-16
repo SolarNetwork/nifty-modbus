@@ -15,8 +15,8 @@ dependencies {
 	implementation project(':nifty-modbus-tcp');
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation "io.netty:netty-codec:${nettyVersion}"
-	implementation 'ch.qos.logback:logback-classic:1.2.11'
 	implementation "com.fazecast:jSerialComm:${jscVersion}";
+	implementation "ch.qos.logback:logback-classic:${logbackClassicVersion}"
 }
 
 jar.manifest {
