@@ -6,3 +6,5 @@ project to provide a `net.solarnetwork.io.modbus.serial.SerialPortProvider` impl
 provide access to serial devices. The [Nifty Modbus RTU (jSerialComm)](../rtu-jsc) projects
 provides such an implementation, that uses the jSerialComm library for the native serial port
 access.
+
+[![RTU JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-rtu/JavaDoc%20RTU.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-rtu)

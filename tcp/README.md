@@ -3,6 +3,8 @@
 This project adds Modbus TCP protocol support to Nifty Modbus. It includes both client and server
 components.
 
+[![TCP JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-tcp/JavaDoc%20TCP.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-tcp)
+
 # TCP client example use
 
 Here is an example of using the Nifty Modbus TCP client to read some Modbus registers:

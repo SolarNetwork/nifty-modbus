@@ -3,6 +3,8 @@
 This project adds Modbus RTU (serial, RS-485, etc.) protocol support to Nifty Modbus, using the
 [PureJavaComm][pjc] library to provide native serial port access.
 
+[![RTU PJC JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-rtu-pjc/JavaDoc%20RTU%20PureJavaComm.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-rtu-pjc)
+
 # Example use
 
 Here is an example of using the Nifty Modbus RTU client to read some Modbus registers:

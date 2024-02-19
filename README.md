@@ -6,7 +6,9 @@ easy to extend.
 
 Nifty Modbus is built on top of the [Netty](https://netty.io/) asynchronous network library.
 
-[![javadoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-core/javadoc.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-core)
+[![Core JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-core/JavaDoc%20Core.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-core)
+[![RTU JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-rtu/JavaDoc%20RTU.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-rtu)
+[![TCP JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-tcp/JavaDoc%20TCP.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-tcp)
 
 # Example use
 
@@ -94,8 +96,8 @@ The above snippet was taken from the  [TcpServerExample][ex-tcp-server] class.
 # Dependencies
 
 Nifty Modbus requires a Java 8 or later runtime and has core dependencies on Netty 4.1 and slf4j
-1.7. For Modbus RTU (serial port) the [rtu-jsc](./rtu-jsc/) component depends on jSerialComm 2.9.
-More specifically, it requires the following direct dependencies:
+1.7. For Modbus RTU (serial port) the [rtu-jsc](./rtu-jsc/) component depends on
+[jSerialComm][jSerialComm] 2.9. More specifically, it requires the following direct dependencies:
 
 | Dependency | Version | Description |
 |:-----------|:--------|:------------|
@@ -105,14 +107,18 @@ More specifically, it requires the following direct dependencies:
 | `org.slf4j:slf4j-api`      | 1.7 | For logging. |
 | `com.fazecast:jSerialComm` | 2.9 | For RTU serial support. Not needed for TCP. |
 
+[![RTU JSC JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-rtu-jsc/JavaDoc%20RTU%20jSerialComm.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-rtu-jsc)
+
 The [rtu-pjc](./rtu-pjc/) component is an alternative RTU implementation that relies on the
-PureJavaComm serial library, and can be used instead of the jSerialComm. That requires the following
-dependencies:
+[PureJavaComm][PureJavaComm] serial library, and can be used instead of the jSerialComm component.
+That requires the following dependencies:
 
 | Dependency | Version | Description |
 |:-----------|:--------|:------------|
 | `net.solarnetwork.external:net.solarnetwork.external.pjc` | 1.0.2 | Alternative RTU serial support. Not needed for TCP. |
 | `net.java.dev.jna:jna` | 5.6.0 | Required by PureJavaComm. |
+
+[![RTU PJC JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-rtu-pjc/JavaDoc%20RTU%20PureJavaComm.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-rtu-pjc)
 
 # Maven Central Repository coordinates
 
