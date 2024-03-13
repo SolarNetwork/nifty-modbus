@@ -38,10 +38,10 @@ public interface ModbusError {
 	byte getCode();
 
 	/**
-	 * Get this function as a {@link ModbusFunctionCode}.
+	 * Get this error as a {@link ModbusErrorCode}.
 	 * 
-	 * @return the function code enumeration value, or {@literal null} if cannot
-	 *         be represented as one
+	 * @return the error code enumeration value, or {@literal null} if cannot be
+	 *         represented as one
 	 */
 	default ModbusErrorCode errorCode() {
 		try {
