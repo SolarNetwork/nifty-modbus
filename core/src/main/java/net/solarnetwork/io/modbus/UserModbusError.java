@@ -26,7 +26,7 @@ package net.solarnetwork.io.modbus;
  * A user-defined or otherwise unknown error code.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public final class UserModbusError implements ModbusError {
 
@@ -63,6 +63,15 @@ public final class UserModbusError implements ModbusError {
 	@Override
 	public byte getCode() {
 		return code;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("UserModbusError{0x");
+		builder.append(Integer.toString(Byte.toUnsignedInt(code), 16));
+		builder.append("}");
+		return builder.toString();
 	}
 
 }

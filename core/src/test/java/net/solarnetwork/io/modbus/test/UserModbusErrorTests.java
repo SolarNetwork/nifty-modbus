@@ -33,7 +33,7 @@ import net.solarnetwork.io.modbus.UserModbusError;
  * Test cases for the {@link UserModbusError} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class UserModbusErrorTests {
 
@@ -100,5 +100,17 @@ public class UserModbusErrorTests {
 
 		// THEN
 		assertThat("Getter code is from constructor", err.getCode(), is(equalTo(code)));
+	}
+
+	@Test
+	public void toStringValue() {
+		// GIVEN 
+		final byte code = (byte) 0x56;
+
+		// WHEN
+		UserModbusError err = new UserModbusError(code);
+
+		// THEN
+		assertThat("String formatted", err.toString(), is(equalTo("UserModbusError{0x56}")));
 	}
 }
