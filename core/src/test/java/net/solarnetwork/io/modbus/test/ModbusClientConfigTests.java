@@ -71,4 +71,16 @@ public class ModbusClientConfigTests {
 				is(equalTo(ModbusClientConfig.DEFAULT_AUTO_RECONNECT)));
 	}
 
+	@Test
+	public void sendMinimumDelayMs() {
+		// GIVEN
+		ModbusClientConfig config = new TestModbusClientConfig();
+
+		// WHEN
+		long result = config.getSendMinimumDelayMs();
+
+		// THEN
+		assertThat("Result from default method is 0.", result, is(equalTo(0L)));
+	}
+
 }

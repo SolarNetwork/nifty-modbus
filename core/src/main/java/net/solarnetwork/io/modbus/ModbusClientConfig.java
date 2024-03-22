@@ -83,6 +83,6 @@ public interface ModbusClientConfig {
 	 * @since 1.1
 	 */
 	default long getSendMinimumDelayMs() {
-		return 0;
+		return 0L;
 	}
 }
