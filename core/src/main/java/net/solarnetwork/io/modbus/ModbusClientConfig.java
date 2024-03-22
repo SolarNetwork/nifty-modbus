@@ -26,7 +26,7 @@ package net.solarnetwork.io.modbus;
  * API for Modbus client configuration.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public interface ModbusClientConfig {
 
@@ -75,4 +75,14 @@ public interface ModbusClientConfig {
 	 */
 	String getDescription();
 
+	/**
+	 * Get a minimum delay between sending messages, in milliseconds.
+	 *
+	 * @return the sending delay, or anything less than {@literal 1} for no
+	 *         delay
+	 * @since 1.1
+	 */
+	default long getSendMinimumDelayMs() {
+		return 0;
+	}
 }

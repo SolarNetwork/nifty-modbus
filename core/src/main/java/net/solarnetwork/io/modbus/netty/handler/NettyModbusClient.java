@@ -36,6 +36,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.netty.bootstrap.Bootstrap;
@@ -125,6 +126,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	private volatile boolean stopped;
 
 	private final ConcurrentMap<ModbusMessage, PendingMessage> pending;
+	private final AtomicLong lastSendDate = new AtomicLong();
 
 	/**
 	 * Constructor.
@@ -301,10 +303,35 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 
 	private ChannelFuture sendAndFlushPacket(Channel channel, ModbusMessage message) {
 		if ( channel.isActive() ) {
+			enforceSendDelay();
 			return channel.writeAndFlush(message);
 		}
 		return channel.newFailedFuture(new IOException(
 				String.format("Connection to %s is closed.", clientConfig.getDescription())));
+	}
+
+	private void enforceSendDelay() {
+		final long sendMinimumDelayMs = clientConfig.getSendMinimumDelayMs();
+		if ( sendMinimumDelayMs < 1 ) {
+			return;
+		}
+		long now = 0;
+		long expire = 0;
+		long last = 0;
+		do {
+			now = System.currentTimeMillis();
+			last = lastSendDate.get();
+			expire = last + sendMinimumDelayMs;
+			if ( now < expire ) {
+				try {
+					Thread.sleep(expire - now);
+				} catch ( InterruptedException e ) {
+					// stop waiting
+					break;
+				}
+			}
+		} while ( now < expire );
+		lastSendDate.compareAndSet(last, System.currentTimeMillis());
 	}
 
 	/**

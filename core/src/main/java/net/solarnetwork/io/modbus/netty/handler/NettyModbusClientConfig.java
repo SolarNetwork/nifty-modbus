@@ -28,12 +28,13 @@ import net.solarnetwork.io.modbus.ModbusClientConfig;
  * Netty implementation of {@link ModbusClientConfig}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public abstract class NettyModbusClientConfig implements ModbusClientConfig {
 
 	private boolean autoReconnect = DEFAULT_AUTO_RECONNECT;
 	private long autoReconnectDelaySeconds = DEFAULT_RECONNECT_DELAY_SECS;
+	private long sendMinimumDelayMs;
 
 	@Override
 	public String toString() {
@@ -68,6 +69,23 @@ public abstract class NettyModbusClientConfig implements ModbusClientConfig {
 	 */
 	public void setAutoReconnectDelaySeconds(long autoReconnectDelaySeconds) {
 		this.autoReconnectDelaySeconds = autoReconnectDelaySeconds;
+	}
+
+	@Override
+	public long getSendMinimumDelayMs() {
+		return sendMinimumDelayMs;
+	}
+
+	/**
+	 * Set a minimum delay between sending messages, in milliseconds.
+	 *
+	 * @param sendMinimumDelayMs
+	 *        the minimum delay between sending messages, or anything less than
+	 *        {@literal 1} for no delay
+	 * @since 1.1
+	 */
+	public void setSendMinimumDelayMs(long sendMinimumDelayMs) {
+		this.sendMinimumDelayMs = sendMinimumDelayMs;
 	}
 
 }

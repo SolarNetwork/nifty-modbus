@@ -29,10 +29,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -63,7 +66,7 @@ import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
  * Test cases for the {@link NettyModbusClient} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class NettyModbusClientTests {
 
@@ -283,6 +286,91 @@ public class NettyModbusClientTests {
 
 		// THEN
 		assertThat("Exception is timeout", e.getCause(), is(instanceOf(TimeoutException.class)));
+	}
+
+	@Test
+	public void send_recv_withDelay() throws InterruptedException, ExecutionException {
+		// GIVEN
+		final long sendDelay = 900L;
+		final long manualDelay = 1200L;
+		((NettyModbusClientConfig) client.getClientConfig()).setSendMinimumDelayMs(sendDelay);
+
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.start();
+		List<Long> executionTimes = new ArrayList<>(3);
+		List<Future<ModbusMessage>> futures = new ArrayList<>(3);
+
+		for ( int i = 0; i < 3; i++ ) {
+			if ( i == 2 ) {
+				// pause longer than throttle, to verify message sends right away
+				Thread.sleep(manualDelay);
+			}
+			final long start = System.currentTimeMillis();
+			Future<ModbusMessage> f = client.sendAsync(req);
+			executionTimes.add(System.currentTimeMillis() - start);
+
+			// provide response
+			// @formatter:off
+			final byte[] responseData = new byte[] {
+					ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+					(byte)0x06,
+					(byte)0x02,
+					(byte)0x2B,
+					(byte)0x00,
+					(byte)0x00,
+					(byte)0x00,
+					(byte)0x64,
+			};
+			// @formatter:on
+			ByteBuf response = Unpooled.copiedBuffer(responseData);
+			channel.writeOneInbound(response).sync();
+			futures.add(f);
+		}
+
+		// THEN
+		assertThat("3 futures returned", futures, hasSize(3));
+		for ( int i = 0; i < 3; i++ ) {
+			Future<ModbusMessage> f = futures.get(i);
+			assertThat("Future returned", f, is(notNullValue()));
+			assertThat("Request should no longer be pending", pending.keySet(), hasSize(0));
+
+			ByteBuf requestData = channel.readOutbound();
+			assertThat("Request bytes produced", requestData, is(notNullValue()));
+
+			// @formatter:off
+			assertThat("Request message encoded", byteObjectArray(ByteBufUtil.getBytes(requestData)), arrayContaining(
+					byteObjectArray(new byte[] {
+							ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+							(byte)(addr >>> 8 & 0xFF),
+							(byte)(addr & 0xFF),
+							(byte)(count >>> 8 & 0xFF),
+							(byte)(count & 0xFF),
+					})));
+			// @formatter:on
+
+			assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
+			ModbusMessage resp = f.get();
+			assertThat("Response is not an error", resp.getError(), is(nullValue()));
+			net.solarnetwork.io.modbus.RegistersModbusMessage respReg = resp
+					.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+			assertThat("Response is Registers", respReg, is(notNullValue()));
+
+			long execTime = executionTimes.get(i);
+			if ( i == 0 || i == 2 ) {
+				// last execution time should be negligable
+				assertThat(
+						"First execution time, or after manual delay, should be close to 0 (within 200ms)",
+						execTime, is(lessThan(200L)));
+			} else if ( i == 1 ) {
+				assertThat("Execution time immeidately after send must be roughly delay (within 200ms)",
+						sendDelay - execTime, is(lessThan(200L)));
+			}
+		}
 	}
 
 }

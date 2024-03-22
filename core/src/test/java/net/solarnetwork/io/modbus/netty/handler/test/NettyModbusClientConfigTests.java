@@ -34,7 +34,7 @@ import net.solarnetwork.io.modbus.netty.handler.NettyModbusClientConfig;
  * Test cases for the {@link NettyModbusClientConfig} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class NettyModbusClientConfigTests {
 
@@ -68,6 +68,7 @@ public class NettyModbusClientConfigTests {
 				is(equalTo(ModbusClientConfig.DEFAULT_AUTO_RECONNECT)));
 		assertThat("Default autoReconnectDelay from API", config.getAutoReconnectDelaySeconds(),
 				is(equalTo(ModbusClientConfig.DEFAULT_RECONNECT_DELAY_SECS)));
+		assertThat("Default sendMinimumDelayMs is 0", config.getSendMinimumDelayMs(), is(equalTo(0L)));
 	}
 
 	@Test
@@ -78,12 +79,16 @@ public class NettyModbusClientConfigTests {
 		// WHEN
 		final boolean autoReconnect = false;
 		final long autoReconnectDelaySeconds = 123456L;
+		final long sendMinimumDelayMs = 321L;
 		config.setAutoReconnect(autoReconnect);
 		config.setAutoReconnectDelaySeconds(autoReconnectDelaySeconds);
+		config.setSendMinimumDelayMs(sendMinimumDelayMs);
 
 		assertThat("autoReconnect saved", config.isAutoReconnect(), is(equalTo(autoReconnect)));
 		assertThat("autoReconnectDelay saved", config.getAutoReconnectDelaySeconds(),
 				is(equalTo(autoReconnectDelaySeconds)));
+		assertThat("sendMinimumDelayMs saved", config.getSendMinimumDelayMs(),
+				is(equalTo(sendMinimumDelayMs)));
 	}
 
 }
