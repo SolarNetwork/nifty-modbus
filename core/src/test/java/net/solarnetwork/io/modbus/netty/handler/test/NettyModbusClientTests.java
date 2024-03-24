@@ -81,6 +81,12 @@ public class NettyModbusClientTests {
 			setWireLogging(true);
 		}
 
+		private TestNettyModbusClient(ModbusClientConfig clientConfig, EmbeddedChannel channel) {
+			super(clientConfig, channel.eventLoop());
+			this.testChannel = channel;
+			setWireLogging(true);
+		}
+
 		@Override
 		protected ChannelFuture connect() {
 			testChannel.pipeline().addLast(new ModbusMessageEncoder(), new ModbusMessageDecoder(true));
@@ -110,6 +116,21 @@ public class NettyModbusClientTests {
 	@AfterEach
 	public void teardown() {
 		client.stop();
+	}
+
+	@Test
+	public void construct_internalPending() {
+		// GIVEN
+		TestNettyModbusClient c = new TestNettyModbusClient(new NettyModbusClientConfig() {
+
+			@Override
+			public String getDescription() {
+				return "Test Construct";
+			}
+		}, channel);
+
+		// THEN
+		assertThat("Constructed with internal pending map", c, is(notNullValue()));
 	}
 
 	@Test
