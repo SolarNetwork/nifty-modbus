@@ -66,10 +66,6 @@ public class ModbusMessageDecoder extends ByteToMessageDecoder {
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-		// minimum message size is 2 (error code + exception code)
-		if ( in.readableBytes() < 1 ) {
-			return;
-		}
 		final int expectedLength = (controller ? ModbusMessageUtils.discoverResponsePayloadLength(in)
 				: ModbusMessageUtils.discoverRequestPayloadLength(in));
 		if ( expectedLength < 1 ) {
