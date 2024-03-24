@@ -548,6 +548,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 								"Dropping pending Modbus request that has not received a response within {}ms: {}",
 								pendingMessageTtl, pending);
 						itr.remove();
+						expiredCount++;
 					}
 				}
 			} catch ( Exception e ) {
