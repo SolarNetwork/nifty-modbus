@@ -43,6 +43,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -63,7 +64,7 @@ import net.solarnetwork.io.modbus.ModbusTimeoutException;
  * @param <C>
  *        the configuration type
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public abstract class NettyModbusClient<C extends ModbusClientConfig> implements ModbusClient {
 
@@ -298,7 +299,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			pipeline.addFirst(WIRE_LOGGING_HANDLER_NAME, new LoggingHandler(
 					"net.solarnetwork.io.modbus." + clientConfig.getDescription(), LogLevel.TRACE));
 		}
-		pipeline.addLast(CLIENT_HANDLER_NAME, new ModbusChannelHandler());
+		pipeline.addLast(CLIENT_HANDLER_NAME, newModbusChannelHandler());
 	}
 
 	private ChannelFuture sendAndFlushPacket(Channel channel, ModbusMessage message) {
@@ -395,6 +396,20 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			}
 		});
 		return resp;
+	}
+
+	/**
+	 * Create a channel handler for Modbus.
+	 * 
+	 * <p>
+	 * This is protected to help with unit testing primarily.
+	 * </p>
+	 * 
+	 * @return a Modbus channel handler
+	 * @since 1.1
+	 */
+	protected ChannelHandler newModbusChannelHandler() {
+		return new ModbusChannelHandler();
 	}
 
 	private final class ModbusChannelHandler extends SimpleChannelInboundHandler<ModbusMessage> {

@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
@@ -45,6 +46,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,8 +56,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
+import net.solarnetwork.io.modbus.ModbusClient;
 import net.solarnetwork.io.modbus.ModbusClientConfig;
+import net.solarnetwork.io.modbus.ModbusClientConnectionObserver;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
@@ -102,6 +108,7 @@ public class NettyModbusClientTests {
 		protected ChannelFuture connect() {
 			testChannel.pipeline().addLast(new ModbusMessageEncoder(), new ModbusMessageDecoder(true));
 			super.initChannel(testChannel);
+
 			return testChannel.newSucceededFuture();
 		}
 
@@ -126,7 +133,11 @@ public class NettyModbusClientTests {
 
 	@AfterEach
 	public void teardown() {
-		client.stop();
+		try {
+			client.stop().get(5, TimeUnit.SECONDS);
+		} catch ( Throwable t ) {
+			// ignore and continue
+		}
 	}
 
 	@Test
@@ -501,6 +512,80 @@ public class NettyModbusClientTests {
 						sendDelay - execTime, is(lessThan(200L)));
 			}
 		}
+	}
+
+	private static final class TestObservingNettyModbusClient
+			extends NettyModbusClient<ModbusClientConfig> {
+
+		private final AtomicReference<EmbeddedChannel> channelRef;
+
+		private TestObservingNettyModbusClient(ModbusClientConfig config,
+				AtomicReference<EmbeddedChannel> channelRef) {
+			super(config, null);
+			this.channelRef = channelRef;
+		}
+
+		@Override
+		protected ChannelFuture connect() throws IOException {
+			return channelRef.get().newSucceededFuture();
+		}
+
+		@Override
+		public ChannelHandler newModbusChannelHandler() {
+			return super.newModbusChannelHandler();
+		}
+
+	}
+
+	@Test
+	public void startStop_observer() throws InterruptedException, ExecutionException, TimeoutException {
+		AtomicReference<EmbeddedChannel> channelRef = new AtomicReference<>();
+		ModbusClientConfig config = new NettyModbusClientConfig() {
+
+			@Override
+			public String getDescription() {
+				return "Test";
+			}
+		};
+		TestObservingNettyModbusClient testClient = new TestObservingNettyModbusClient(config,
+				channelRef);
+
+		AtomicInteger openCount = new AtomicInteger();
+		AtomicInteger closeCount = new AtomicInteger();
+
+		// GIVEN
+		testClient.setConnectionObserver(new ModbusClientConnectionObserver() {
+
+			@Override
+			public void connectionOpened(ModbusClient client, ModbusClientConfig config) {
+				assertThat("Client is own client", client, is(sameInstance(testClient)));
+				openCount.incrementAndGet();
+			}
+
+			@Override
+			public void connectionClosed(ModbusClient client, ModbusClientConfig config,
+					Throwable exception, boolean willReconnect) {
+				assertThat("Client is own client", client, is(sameInstance(testClient)));
+				assertThat("Will not reconnect after explicit close", willReconnect, is(false));
+				closeCount.incrementAndGet();
+			}
+		});
+
+		// WHEN
+		channelRef.set(new EmbeddedChannel(testClient.newModbusChannelHandler()));
+		CompletableFuture<?> f = testClient.start().thenCompose(o -> {
+			assertThat("Client is started", testClient.isStarted(), is(true));
+			return testClient.stop();
+		});
+
+		// THEN
+		assertThat("Future provided", f, is(notNullValue()));
+		f.get(5L, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Client has been stopped", testClient.isStarted(), is(equalTo(false)));
+		assertThat("Opened callabck called", openCount.get(), is(equalTo(1)));
+		assertThat("Opened callabck called", closeCount.get(), is(equalTo(1)));
 	}
 
 }
