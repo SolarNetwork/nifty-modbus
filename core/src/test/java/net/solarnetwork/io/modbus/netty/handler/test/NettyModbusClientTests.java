@@ -37,12 +37,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.netty.buffer.ByteBuf;
@@ -87,6 +91,13 @@ public class NettyModbusClientTests {
 			setWireLogging(true);
 		}
 
+		private TestNettyModbusClient(ModbusClientConfig clientConfig,
+				ScheduledExecutorService scheduler, EmbeddedChannel channel) {
+			super(clientConfig, scheduler);
+			this.testChannel = channel;
+			setWireLogging(true);
+		}
+
 		@Override
 		protected ChannelFuture connect() {
 			testChannel.pipeline().addLast(new ModbusMessageEncoder(), new ModbusMessageDecoder(true));
@@ -120,7 +131,7 @@ public class NettyModbusClientTests {
 
 	@Test
 	public void construct_internalPending() {
-		// GIVEN
+		// WHEN
 		TestNettyModbusClient c = new TestNettyModbusClient(new NettyModbusClientConfig() {
 
 			@Override
@@ -131,6 +142,43 @@ public class NettyModbusClientTests {
 
 		// THEN
 		assertThat("Constructed with internal pending map", c, is(notNullValue()));
+	}
+
+	@Test
+	public void construct_nullConfig() {
+		// WHEN
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			new TestNettyModbusClient(null, channel);
+		}, "Null config not allowed");
+	}
+
+	@Test
+	public void construct_nullPending() {
+		// WHEN
+		Assertions.assertThrows(IllegalArgumentException.class, () -> {
+			new TestNettyModbusClient(new NettyModbusClientConfig() {
+
+				@Override
+				public String getDescription() {
+					return "Test Construct";
+				}
+			}, channel, null);
+		}, "Null pending map not allowed");
+	}
+
+	@Test
+	public void construct_privateScheduler() {
+		// WHEN
+		TestNettyModbusClient c = new TestNettyModbusClient(new NettyModbusClientConfig() {
+
+			@Override
+			public String getDescription() {
+				return "Test Construct";
+			}
+		}, null, channel);
+
+		// THEN
+		assertThat("Client with private scheduler created", c, is(notNullValue()));
 	}
 
 	@Test
@@ -155,6 +203,67 @@ public class NettyModbusClientTests {
 
 		// THEN
 		assertThat("Client is no longer started", client.isStarted(), is(equalTo(false)));
+	}
+
+	@Test
+	public void isStarted_privateScheduler_yes() {
+		// GIVEN
+		TestNettyModbusClient client = new TestNettyModbusClient(new NettyModbusClientConfig() {
+
+			@Override
+			public String getDescription() {
+				return "Test Construct";
+			}
+		}, null, channel);
+
+		// WHEN
+		client.start();
+
+		// THEN
+		try {
+			assertThat("Client with private scheduler has been started", client.isStarted(),
+					is(equalTo(true)));
+		} finally {
+			try {
+				client.stop().get(5, TimeUnit.SECONDS);
+			} catch ( Throwable t ) {
+				// ignore and continue
+			}
+		}
+	}
+
+	@Test
+	public void startStopStart_privateSchedule()
+			throws InterruptedException, ExecutionException, TimeoutException {
+		// GIVEN
+		TestNettyModbusClient client = new TestNettyModbusClient(new NettyModbusClientConfig() {
+
+			@Override
+			public String getDescription() {
+				return "Test Construct";
+			}
+		}, null, channel);
+
+		// WHEN
+		CompletableFuture<?> f = client.start().thenCompose(o -> {
+			assertThat("Client is started", client.isStarted(), is(true));
+			return client.stop();
+		}).thenCompose(o -> {
+			assertThat("Client is stopped", client.isStarted(), is(false));
+			return client.start();
+		});
+
+		// THEN
+		assertThat("Future provided", f, is(notNullValue()));
+		f.get(5L, TimeUnit.SECONDS);
+
+		assertThat("Client with private scheduler has been started, stopped, and started again",
+				client.isStarted(), is(equalTo(true)));
+		try {
+			client.stop().get(5, TimeUnit.SECONDS);
+		} catch ( Throwable t ) {
+			// ignore and continue
+		}
 	}
 
 	@Test
