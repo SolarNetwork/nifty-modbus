@@ -104,6 +104,14 @@ public class NettyModbusClientTests {
 			setWireLogging(true);
 		}
 
+		private TestNettyModbusClient(ModbusClientConfig clientConfig,
+				ScheduledExecutorService scheduler, EmbeddedChannel channel,
+				ConcurrentMap<ModbusMessage, PendingMessage> pending) {
+			super(clientConfig, scheduler, pending);
+			this.testChannel = channel;
+			setWireLogging(true);
+		}
+
 		@Override
 		protected ChannelFuture connect() {
 			testChannel.pipeline().addLast(new ModbusMessageEncoder(), new ModbusMessageDecoder(true));
@@ -586,6 +594,85 @@ public class NettyModbusClientTests {
 		assertThat("Client has been stopped", testClient.isStarted(), is(equalTo(false)));
 		assertThat("Opened callabck called", openCount.get(), is(equalTo(1)));
 		assertThat("Opened callabck called", closeCount.get(), is(equalTo(1)));
+	}
+
+	@Test
+	public void pendingMessageTimeoutCleaner()
+			throws InterruptedException, ExecutionException, TimeoutException {
+		// GIVEN
+		TestNettyModbusClient client = new TestNettyModbusClient(new NettyModbusClientConfig() {
+
+			@Override
+			public String getDescription() {
+				return "Test Construct";
+			}
+		}, null, channel, pending);
+
+		client.setReplyTimeout(500);
+		client.setPendingMessageTtl(700);
+		client.start().get(5, TimeUnit.SECONDS);
+
+		// WHEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.sendAsync(req);
+
+		PendingMessage msg = pending.values().iterator().next();
+		assertThat("Pending message available", msg, is(notNullValue()));
+
+		// THEN
+		Thread.sleep(1600L);
+
+		assertThat("Pending message has been cleaned", pending.isEmpty(), is(true));
+		client.stop().get(5, TimeUnit.SECONDS);
+	}
+
+	@Test
+	public void pendingMessageTimeoutCleaner_multiPass()
+			throws InterruptedException, ExecutionException, TimeoutException {
+		// GIVEN
+		TestNettyModbusClient client = new TestNettyModbusClient(new NettyModbusClientConfig() {
+
+			@Override
+			public String getDescription() {
+				return "Test Construct";
+			}
+		}, null, channel, pending);
+
+		client.setReplyTimeout(500);
+		client.setPendingMessageTtl(700);
+		client.start().get(5, TimeUnit.SECONDS);
+
+		// WHEN
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.sendAsync(req);
+
+		assertThat("Pending message available", pending.keySet(), hasSize(1));
+
+		// THEN
+		Thread.sleep(900L);
+
+		RegistersModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+		client.sendAsync(req2);
+
+		assertThat("Pending messages available", pending.keySet(), hasSize(2));
+
+		Thread.sleep(900L);
+		assertThat("One pending messages pruned", pending.keySet(), hasSize(1));
+
+		Thread.sleep(1400L);
+
+		assertThat("Pending messages have been cleaned", pending.isEmpty(), is(true));
+		client.stop().get(5, TimeUnit.SECONDS);
 	}
 
 }
