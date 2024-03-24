@@ -115,6 +115,27 @@ public class ModbusMessageDecoderTests {
 	}
 
 	@Test
+	public void responder_unknownFunctionCode() {
+		// GIVEN
+		// @formatter:off
+		final byte[] data = new byte[] {
+				(byte)0x55,
+				(byte)0x00,
+				(byte)0x08,
+				(byte)0x00,
+				(byte)0x01,
+		};
+		ByteBuf buf = Unpooled.copiedBuffer(data);
+		// @formatter:on
+
+		// WHEN
+		boolean result = responderChannel.writeInbound(buf);
+
+		// THEN
+		assertThat("Decoder did not produce", result, is(equalTo(false)));
+	}
+
+	@Test
 	public void responder_request_readInputs() {
 		// GIVEN
 		// @formatter:off
