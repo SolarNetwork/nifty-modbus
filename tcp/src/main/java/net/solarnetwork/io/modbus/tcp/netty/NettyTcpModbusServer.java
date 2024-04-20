@@ -70,6 +70,9 @@ public class NettyTcpModbusServer {
 	/** The {@code pendingMessageTtl} property default value. */
 	public static final long DEFAULT_PENDING_MESSAGE_TTL = TimeUnit.MINUTES.toMillis(2);
 
+	/** The default {@code bindAddress} property value. */
+	public static final String DEFAULT_BIND_ADDRESS = "0.0.0.0";
+
 	private static final Logger log = LoggerFactory.getLogger(NettyTcpModbusServer.class);
 
 	/** A mapping of transaction messages to pair requests/responses. */
@@ -78,6 +81,7 @@ public class NettyTcpModbusServer {
 	/** A transaction ID supplier. */
 	private final IntSupplier transactionIdSupplier;
 
+	private final String bindAddress;
 	private final int port;
 	private ScheduledFuture<?> cleanupTask;
 
@@ -92,6 +96,10 @@ public class NettyTcpModbusServer {
 	/**
 	 * Constructor.
 	 * 
+	 * <p>
+	 * Defaults to {@link #DEFAULT_BIND_ADDRESS}.
+	 * </p>
+	 * 
 	 * @param port
 	 *        the port to listen on
 	 * @throws IllegalArgumentException
@@ -103,6 +111,25 @@ public class NettyTcpModbusServer {
 
 	/**
 	 * Constructor.
+	 * 
+	 * @param bindAddress
+	 *        the address to listen on
+	 * @param port
+	 *        the port to listen on
+	 * @throws IllegalArgumentException
+	 *         if any argument is {@literal null}
+	 */
+	public NettyTcpModbusServer(String bindAddress, int port) {
+		this(bindAddress, port, new ConcurrentHashMap<>(8, 0.9f, 2),
+				SimpleTransactionIdSupplier.INSTANCE);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * <p>
+	 * Defaults to {@link #DEFAULT_BIND_ADDRESS}.
+	 * </p>
 	 * 
 	 * @param port
 	 *        the port to listen on
@@ -116,7 +143,32 @@ public class NettyTcpModbusServer {
 	 */
 	public NettyTcpModbusServer(int port, ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
 			IntSupplier transactionIdSupplier) {
+		this(DEFAULT_BIND_ADDRESS, port, pendingMessages, transactionIdSupplier);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param bindAddress
+	 *        the address to listen on
+	 * @param port
+	 *        the port to listen on
+	 * @param pendingMessages
+	 *        a map to use for saving request messages, using transaction IDs
+	 *        for keys
+	 * @param transactionIdSupplier
+	 *        the transaction ID supplier
+	 * @throws IllegalArgumentException
+	 *         if any argument is {@literal null}
+	 */
+	public NettyTcpModbusServer(String bindAddress, int port,
+			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
+			IntSupplier transactionIdSupplier) {
 		super();
+		if ( bindAddress == null ) {
+			throw new IllegalArgumentException("The bindAddress argument must not be null.");
+		}
+		this.bindAddress = bindAddress;
 		this.port = port;
 		if ( pendingMessages == null ) {
 			throw new IllegalArgumentException("The pendingMessages argument must not be null.");
@@ -155,7 +207,7 @@ public class NettyTcpModbusServer {
 					.childOption(ChannelOption.SO_KEEPALIVE, true);
 			// @formatter:on
 
-			Channel channel = bootstrap.bind(port).sync().channel();
+			Channel channel = bootstrap.bind(bindAddress, port).sync().channel();
 			channel.closeFuture().addListener(new ChannelFutureListener() {
 
 				@Override
@@ -283,6 +335,16 @@ public class NettyTcpModbusServer {
 			}
 		}
 
+	}
+
+	/**
+	 * Get the address the server will listen on.
+	 * 
+	 * @return the socket bind address; defaults to
+	 *         {@link #DEFAULT_BIND_ADDRESS}
+	 */
+	public String getBindAddress() {
+		return bindAddress;
 	}
 
 	/**

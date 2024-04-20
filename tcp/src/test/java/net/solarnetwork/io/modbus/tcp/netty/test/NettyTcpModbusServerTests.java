@@ -48,11 +48,25 @@ public class NettyTcpModbusServerTests {
 	@Test
 	public void construct_nulls() {
 		assertThrows(IllegalArgumentException.class, () -> {
+			new NettyTcpModbusServer(null, 502);
+		}, "Null bindAddress not allowed");
+		assertThrows(IllegalArgumentException.class, () -> {
 			new NettyTcpModbusServer(502, null, SimpleTransactionIdSupplier.INSTANCE);
 		}, "Null pendingMessages not allowed");
 		assertThrows(IllegalArgumentException.class, () -> {
 			new NettyTcpModbusServer(502, new ConcurrentHashMap<>(), null);
 		}, "Null transactionIdSupplier not allowed");
+	}
+
+	@Test
+	public void construct_customBindAddress() {
+		// GIVEN
+		final int port = 5502;
+		final String addr = "127.0.0.1";
+		NettyTcpModbusServer s = new NettyTcpModbusServer(addr, port);
+
+		assertThat("Port getter returns set value", s.getPort(), is(port));
+		assertThat("Bind getter returns set value", s.getBindAddress(), is(addr));
 	}
 
 	@Test
