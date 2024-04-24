@@ -216,9 +216,12 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		if ( privateScheduler && !scheduler.isShutdown() ) {
 			scheduler.shutdown();
 			try {
-				scheduler.awaitTermination(10, TimeUnit.SECONDS);
+				if ( !scheduler.awaitTermination(10, TimeUnit.SECONDS) ) {
+					log.warn("Timeout waiting for {} scheduler to complete",
+							clientConfig.getDescription());
+				}
 			} catch ( InterruptedException e ) {
-				log.warn("Timeout waiting for {} scheduler to complete", clientConfig.getDescription());
+				// ignore
 			}
 		}
 		if ( connFuture != null ) {
