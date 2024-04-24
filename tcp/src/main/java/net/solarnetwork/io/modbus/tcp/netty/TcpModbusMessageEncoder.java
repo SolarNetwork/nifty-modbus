@@ -37,7 +37,7 @@ import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
  * frame.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessage> {
 
@@ -102,6 +102,7 @@ public class TcpModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessa
 				// don't know transaction ID of this response... making one up
 				tcp = new TcpModbusMessage(transactionIdSupplier.getAsInt(), msg);
 			}
+			pendingMessages.remove(tcp.getTransactionId(), req);
 		} else {
 			// outbound request
 			int transactionId = transactionIdSupplier.getAsInt();

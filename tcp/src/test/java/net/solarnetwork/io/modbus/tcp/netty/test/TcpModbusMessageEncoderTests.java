@@ -24,6 +24,7 @@ package net.solarnetwork.io.modbus.tcp.netty.test;
 
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -48,7 +49,7 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageEncoder;
  * Test cases for the {@link TcpModbusMessageEncoder} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpModbusMessageEncoderTests {
 
@@ -155,9 +156,15 @@ public class TcpModbusMessageEncoderTests {
 		final int addr = 2;
 		final int count = 3;
 		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// the request should be in the pending messages buffer
+		final TcpModbusMessage tcpReq = new TcpModbusMessage(System.currentTimeMillis(),
+				ID_SUPPLIER.incrementAndGet(), req);
+		messages.put(tcpReq.getTransactionId(), tcpReq);
+
 		RegistersModbusMessage res = RegistersModbusMessage.readHoldingsResponse(unitId, addr,
 				new short[] { 0x1234, 0x2345, 0x3456 });
-		SimpleModbusMessageReply reply = new SimpleModbusMessageReply(req, res);
+		SimpleModbusMessageReply reply = new SimpleModbusMessageReply(tcpReq, res);
 
 		// WHEN
 		boolean result = channel.writeOutbound(reply);
@@ -188,6 +195,8 @@ public class TcpModbusMessageEncoderTests {
 						(byte)0x56,
 				})));
 		// @formatter:on
+
+		assertThat("Pending request message has been removed from buffer", messages, is(anEmptyMap()));
 	}
 
 	@Test
