@@ -1,5 +1,5 @@
 /* ==================================================================
- * SerialPortChannelOptionTests.java - 6/12/2022 3:38:38 pm
+ * SerialAddressTests.java - 6/12/2022 12:27:30 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,33 +20,39 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial.test;
+package net.solarnetwork.io.modbus.netty.serial.test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import org.junit.jupiter.api.Test;
-import net.solarnetwork.io.modbus.serial.SerialPortChannelOption;
+import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
 
 /**
- * Test cases for the {@link SerialPortChannelOption} class.
+ * Test cases for the {@link SerialAddress} class.
  *
  * @author matt
  * @version 1.0
  */
-public class SerialPortChannelOptionTests {
-
-	private class TestOption<T> extends SerialPortChannelOption<T> {
-
-		private TestOption() {
-			super();
-		}
-	}
+public class SerialAddressTests {
 
 	@Test
 	public void construct() {
-		TestOption<String> s = new TestOption<>();
-		assertThat("Option has no name", s.name(), is(nullValue()));
+		// GIVEN
+		final String name = "foo";
+		SerialAddress addr = new SerialAddress(name);
+
+		// THEN
+		assertThat("Name saved", addr.name(), is(equalTo(name)));
+	}
+
+	@Test
+	public void stringValue() {
+		final String name = "foo";
+		SerialAddress addr = new SerialAddress(name);
+
+		// THEN
+		assertThat("String value", addr.toString(), is(equalTo(name)));
 	}
 
 }

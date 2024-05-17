@@ -11,6 +11,7 @@ description = 'Nifty Modbus: Shell'
 archivesBaseName = 'nifty-modbus-shell'
 
 dependencies {
+	implementation project(':nifty-modbus-api')
 	implementation project(':nifty-modbus-core');
 	implementation project(':nifty-modbus-rtu');
 	implementation project(':nifty-modbus-rtu-jsc');

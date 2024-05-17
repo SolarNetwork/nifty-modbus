@@ -20,7 +20,7 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial.test;
+package net.solarnetwork.io.modbus.netty.serial.test;
 
 import static java.lang.String.format;
 import static java.util.regex.Pattern.quote;
@@ -40,11 +40,11 @@ import io.netty.channel.DefaultMaxBytesRecvByteBufAllocator;
 import io.netty.channel.DefaultMessageSizeEstimator;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
-import net.solarnetwork.io.modbus.serial.DefaultSerialPortChannelConfig;
+import net.solarnetwork.io.modbus.netty.serial.DefaultSerialPortChannelConfig;
+import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
+import net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialPort;
-import net.solarnetwork.io.modbus.serial.SerialPortChannel;
-import net.solarnetwork.io.modbus.serial.SerialPortChannelOption;
 import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
 

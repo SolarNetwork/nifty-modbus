@@ -1,5 +1,5 @@
 /* ==================================================================
- * SerialAddressTests.java - 6/12/2022 12:27:30 pm
+ * SerialAddress.java - 2/12/2022 8:54:48 am
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,39 +20,47 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial.test;
+package net.solarnetwork.io.modbus.netty.serial;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import org.junit.jupiter.api.Test;
-import net.solarnetwork.io.modbus.serial.SerialAddress;
+import java.net.SocketAddress;
 
 /**
- * Test cases for the {@link SerialAddress} class.
+ * A {@link SocketAddress} subclass to wrap a serial port device such as
+ * {@literal COM1} or {@literal /dev/ttyUSB0}.
  *
  * @author matt
  * @version 1.0
  */
-public class SerialAddressTests {
+public class SerialAddress extends SocketAddress {
 
-	@Test
-	public void construct() {
-		// GIVEN
-		final String name = "foo";
-		SerialAddress addr = new SerialAddress(name);
+	private static final long serialVersionUID = -1162052149683962663L;
 
-		// THEN
-		assertThat("Name saved", addr.name(), is(equalTo(name)));
+	/** The serial port name. */
+	private final String name;
+
+	/**
+	 * Creates an address representing the name of a serial port.
+	 *
+	 * @param name
+	 *        the name of the device, such as {@literal COM1} or
+	 *        {@literal /dev/ttyUSB0}
+	 */
+	public SerialAddress(String name) {
+		this.name = name;
 	}
 
-	@Test
-	public void stringValue() {
-		final String name = "foo";
-		SerialAddress addr = new SerialAddress(name);
+	/**
+	 * Get the name of the serial port.
+	 * 
+	 * @return the serial port name
+	 */
+	public String name() {
+		return name;
+	}
 
-		// THEN
-		assertThat("String value", addr.toString(), is(equalTo(name)));
+	@Override
+	public String toString() {
+		return name;
 	}
 
 }

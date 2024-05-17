@@ -3,6 +3,6 @@ Bundle-Name: SolarNetwork Modbus Core
 Bundle-Description: Core Modbus support.
 Bundle-Vendor: SolarNetwork
 Export-Package: \
-	net.solarnetwork.io.modbus.*
+	net.solarnetwork.io.modbus.netty.*
 Import-Package: \
 	*

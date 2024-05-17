@@ -39,9 +39,9 @@ import io.netty.channel.EventLoopGroup;
 import net.solarnetwork.io.modbus.ModbusClient;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
+import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
+import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
 import net.solarnetwork.io.modbus.rtu.RtuModbusClientConfig;
-import net.solarnetwork.io.modbus.serial.SerialAddress;
-import net.solarnetwork.io.modbus.serial.SerialPortChannel;
 import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 
 /**

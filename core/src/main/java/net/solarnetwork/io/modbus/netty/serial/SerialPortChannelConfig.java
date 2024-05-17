@@ -20,12 +20,15 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial;
+package net.solarnetwork.io.modbus.netty.serial;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelConfig;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
+import net.solarnetwork.io.modbus.serial.SerialParameters;
+import net.solarnetwork.io.modbus.serial.SerialParity;
+import net.solarnetwork.io.modbus.serial.SerialStopBits;
 
 /**
  * A configuration class for serial device connections.

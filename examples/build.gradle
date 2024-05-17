@@ -9,6 +9,7 @@ description = 'Nifty Modbus: Examples'
 archivesBaseName = 'nifty-modbus-examples'
 
 dependencies {
+	implementation project(':nifty-modbus-api')
 	implementation project(':nifty-modbus-core');
 	implementation project(':nifty-modbus-rtu');
 	implementation project(':nifty-modbus-rtu-jsc');

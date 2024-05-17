@@ -12,6 +12,7 @@ description = 'Nifty Modbus: RTU'
 archivesBaseName = 'nifty-modbus-rtu'
 
 dependencies {
+	implementation project(':nifty-modbus-api')
 	implementation project(':nifty-modbus-core');
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation "io.netty:netty-codec:${nettyVersion}"

@@ -12,10 +12,9 @@ description = 'Nifty Modbus: RTU jSerialComm'
 archivesBaseName = 'nifty-modbus-rtu-jsc'
 
 dependencies {
-	implementation project(':nifty-modbus-core');
+	implementation project(':nifty-modbus-api')
 	implementation project(':nifty-modbus-rtu');
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
-	implementation "io.netty:netty-codec:${nettyVersion}"
 	implementation "com.fazecast:jSerialComm:${jscVersion}";
 	
 	// Testing

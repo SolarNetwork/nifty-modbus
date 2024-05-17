@@ -126,6 +126,7 @@ Nifty Modbus can be integrated into your project using the following coordinates
 
 | Group | Artifact | Notes |
 |:------|:---------|:------|
+| `net.solarnetwork.common` | `nifty-modbus-api` | Required in all cases. |
 | `net.solarnetwork.common` | `nifty-modbus-core` | Required in all cases. |
 | `net.solarnetwork.common` | `nifty-modbus-rtu` | Required for Modbus RTU support, along with a serial port implementation. |
 | `net.solarnetwork.common` | `nifty-modbus-rtu-jsc` | Provides a serial port implementation based on [jSerialComm][jSerialComm]. |
@@ -158,9 +159,11 @@ To build Nifty Modbus yourself, clone or download this repository. Then:
 
 The component artifacts will be created within the `build/libs` directory of each component:
 
+ * `api/build/libs/nifty-modbus-api-X.Y.Z.jar`
  * `core/build/libs/nifty-modbus-core-X.Y.Z.jar`
  * `rtu/build/libs/nifty-modbus-rtu-X.Y.Z.jar`
  * `rtu-jsc/build/libs/nifty-modbus-rtu-jsc-X.Y.Z.jar`
+ * `rtu-pjc/build/libs/nifty-modbus-rtu-pjc-X.Y.Z.jar`
  * `tcp/build/libs/nifty-modbus-tcp-X.Y.Z.jar`
 
 # Test coverage

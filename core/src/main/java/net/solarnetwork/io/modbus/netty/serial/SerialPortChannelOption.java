@@ -20,9 +20,11 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial;
+package net.solarnetwork.io.modbus.netty.serial;
 
 import io.netty.channel.ChannelOption;
+import net.solarnetwork.io.modbus.serial.SerialParity;
+import net.solarnetwork.io.modbus.serial.SerialStopBits;
 
 /**
  * Option for configuring a serial port connection.

@@ -54,7 +54,6 @@ subprojects {
 
 	repositories {
 		mavenCentral()
-		maven { url "https://dev.solarnetwork.net/archive/repository/solarnetwork-stage" }
 	}
 
 	[

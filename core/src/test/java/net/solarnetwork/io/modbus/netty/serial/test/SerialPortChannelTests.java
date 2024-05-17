@@ -20,7 +20,7 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial.test;
+package net.solarnetwork.io.modbus.netty.serial.test;
 
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -50,10 +50,10 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
-import net.solarnetwork.io.modbus.serial.SerialAddress;
+import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
+import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialPort;
-import net.solarnetwork.io.modbus.serial.SerialPortChannel;
 import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 
 /**

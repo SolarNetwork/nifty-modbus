@@ -8,14 +8,10 @@ apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
 
-description = 'Nifty Modbus: RTU (PureJavaComm)'
-archivesBaseName = 'nifty-modbus-rtu-pjc'
+description = 'Nifty Modbus: API'
+archivesBaseName = 'nifty-modbus-api'
 
 dependencies {
-	implementation project(':nifty-modbus-api')
-	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
-	implementation "net.solarnetwork.external:net.solarnetwork.external.pjc:${pjcVersion}"
-	
 	// Testing
 	testImplementation project(':nifty-modbus-test')
 }
@@ -26,11 +22,11 @@ jar.manifest {
 
 sourcesJar.manifest {
 	attributes(
-		'Bundle-SymbolicName': 'net.solarnetwork.common.io.modbus.rtu.pjc.sources',
-		'Bundle-Name': 'SolarNetwork Modbus RTU (PureJavaComm) Sources',
+		'Bundle-SymbolicName': 'net.solarnetwork.common.io.modbus.api.sources',
+		'Bundle-Name': 'SolarNetwork Modbus API Sources',
 		'Bundle-Version': version,
 		'Bundle-ManifestVersion': '2',
-		'Eclipse-SourceBundle': 'net.solarnetwork.common.io.modbus.rtu.pjc;version="'
+		'Eclipse-SourceBundle': 'net.solarnetwork.common.io.modbus.api;version="'
 			+ version + '";roots:="."'
 	)
 }
@@ -47,8 +43,8 @@ publishing {
 			from components.java
 			pom {
 				name = project.description
-				description = 'Nifty Modbus RTU (serial network) PureJavaComm implementation.'
-				url = 'https://github.com/SolarNetwork/nifty-modbus/rtu-pjc'
+				description = 'A delightful little Modbus library for Java.'
+				url = 'https://github.com/SolarNetwork/nifty-modbus'
 				licenses {
 					license {
 						name = 'GNU General Public License, Version 2.0'

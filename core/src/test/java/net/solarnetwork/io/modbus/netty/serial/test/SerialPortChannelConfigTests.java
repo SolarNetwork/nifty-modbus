@@ -20,18 +20,18 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial.test;
+package net.solarnetwork.io.modbus.netty.serial.test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import org.junit.jupiter.api.Test;
+import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
+import net.solarnetwork.io.modbus.netty.serial.SerialPortChannelConfig;
+import net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialPort;
-import net.solarnetwork.io.modbus.serial.SerialPortChannel;
-import net.solarnetwork.io.modbus.serial.SerialPortChannelConfig;
-import net.solarnetwork.io.modbus.serial.SerialPortChannelOption;
 import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
 

@@ -20,7 +20,7 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial;
+package net.solarnetwork.io.modbus.netty.serial;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +39,9 @@ import io.netty.channel.EventLoop;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.util.concurrent.SingleThreadEventExecutor;
 import io.netty.util.internal.StringUtil;
+import net.solarnetwork.io.modbus.serial.SerialParameters;
+import net.solarnetwork.io.modbus.serial.SerialPort;
+import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 
 /**
  * Channel for a {@link SerialPortProvider}.

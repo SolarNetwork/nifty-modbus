@@ -20,20 +20,22 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial;
+package net.solarnetwork.io.modbus.netty.serial;
 
-import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.BAUD_RATE;
-import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.DATA_BITS;
-import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.PARITY;
-import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.READ_TIMEOUT;
-import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.STOP_BITS;
-import static net.solarnetwork.io.modbus.serial.SerialPortChannelOption.WAIT_TIME;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.BAUD_RATE;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.DATA_BITS;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.PARITY;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.READ_TIMEOUT;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.STOP_BITS;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.WAIT_TIME;
 import java.util.Map;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.DefaultChannelConfig;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
+import net.solarnetwork.io.modbus.serial.SerialParity;
+import net.solarnetwork.io.modbus.serial.SerialStopBits;
 
 /**
  * Default implementation of {@link SerialPortChannelConfig}.

@@ -10,6 +10,7 @@ plugins {
 
 rootProject.name = 'nifty-modbus'
 
+include('api')
 include('core')
 include('rtu')
 include('rtu-jsc')
@@ -19,6 +20,7 @@ include('tcp')
 include('examples')
 include('test')
 
+project(':api').name = 'nifty-modbus-api'
 project(':core').name = 'nifty-modbus-core'
 project(':rtu').name = 'nifty-modbus-rtu'
 project(':rtu-jsc').name = 'nifty-modbus-rtu-jsc'

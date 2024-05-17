@@ -1,5 +1,5 @@
 /* ==================================================================
- * SerialAddress.java - 2/12/2022 8:54:48 am
+ * SerialPortChannelOptionTests.java - 6/12/2022 3:38:38 pm
  *
  * Copyright 2022 SolarNetwork.net Dev Team
  *
@@ -20,47 +20,33 @@
  * ==================================================================
  */
 
-package net.solarnetwork.io.modbus.serial;
+package net.solarnetwork.io.modbus.netty.serial.test;
 
-import java.net.SocketAddress;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import org.junit.jupiter.api.Test;
+import net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption;
 
 /**
- * A {@link SocketAddress} subclass to wrap a serial port device such as
- * {@literal COM1} or {@literal /dev/ttyUSB0}.
+ * Test cases for the {@link SerialPortChannelOption} class.
  *
  * @author matt
  * @version 1.0
  */
-public class SerialAddress extends SocketAddress {
+public class SerialPortChannelOptionTests {
 
-	private static final long serialVersionUID = -1162052149683962663L;
+	private class TestOption<T> extends SerialPortChannelOption<T> {
 
-	/** The serial port name. */
-	private final String name;
-
-	/**
-	 * Creates an address representing the name of a serial port.
-	 *
-	 * @param name
-	 *        the name of the device, such as {@literal COM1} or
-	 *        {@literal /dev/ttyUSB0}
-	 */
-	public SerialAddress(String name) {
-		this.name = name;
+		private TestOption() {
+			super();
+		}
 	}
 
-	/**
-	 * Get the name of the serial port.
-	 * 
-	 * @return the serial port name
-	 */
-	public String name() {
-		return name;
-	}
-
-	@Override
-	public String toString() {
-		return name;
+	@Test
+	public void construct() {
+		TestOption<String> s = new TestOption<>();
+		assertThat("Option has no name", s.name(), is(nullValue()));
 	}
 
 }
