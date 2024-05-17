@@ -43,11 +43,11 @@ public interface SerialParameters {
 	SerialParity DEFAULT_PARITY = SerialParity.None;
 
 	/** The default read timeout. */
-	int DEFAULT_READ_TIMEOUT = 1000;
+	int DEFAULT_READ_TIMEOUT = 0;
 
 	/**
 	 * Get the baud rate.
-	 * 
+	 *
 	 * @return the baud rate; defaults to {@link #DEFAULT_BAUD_RATE}
 	 */
 	default int getBaudRate() {
@@ -56,7 +56,7 @@ public interface SerialParameters {
 
 	/**
 	 * Get the data bits.
-	 * 
+	 *
 	 * @return the data bits; defaults to {@link #DEFAULT_DATA_BITS}
 	 */
 	default int getDataBits() {
@@ -65,7 +65,7 @@ public interface SerialParameters {
 
 	/**
 	 * Get the stop bits.
-	 * 
+	 *
 	 * @return the stop bits; defaults to {@link #DEFAULT_STOP_BITS}
 	 */
 	default SerialStopBits getStopBits() {
@@ -74,7 +74,7 @@ public interface SerialParameters {
 
 	/**
 	 * Get the parity.
-	 * 
+	 *
 	 * @return the parity; defaults to {@link #DEFAULT_PARITY}
 	 */
 	default SerialParity getParity() {
@@ -83,7 +83,7 @@ public interface SerialParameters {
 
 	/**
 	 * Get the wait time.
-	 * 
+	 *
 	 * @return the amount of time to wait between opening the serial port and
 	 *         configuring its settings, in milliseconds; defaults to
 	 *         {@literal 0}
@@ -94,7 +94,7 @@ public interface SerialParameters {
 
 	/**
 	 * Get the read timeout.
-	 * 
+	 *
 	 * @return the maximum amount of time to wait for data, in milliseconds;
 	 *         defaults to {@link #DEFAULT_READ_TIMEOUT}
 	 */
@@ -105,7 +105,7 @@ public interface SerialParameters {
 	/**
 	 * Get a "shortcut" bits value in the form {@literal DPS} for data bits,
 	 * parity, and stop bits.
-	 * 
+	 *
 	 * @return the shortcut
 	 */
 	default String bitsShortcut() {
