@@ -295,13 +295,9 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 		return new ReadWriteRegistersModbusMessage(unitId, fn, error, addr, cnt, data);
 	}
 
-	private boolean isRequest(final byte[] data) {
-		return (data != null && data.length > 1 && !(data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
-				&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE));
-	}
-
 	private boolean isResponse(final byte[] data) {
-		return (data != null && data.length > 1 && data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
+		// if data != null, it will have length > 1
+		return (data != null && data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
 				&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE);
 	}
 
@@ -312,12 +308,12 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 			switch (fn) {
 				case ReadWriteHoldingRegisters: {
 					final byte[] data = data();
-					if ( data[0] == READ_WRITE_RESPONSE_FLAG_BYTE
-							&& data[1] == READ_WRITE_RESPONSE_FLAG_BYTE ) {
+					if ( isResponse(data) ) {
 						return data.length;
-					} else {
+					} else if ( data != null ) {
 						return 8 + data.length;
 					}
+					break;
 				}
 
 				default:
@@ -334,8 +330,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 		byte[] header = null;
 		final byte[] data_src = data();
 		byte[] data;
-		if ( data_src[0] == READ_WRITE_RESPONSE_FLAG_BYTE
-				&& data_src[1] == READ_WRITE_RESPONSE_FLAG_BYTE ) {
+		if ( isResponse(data_src) ) {
 			// response
 			header = new byte[2];
 			header[0] = fn.getCode();
@@ -390,7 +385,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	@Override
 	public int getWriteAddress() {
 		final byte[] data = data();
-		if ( !isRequest(data) ) {
+		if ( isResponse(data) ) {
 			return 0;
 		}
 		return (((data[0] & 0xFF) << 8) | (data[1] & 0xFF));
@@ -399,7 +394,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	@Override
 	public short[] writeDataDecode() {
 		final byte[] data = data();
-		if ( !isRequest(data) ) {
+		if ( isResponse(data) ) {
 			return null;
 		}
 		return ModbusByteUtils.decode(data, 2, data.length);
@@ -408,7 +403,7 @@ public class ReadWriteRegistersModbusMessage extends RegistersModbusMessage
 	@Override
 	public int[] writeDataDecodeUnsigned() {
 		final byte[] data = data();
-		if ( !isRequest(data) ) {
+		if ( isResponse(data) ) {
 			return null;
 		}
 		return ModbusByteUtils.decodeUnsigned(data, 2, data.length);

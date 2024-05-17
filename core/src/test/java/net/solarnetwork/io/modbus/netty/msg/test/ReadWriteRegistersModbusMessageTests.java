@@ -327,4 +327,54 @@ public class ReadWriteRegistersModbusMessageTests {
 		assertThat("Payload length", m.payloadLength(), is(equalTo(1)));
 	}
 
+	@Test
+	public void payloadLength_unsupportedFunction() {
+		// WHEN
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(1,
+				ModbusFunctionCode.ReadCoils, null, 0, 1, new byte[] { 1, 2 });
+
+		// THEN
+		assertThat("Payload length is fn + data", msg.payloadLength(), is(equalTo(3)));
+	}
+
+	@Test
+	public void payloadLength_nullData() {
+		// GIVEN
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(1,
+				ModbusFunctionCode.ReadWriteHoldingRegisters, null, 0, 1, null);
+
+		// THEN
+		assertThat("Payload length is 1", msg.payloadLength(), is(equalTo(1)));
+	}
+
+	@Test
+	public void payloadLength_emptyData() {
+		// GIVEN
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(1,
+				ModbusFunctionCode.ReadWriteHoldingRegisters, null, 0, 1, new byte[0]);
+
+		// THEN
+		assertThat("Payload length is 1", msg.payloadLength(), is(equalTo(1)));
+	}
+
+	@Test
+	public void payloadLength_almostResponse() {
+		// GIVEN
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(1,
+				ModbusFunctionCode.ReadWriteHoldingRegisters, null, 0, 1, new byte[] { (byte) 0xFF, 2 });
+
+		// THEN
+		assertThat("Payload length is 8 + data", msg.payloadLength(), is(equalTo(10)));
+	}
+
+	@Test
+	public void payloadLength_almostResponse2() {
+		// GIVEN
+		ReadWriteRegistersModbusMessage msg = new ReadWriteRegistersModbusMessage(1,
+				ModbusFunctionCode.ReadWriteHoldingRegisters, null, 0, 1, new byte[] { 1, (byte) 0xFF });
+
+		// THEN
+		assertThat("Payload length is 8 + data", msg.payloadLength(), is(equalTo(10)));
+	}
+
 }

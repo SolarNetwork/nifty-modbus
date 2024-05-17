@@ -360,4 +360,13 @@ public class MaskWriteRegisterMessageTests {
 		assertThat("Or mask forced when null data", msg.getOrMask(), is(equalTo(0)));
 	}
 
+	@Test
+	public void payloadLength_unsupportedFunction() {
+		MaskWriteRegisterModbusMessage msg = new MaskWriteRegisterModbusMessage(1,
+				ModbusFunctionCode.ReadCoils, null, 2, new byte[] { 1, 2, 3, 4 });
+
+		// THEN
+		assertThat("Payload length is fn + data", msg.payloadLength(), is(equalTo(5)));
+	}
+
 }
