@@ -187,6 +187,17 @@ public class ModbusFunctionCodeTests {
 	}
 
 	@Test
+	public void valueOf_negative() {
+		// WHEN
+		ModbusFunction fn = ModbusFunctionCode.valueOf((byte) (ModbusFunctionCodes.ERROR_OFFSET
+				+ ModbusFunctionCode.ReadHoldingRegisters.getCode()));
+
+		// THEN
+		assertThat("ModbusFunctionCode %s is decoded from error offset", fn.functionCode(),
+				is(ModbusFunctionCode.ReadHoldingRegisters));
+	}
+
+	@Test
 	public void forCode() {
 		assertThat(ModbusFunctionCode.forCode(ModbusFunctionCodes.READ_COILS),
 				is(equalTo(ModbusFunctionCode.ReadCoils)));
