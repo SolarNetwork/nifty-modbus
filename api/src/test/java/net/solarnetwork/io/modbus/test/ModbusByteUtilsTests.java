@@ -562,4 +562,30 @@ public class ModbusByteUtilsTests {
 		ModbusByteUtils.reverse(null);
 	}
 
+	@Test
+	public void encode16() {
+		// GIVEN
+		final byte[] data = new byte[2];
+
+		// WHEN
+		ModbusByteUtils.encode16(data, 0, 0xabcd);
+
+		// THEN
+		assertThat("Data encoded", Arrays.equals(data, new byte[] { (byte) 0xab, (byte) 0xcd }),
+				is(equalTo(true)));
+	}
+
+	@Test
+	public void encode16_offset() {
+		// GIVEN
+		final byte[] data = new byte[] { 1, 2, 3, 4 };
+
+		// WHEN
+		ModbusByteUtils.encode16(data, 2, 0xabcd);
+
+		// THEN
+		assertThat("Data encoded", Arrays.equals(data, new byte[] { 1, 2, (byte) 0xab, (byte) 0xcd }),
+				is(equalTo(true)));
+	}
+
 }
