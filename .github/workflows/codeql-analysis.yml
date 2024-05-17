@@ -50,7 +50,7 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false
-        files: ./core/build/reports/jacoco/test/jacocoTestReport.xml,./rtu/build/reports/jacoco/test/jacocoTestReport.xml,./tcp/build/reports/jacoco/test/jacocoTestReport.xml
+        files: ./api/build/reports/jacoco/test/jacocoTestReport.xml,./core/build/reports/jacoco/test/jacocoTestReport.xml,./rtu/build/reports/jacoco/test/jacocoTestReport.xml,./tcp/build/reports/jacoco/test/jacocoTestReport.xml
         flags: unittests
         name: codecov-umbrella
         verbose: true
