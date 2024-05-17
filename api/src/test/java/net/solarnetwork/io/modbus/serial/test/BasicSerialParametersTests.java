@@ -114,11 +114,11 @@ public class BasicSerialParametersTests {
 		// GIVEN
 		BasicSerialParameters p = new BasicSerialParameters();
 		p.setWaitTime(123);
-		p.setReadTimeout(0);
+		p.setReadTimeout(234);
 
 		assertThat("String value", p.toString(),
-				matchesRegex(format("SerialParameters\\{%d %s, waitTime=123\\}", p.getBaudRate(),
-						quote(p.bitsShortcut()))));
+				matchesRegex(format("SerialParameters\\{%d %s, waitTime=123, readTimeout=234\\}",
+						p.getBaudRate(), quote(p.bitsShortcut()))));
 	}
 
 }
