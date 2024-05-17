@@ -839,4 +839,12 @@ public class BitsModbusMessageTests {
 		assertThat("Payload length is fn + data", msg.payloadLength(), is(equalTo(2)));
 	}
 
+	@Test
+	public void payloadLength_unsupportedFunction() {
+		BitsModbusMessage msg = new BitsModbusMessage(1, ModbusFunctionCode.ReadHoldingRegisters, null,
+				2, 3, BigInteger.ONE);
+
+		// THEN
+		assertThat("Payload length is fn + data", msg.payloadLength(), is(equalTo(2)));
+	}
 }
