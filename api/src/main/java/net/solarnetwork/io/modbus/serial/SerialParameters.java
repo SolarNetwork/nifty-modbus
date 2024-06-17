@@ -43,7 +43,7 @@ public interface SerialParameters {
 	SerialParity DEFAULT_PARITY = SerialParity.None;
 
 	/** The default read timeout. */
-	int DEFAULT_READ_TIMEOUT = 0;
+	int DEFAULT_READ_TIMEOUT = 1000;
 
 	/**
 	 * Get the baud rate.
