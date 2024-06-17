@@ -301,7 +301,7 @@ public class SerialPortChannel extends AbstractChannel {
 		} catch ( Throwable t ) {
 			handleReadException(pipeline, byteBuf, t, allocHandle);
 		} finally {
-			if ( config.isAutoRead() || !readData && isActive() ) {
+			if ( (config.isAutoRead() || !readData) && isActive() ) {
 				// Reading 0 bytes could mean there is a SocketTimeout and no data was actually read, so we
 				// should execute read() again because no data may have been read.
 				read();
