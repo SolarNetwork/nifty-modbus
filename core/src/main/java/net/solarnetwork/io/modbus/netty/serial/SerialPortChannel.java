@@ -365,11 +365,7 @@ public class SerialPortChannel extends AbstractChannel {
 			}
 			int avail = in.available();
 			if ( avail > 0 ) {
-				try {
-					return buf.writeBytes(in, avail);
-				} finally {
-					Thread.sleep(25); // TODO: make configurable
-				}
+				return buf.writeBytes(in, avail);
 			} else if ( config.getReadTimeout() > 0 ) {
 				// use blocking read w/timeout
 				return buf.writeBytes(in, 1);
