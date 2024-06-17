@@ -352,8 +352,8 @@ public class SerialPortChannel extends AbstractChannel {
 	 *
 	 * @param buf
 	 *        the {@link ByteBuf} into which the read bytes will be written
-	 * @return amount the number of bytes read. This may return a negative
-	 *         amount if the underlying Socket was closed
+	 * @return the number of bytes read. This may return a negative amount if
+	 *         the underlying Socket was closed
 	 * @throws Exception
 	 *         is thrown if an error occurred
 	 */
