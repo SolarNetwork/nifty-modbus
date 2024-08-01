@@ -95,8 +95,9 @@ public class TcpModbusMessageEncoder extends MessageToMessageEncoder<ModbusMessa
 			// outbound response
 			ModbusMessageReply reply = (ModbusMessageReply) msg;
 			ModbusMessage req = reply.getRequest();
-			if ( req instanceof net.solarnetwork.io.modbus.tcp.TcpModbusMessage ) {
-				net.solarnetwork.io.modbus.tcp.TcpModbusMessage tcpReq = (net.solarnetwork.io.modbus.tcp.TcpModbusMessage) req;
+			net.solarnetwork.io.modbus.tcp.TcpModbusMessage tcpReq = req
+					.unwrap(net.solarnetwork.io.modbus.tcp.TcpModbusMessage.class);
+			if ( tcpReq != null ) {
 				tcp = new TcpModbusMessage(tcpReq.getTransactionId(), reply);
 			} else {
 				// don't know transaction ID of this response... making one up
