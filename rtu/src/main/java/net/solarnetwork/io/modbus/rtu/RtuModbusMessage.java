@@ -34,7 +34,7 @@ import net.solarnetwork.io.modbus.ModbusValidationException;
 public interface RtuModbusMessage extends ModbusMessage {
 
 	/**
-	 * A {@link ModbusValidationMessage} message template.
+	 * A {@link ModbusValidationException} message template.
 	 * 
 	 * <p>
 	 * The message accepts two short values: the provided CRC and the computed
