@@ -25,6 +25,7 @@ package net.solarnetwork.io.modbus.test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
@@ -113,6 +114,44 @@ public class ModbusMessageTests {
 
 		// THEN
 		assertThat("Is exception if error provided", result, is(equalTo(true)));
+	}
+
+	@Test
+	public void defaultValid() {
+		// GIVEN
+		ModbusMessage msg = new ModbusMessage() {
+
+			@Override
+			public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+				return null;
+			}
+
+			@Override
+			public boolean isSameAs(ModbusMessage obj) {
+				return false;
+			}
+
+			@Override
+			public int getUnitId() {
+				return 0;
+			}
+
+			@Override
+			public ModbusFunction getFunction() {
+				return null;
+			}
+
+			@Override
+			public ModbusError getError() {
+				return ModbusErrorCode.IllegalFunction;
+			}
+		};
+
+		// WHEN
+		assertDoesNotThrow(() -> {
+			msg.validate();
+
+		}, "Default validation does not throw any exception.");
 	}
 
 }

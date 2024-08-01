@@ -22,13 +22,17 @@
 
 package net.solarnetwork.io.modbus.rtu.test;
 
+import static java.lang.String.format;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 import net.solarnetwork.io.modbus.rtu.RtuModbusMessage;
 
 /**
@@ -95,19 +99,28 @@ public class RtuModbusMessageTests {
 
 		// THEN
 		assertThat("Validated CRC", valid, is(equalTo(true)));
+		assertDoesNotThrow(() -> {
+			rtu.validate();
+		}, "No exception thrown when CRC is valid");
 	}
 
 	@Test
 	public void crc_invalid() {
 		// GIVEN
 		final short crc = (short) 0xABCD;
-		RtuModbusMessage rtu = msg(crc, (short) 0x1234);
+		final short computedCrc = (short) 0x1234;
+		RtuModbusMessage rtu = msg(crc, computedCrc);
 
 		// WHEN
 		boolean valid = rtu.isCrcValid();
 
 		// THEN
 		assertThat("Validated CRC", valid, is(equalTo(false)));
+		ModbusValidationException ex = assertThrows(ModbusValidationException.class, () -> {
+			rtu.validate();
+		}, "Validation exception thrown when CRC invalid");
+		assertThat("Validation message is CRC mismatch", ex.getMessage(),
+				is(equalTo(format(RtuModbusMessage.CRC_MISMATCH_VALIDATION_MESSAGE, crc, computedCrc))));
 	}
 
 }
