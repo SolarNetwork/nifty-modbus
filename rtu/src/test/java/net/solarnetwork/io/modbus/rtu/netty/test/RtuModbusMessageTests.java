@@ -45,6 +45,7 @@ import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessage;
@@ -195,6 +196,12 @@ public class RtuModbusMessageTests {
 		assertThat("Computed CRC from msg", computedCrc,
 				is(equalTo(RtuModbusMessage.computeCrc(1, msg))));
 		assertThat("Validated CRC", valid, is(equalTo(false)));
+
+		ModbusValidationException ex = assertThrows(ModbusValidationException.class, () -> {
+			rtu.validate();
+		});
+		assertThat("Exception message", ex.getMessage(),
+				is(equalTo("CRC mismatch: got 0xABCD but computed 0x80B8 from message data.")));
 	}
 
 	@Test

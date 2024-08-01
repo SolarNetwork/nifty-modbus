@@ -139,7 +139,7 @@ public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 						Short.toUnsignedInt(crc), Short.toUnsignedInt(computedCrc), msg);
 			}
 			if ( req != null ) {
-				msg = new SimpleModbusMessageReply(req, msg);
+				msg = new SimpleModbusMessageReply(req, new RtuModbusMessage(msg, crc));
 				ctx.channel().attr(NettyModbusClient.LAST_ENCODED_MESSAGE).compareAndSet(req, null);
 			} else {
 				msg = new RtuModbusMessage(msg, crc);

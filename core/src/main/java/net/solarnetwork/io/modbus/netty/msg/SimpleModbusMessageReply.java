@@ -27,6 +27,7 @@ import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessageReply;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 
 /**
  * Simple implementation of {@link ModbusMessageReply}.
@@ -87,6 +88,11 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 	}
 
 	@Override
+	public void validate() throws ModbusValidationException {
+		reply.validate();
+	}
+
+	@Override
 	public boolean isSameAs(ModbusMessage obj) {
 		if ( obj == this ) {
 			return true;
@@ -97,12 +103,10 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
-		if ( msgType.isAssignableFrom(reply.getClass()) ) {
-			return (T) reply;
-		} else if ( msgType.isAssignableFrom(ModbusMessageReply.class) ) {
+		if ( ModbusMessageReply.class.isAssignableFrom(msgType) ) {
 			return (T) this;
 		}
-		return null;
+		return reply.unwrap(msgType);
 	}
 
 	@Override

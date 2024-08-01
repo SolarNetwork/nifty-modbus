@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.rtu;
 
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 
 /**
  * RTU encapsulated Modbus message API.
@@ -69,6 +70,16 @@ public interface RtuModbusMessage extends ModbusMessage {
 		final short provided = getCrc();
 		final short computed = computeCrc();
 		return (provided == computed);
+	}
+
+	@Override
+	default void validate() throws ModbusValidationException {
+		final short provided = getCrc();
+		final short computed = computeCrc();
+		if ( provided != computed ) {
+			throw new ModbusValidationException(String.format(
+					"CRC mismatch: got 0x%X but computed 0x%X from message data.", provided, computed));
+		}
 	}
 
 }

@@ -117,6 +117,21 @@ public interface ModbusMessage {
 	 */
 	boolean isSameAs(ModbusMessage obj);
 
+	/**
+	 * Validate this message in some way.
+	 *
+	 * <p>
+	 * This method might validate a checksum or the overall structure of the
+	 * message for correctness, throwing an exception if any validation fails.
+	 * </p>
+	 *
+	 * @throws ModbusValidationException
+	 *         if any validation failure occurs
+	 */
+	default void validate() throws ModbusValidationException {
+		// implementing classes can override
+	}
+
 	@Override
 	int hashCode();
 

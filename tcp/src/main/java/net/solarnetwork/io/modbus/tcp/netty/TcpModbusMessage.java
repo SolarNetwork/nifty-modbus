@@ -27,6 +27,7 @@ import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 import net.solarnetwork.io.modbus.netty.msg.ModbusPayloadEncoder;
 
 /**
@@ -88,6 +89,11 @@ public class TcpModbusMessage
 	}
 
 	@Override
+	public void validate() throws ModbusValidationException {
+		body.validate();
+	}
+
+	@Override
 	public boolean isSameAs(ModbusMessage obj) {
 		if ( obj == this ) {
 			return true;
@@ -105,10 +111,10 @@ public class TcpModbusMessage
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
-		if ( msgType.isAssignableFrom(body.getClass()) ) {
-			return (T) body;
+		if ( net.solarnetwork.io.modbus.tcp.TcpModbusMessage.class.isAssignableFrom(msgType) ) {
+			return (T) this;
 		}
-		return null;
+		return body.unwrap(msgType);
 	}
 
 	@Override

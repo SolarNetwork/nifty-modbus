@@ -28,6 +28,7 @@ import net.solarnetwork.io.modbus.ModbusByteUtils;
 import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 import net.solarnetwork.io.modbus.netty.msg.ModbusPayloadEncoder;
 
 /**
@@ -126,6 +127,12 @@ public class RtuModbusMessage
 			throw new IllegalArgumentException("The body argument must implement ModbusPayloadEncoder.");
 		}
 		this.body = body;
+	}
+
+	@Override
+	public void validate() throws ModbusValidationException {
+		net.solarnetwork.io.modbus.rtu.RtuModbusMessage.super.validate();
+		body.validate();
 	}
 
 	@Override
