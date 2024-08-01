@@ -108,7 +108,11 @@ public class TcpModbusMessageDecoderTests {
 		assertThat("Message handled", decoded, is(equalTo(true)));
 		ModbusMessageReply reply = channel.readInbound();
 		assertThat("Message decoded", reply, is(notNullValue()));
-		assertThat("Decoded message is same as input", reply.isSameAs(res), is(equalTo(true)));
+
+		net.solarnetwork.io.modbus.RegistersModbusMessage msg = reply
+				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+		assertThat("RegistersModbusMessage available", msg, is(notNullValue()));
+		assertThat("Decoded message is same as input", msg.isSameAs(res), is(equalTo(true)));
 	}
 
 	@Test
@@ -149,9 +153,12 @@ public class TcpModbusMessageDecoderTests {
 		ModbusMessageReply reply = channel.readInbound();
 		assertThat("Message decoded", reply, is(notNullValue()));
 		assertThat("Reply request same instance", reply.getRequest(), is(sameInstance(req.getBody())));
+
+		net.solarnetwork.io.modbus.RegistersModbusMessage msg = reply
+				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+		assertThat("RegistersModbusMessage available", msg, is(notNullValue()));
 		assertThat("Decoded message is same as input",
-				reply.isSameAs(
-						RegistersModbusMessage.readHoldingsResponse(1, 2, new short[] { 0x0003 })),
+				msg.isSameAs(RegistersModbusMessage.readHoldingsResponse(1, 2, new short[] { 0x0003 })),
 				is(equalTo(true)));
 	}
 

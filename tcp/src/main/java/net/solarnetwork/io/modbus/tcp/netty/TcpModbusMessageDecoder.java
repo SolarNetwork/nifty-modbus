@@ -130,7 +130,8 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 			if ( payload != null ) {
 				if ( req != null ) {
 					pendingMessages.remove(transactionId, req);
-					msg = new SimpleModbusMessageReply(req.unwrap(ModbusMessage.class), payload);
+					msg = new SimpleModbusMessageReply(req.unwrap(ModbusMessage.class),
+							new TcpModbusMessage(transactionId, payload));
 				} else {
 					msg = new TcpModbusMessage(transactionId, payload);
 				}
