@@ -125,11 +125,13 @@ public interface ModbusMessage {
 	 * message for correctness, throwing an exception if any validation fails.
 	 * </p>
 	 *
+	 * @return this message
 	 * @throws ModbusValidationException
 	 *         if any validation failure occurs
 	 */
-	default void validate() throws ModbusValidationException {
+	default ModbusMessage validate() throws ModbusValidationException {
 		// implementing classes can override
+		return this;
 	}
 
 	@Override

@@ -89,8 +89,9 @@ public class TcpModbusMessage
 	}
 
 	@Override
-	public void validate() throws ModbusValidationException {
+	public TcpModbusMessage validate() throws ModbusValidationException {
 		body.validate();
+		return this;
 	}
 
 	@Override

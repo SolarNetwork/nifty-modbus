@@ -88,8 +88,8 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 	}
 
 	@Override
-	public void validate() throws ModbusValidationException {
-		reply.validate();
+	public ModbusMessage validate() throws ModbusValidationException {
+		return reply.validate();
 	}
 
 	@Override

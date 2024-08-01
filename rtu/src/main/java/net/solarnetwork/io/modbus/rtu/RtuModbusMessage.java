@@ -83,13 +83,14 @@ public interface RtuModbusMessage extends ModbusMessage {
 	}
 
 	@Override
-	default void validate() throws ModbusValidationException {
+	default RtuModbusMessage validate() throws ModbusValidationException {
 		final short provided = getCrc();
 		final short computed = computeCrc();
 		if ( provided != computed ) {
 			throw new ModbusValidationException(
 					String.format(CRC_MISMATCH_VALIDATION_MESSAGE, provided, computed));
 		}
+		return this;
 	}
 
 }

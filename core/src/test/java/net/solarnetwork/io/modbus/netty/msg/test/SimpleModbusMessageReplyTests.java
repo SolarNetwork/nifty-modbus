@@ -244,7 +244,7 @@ public class SimpleModbusMessageReplyTests {
 		ModbusMessage res = new BaseModbusMessage(0, ModbusFunctionCodes.READ_COILS) {
 
 			@Override
-			public void validate() throws ModbusValidationException {
+			public ModbusMessage validate() throws ModbusValidationException {
 				throw ex;
 			}
 

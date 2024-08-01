@@ -25,6 +25,7 @@ package net.solarnetwork.io.modbus.test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusError;
@@ -148,10 +149,10 @@ public class ModbusMessageTests {
 		};
 
 		// WHEN
-		assertDoesNotThrow(() -> {
-			msg.validate();
-
+		ModbusMessage validated = assertDoesNotThrow(() -> {
+			return msg.validate();
 		}, "Default validation does not throw any exception.");
+		assertThat("Vaildated is same instance", validated, is(sameInstance(msg)));
 	}
 
 }

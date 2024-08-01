@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.tcp;
 
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 
 /**
  * TCP encapsulated Modbus message API.
@@ -60,6 +61,11 @@ public interface TcpModbusMessage extends ModbusMessage {
 	 */
 	default int getProtocolId() {
 		return 0;
+	}
+
+	@Override
+	default TcpModbusMessage validate() throws ModbusValidationException {
+		return this;
 	}
 
 }

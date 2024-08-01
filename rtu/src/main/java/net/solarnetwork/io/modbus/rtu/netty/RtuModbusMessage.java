@@ -130,9 +130,10 @@ public class RtuModbusMessage
 	}
 
 	@Override
-	public void validate() throws ModbusValidationException {
+	public RtuModbusMessage validate() throws ModbusValidationException {
 		net.solarnetwork.io.modbus.rtu.RtuModbusMessage.super.validate();
 		body.validate();
+		return this;
 	}
 
 	@Override

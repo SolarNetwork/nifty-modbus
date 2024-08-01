@@ -26,6 +26,7 @@ import static java.lang.String.format;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
@@ -99,9 +100,10 @@ public class RtuModbusMessageTests {
 
 		// THEN
 		assertThat("Validated CRC", valid, is(equalTo(true)));
-		assertDoesNotThrow(() -> {
-			rtu.validate();
+		ModbusMessage validated = assertDoesNotThrow(() -> {
+			return rtu.validate();
 		}, "No exception thrown when CRC is valid");
+		assertThat("Vaildated is same instance", validated, is(sameInstance(rtu)));
 	}
 
 	@Test
