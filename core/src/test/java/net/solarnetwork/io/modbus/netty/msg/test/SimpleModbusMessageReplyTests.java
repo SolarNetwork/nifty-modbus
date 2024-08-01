@@ -40,7 +40,9 @@ import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
+import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
@@ -232,6 +234,30 @@ public class SimpleModbusMessageReplyTests {
 		assertThat("Reply is encoded", byteObjectArray(ByteBufUtil.getBytes(out)),
 				arrayContaining(byteObjectArray(ByteBufUtil.getBytes(replyOut))));
 		assertThat("Payload length from reply", r.payloadLength(), is(equalTo(res.payloadLength())));
+	}
+
+	@Test
+	public void validate() {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		ModbusValidationException ex = new ModbusValidationException("test");
+		ModbusMessage res = new BaseModbusMessage(0, ModbusFunctionCodes.READ_COILS) {
+
+			@Override
+			public void validate() throws ModbusValidationException {
+				throw ex;
+			}
+
+		};
+
+		// WHEN
+		SimpleModbusMessageReply r = new SimpleModbusMessageReply(req, res);
+
+		// THEN
+		ModbusValidationException mve = assertThrows(ModbusValidationException.class, () -> {
+			r.validate();
+		}, "SimpleModbusMessageReply validate() delegates to reply message validate()");
+		assertThat("Delegated exception is returned", mve, is(sameInstance(ex)));
 	}
 
 }
