@@ -45,6 +45,7 @@ import net.solarnetwork.io.modbus.ModbusFunction;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
@@ -257,6 +258,27 @@ public class TcpModbusMessageTests {
 
 		// THEN
 		assertThat("String produced", msg.toString(), matchesPattern("^TcpModbusMessage\\{.*\\}$"));
+	}
+
+	@Test
+	public void validate() {
+		// GIVEN
+		ModbusValidationException ex = new ModbusValidationException("test");
+		ModbusMessage msg = new BaseModbusMessage(0, ModbusFunctionCodes.READ_COILS) {
+
+			@Override
+			public void validate() throws ModbusValidationException {
+				throw ex;
+			}
+
+		};
+		TcpModbusMessage tcp = new TcpModbusMessage(4, msg);
+
+		// THEN
+		ModbusValidationException mve = assertThrows(ModbusValidationException.class, () -> {
+			tcp.validate();
+		}, "TcpModbusMessage validate() delegates to reply message validate()");
+		assertThat("Delegated exception is returned", mve, is(sameInstance(ex)));
 	}
 
 }
