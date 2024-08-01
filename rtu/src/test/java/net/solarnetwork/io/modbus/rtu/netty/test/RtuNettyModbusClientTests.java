@@ -22,6 +22,7 @@
 
 package net.solarnetwork.io.modbus.rtu.netty.test;
 
+import static net.solarnetwork.io.modbus.rtu.RtuModbusMessage.CRC_MISMATCH_VALIDATION_MESSAGE;
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -51,6 +52,7 @@ import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusValidationException;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
@@ -356,6 +358,84 @@ public class RtuNettyModbusClientTests {
 		net.solarnetwork.io.modbus.RegistersModbusMessage respReg = resp
 				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
 		assertThat("Response is Registers", respReg, is(notNullValue()));
+	}
+
+	@Test
+	public void send_recv_invalidCrc() throws InterruptedException, ExecutionException {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+
+		final int unitId = 1;
+		final int addr = 2;
+		final int count = 3;
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(unitId, addr, count);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+
+		// provide response
+		// @formatter:off
+		final short expectedCrc = RtuModbusMessage.computeCrc(unitId,
+				RegistersModbusMessage.readHoldingsResponse(unitId, addr, new short[] { 
+						(short) 0xFFFE,
+						(short) 0xFDFC,
+						(short) 0xFBFA,
+		}));
+		final byte[] responseData = new byte[] {
+				(byte)(unitId & 0xFF),
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+				(byte)0x06,
+				(byte)0xFF,
+				(byte)0xFE,
+				(byte)0xFD,
+				(byte)0xFC,
+				(byte)0xFB,
+				(byte)0xFA,
+				(byte)0xCD, // BAD
+				(byte)0XAB, // BAD
+		};
+		ByteBuf response = Unpooled.copiedBuffer(responseData);
+		// @formatter:on
+		channel.writeOneInbound(response).sync();
+
+		// THEN
+		assertThat("Future returned", f, is(notNullValue()));
+		assertThat("Request should no longer be pending", pending.keySet(), hasSize(0));
+
+		ByteBuf requestData = channel.readOutbound();
+		assertThat("Request bytes produced", requestData, is(notNullValue()));
+
+		final short crc = RtuModbusMessage.computeCrc(unitId, req);
+		// @formatter:off
+		assertThat("Request message encoded", byteObjectArray(ByteBufUtil.getBytes(requestData)), arrayContaining(
+				byteObjectArray(new byte[] {
+						(byte)(unitId & 0xFF),
+						ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+						(byte)(addr >>> 8 & 0xFF),
+						(byte)(addr & 0xFF),
+						(byte)(count >>> 8 & 0xFF),
+						(byte)(count & 0xFF),
+						(byte)(crc & 0xFF),
+						(byte)(crc >>> 8 & 0xFF),
+				})));
+		// @formatter:on
+
+		assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
+		ModbusMessage resp = f.get();
+		assertThat("Response is not an error", resp.getError(), is(nullValue()));
+		net.solarnetwork.io.modbus.RegistersModbusMessage respReg = resp
+				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+		assertThat("Response is Registers", respReg, is(notNullValue()));
+
+		ModbusValidationException ex = assertThrows(ModbusValidationException.class, () -> {
+			resp.validate();
+		});
+		assertThat("Exception message", ex.getMessage(),
+				is(equalTo(String.format(CRC_MISMATCH_VALIDATION_MESSAGE, 0xABCD, expectedCrc))));
 	}
 
 	@Test

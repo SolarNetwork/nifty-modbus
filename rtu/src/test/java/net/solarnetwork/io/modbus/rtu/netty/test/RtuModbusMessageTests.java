@@ -22,6 +22,7 @@
 
 package net.solarnetwork.io.modbus.rtu.netty.test;
 
+import static net.solarnetwork.io.modbus.rtu.RtuModbusMessage.CRC_MISMATCH_VALIDATION_MESSAGE;
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
@@ -201,7 +202,7 @@ public class RtuModbusMessageTests {
 			rtu.validate();
 		});
 		assertThat("Exception message", ex.getMessage(),
-				is(equalTo("CRC mismatch: got 0xABCD but computed 0x80B8 from message data.")));
+				is(equalTo(String.format(CRC_MISMATCH_VALIDATION_MESSAGE, crc, 0x80B8))));
 	}
 
 	@Test

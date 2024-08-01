@@ -34,6 +34,16 @@ import net.solarnetwork.io.modbus.ModbusValidationException;
 public interface RtuModbusMessage extends ModbusMessage {
 
 	/**
+	 * A {@link ModbusValidationMessage} message template.
+	 * 
+	 * <p>
+	 * The message accepts two short values: the provided CRC and the computed
+	 * CRC.
+	 * </p>
+	 */
+	String CRC_MISMATCH_VALIDATION_MESSAGE = "CRC mismatch: got 0x%X but computed 0x%X from message data.";
+
+	/**
 	 * Get a message creation date.
 	 * 
 	 * @return the message creation date
@@ -77,8 +87,8 @@ public interface RtuModbusMessage extends ModbusMessage {
 		final short provided = getCrc();
 		final short computed = computeCrc();
 		if ( provided != computed ) {
-			throw new ModbusValidationException(String.format(
-					"CRC mismatch: got 0x%X but computed 0x%X from message data.", provided, computed));
+			throw new ModbusValidationException(
+					String.format(CRC_MISMATCH_VALIDATION_MESSAGE, provided, computed));
 		}
 	}
 
