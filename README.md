@@ -1,11 +1,13 @@
 # Nifty Modbus
 
 Nifty Modbus is a delightful little Modbus library for Java. It aims to be easy to use, reliable,
-and cover the most common Modbus use cases. It also is designed around some core APIs that make it
-easy to extend.
+and cover the most common Modbus use cases. It also is designed around some
+[core APIs](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-api) that make it easy to
+extend.
 
 Nifty Modbus is built on top of the [Netty](https://netty.io/) asynchronous network library.
 
+[![API JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-api/JavaDoc%20API.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-api)
 [![Core JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-core/JavaDoc%20Core.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-core)
 [![RTU JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-rtu/JavaDoc%20RTU.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-rtu)
 [![TCP JavaDoc](https://javadoc.io/badge2/net.solarnetwork.common/nifty-modbus-tcp/JavaDoc%20TCP.svg)](https://javadoc.io/doc/net.solarnetwork.common/nifty-modbus-tcp)
