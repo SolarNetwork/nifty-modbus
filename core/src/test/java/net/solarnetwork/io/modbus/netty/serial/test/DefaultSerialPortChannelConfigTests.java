@@ -30,7 +30,9 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.netty.buffer.ByteBufAllocator;
@@ -43,6 +45,7 @@ import io.netty.channel.RecvByteBufAllocator;
 import net.solarnetwork.io.modbus.netty.serial.DefaultSerialPortChannelConfig;
 import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
 import net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption;
+import net.solarnetwork.io.modbus.serial.SerialFlowControl;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialPort;
 import net.solarnetwork.io.modbus.serial.SerialPortProvider;
@@ -88,7 +91,12 @@ public class DefaultSerialPortChannelConfigTests {
 		assertThat("Map contains serial options", options.keySet(),
 				hasItems(SerialPortChannelOption.BAUD_RATE, SerialPortChannelOption.DATA_BITS,
 						SerialPortChannelOption.PARITY, SerialPortChannelOption.STOP_BITS,
-						SerialPortChannelOption.WAIT_TIME, SerialPortChannelOption.READ_TIMEOUT));
+						SerialPortChannelOption.FLOW_CONTROL, SerialPortChannelOption.WAIT_TIME,
+						SerialPortChannelOption.READ_TIMEOUT, SerialPortChannelOption.RS485,
+						SerialPortChannelOption.RS485_RTS_HIGH,
+						SerialPortChannelOption.RS485_TERMINATION, SerialPortChannelOption.RS485_ECHO,
+						SerialPortChannelOption.RS485_BEFORE_SEND_DELAY,
+						SerialPortChannelOption.RS485_AFTER_SEND_DELAY));
 	}
 
 	@Test
@@ -100,6 +108,14 @@ public class DefaultSerialPortChannelConfigTests {
 		final SerialStopBits stopBits = SerialStopBits.Two;
 		final int waitTime = 1;
 		final int readTimeout = 2;
+		final Set<SerialFlowControl> flowControl = EnumSet.of(SerialFlowControl.RTS,
+				SerialFlowControl.CTS);
+		final Boolean rs485 = Boolean.TRUE;
+		final boolean rs485RtsHigh = true;
+		final boolean rs485Term = true;
+		final boolean rs485Echo = true;
+		final int rs485BeforeSendDelay = 1234;
+		final int rs485AfterSendDelay = 2345;
 
 		// WHEN
 		config.setOption(SerialPortChannelOption.BAUD_RATE, baudRate);
@@ -108,6 +124,13 @@ public class DefaultSerialPortChannelConfigTests {
 		config.setOption(SerialPortChannelOption.STOP_BITS, stopBits);
 		config.setOption(SerialPortChannelOption.WAIT_TIME, waitTime);
 		config.setOption(SerialPortChannelOption.READ_TIMEOUT, readTimeout);
+		config.setOption(SerialPortChannelOption.FLOW_CONTROL, flowControl);
+		config.setOption(SerialPortChannelOption.RS485, rs485);
+		config.setOption(SerialPortChannelOption.RS485_RTS_HIGH, rs485RtsHigh);
+		config.setOption(SerialPortChannelOption.RS485_TERMINATION, rs485Term);
+		config.setOption(SerialPortChannelOption.RS485_ECHO, rs485Echo);
+		config.setOption(SerialPortChannelOption.RS485_BEFORE_SEND_DELAY, rs485BeforeSendDelay);
+		config.setOption(SerialPortChannelOption.RS485_AFTER_SEND_DELAY, rs485AfterSendDelay);
 
 		config.setOption(ChannelOption.AUTO_CLOSE, true);
 
@@ -124,6 +147,22 @@ public class DefaultSerialPortChannelConfigTests {
 				is(equalTo(waitTime)));
 		assertThat("Read timeout saved", config.getOption(SerialPortChannelOption.READ_TIMEOUT),
 				is(equalTo(readTimeout)));
+		assertThat("Flow control saved", config.getOption(SerialPortChannelOption.FLOW_CONTROL),
+				is(equalTo(flowControl)));
+		assertThat("RS-485 mode saved", config.getOption(SerialPortChannelOption.RS485),
+				is(equalTo(rs485)));
+		assertThat("RS-485 RTS high saved", config.getOption(SerialPortChannelOption.RS485_RTS_HIGH),
+				is(equalTo(rs485RtsHigh)));
+		assertThat("RS-485 termination saved",
+				config.getOption(SerialPortChannelOption.RS485_TERMINATION), is(equalTo(rs485Term)));
+		assertThat("RS-485 echo saved", config.getOption(SerialPortChannelOption.RS485_ECHO),
+				is(equalTo(rs485Echo)));
+		assertThat("RS-485 before send delay saved",
+				config.getOption(SerialPortChannelOption.RS485_BEFORE_SEND_DELAY),
+				is(equalTo(rs485BeforeSendDelay)));
+		assertThat("RS-485 after send delay saved",
+				config.getOption(SerialPortChannelOption.RS485_AFTER_SEND_DELAY),
+				is(equalTo(rs485AfterSendDelay)));
 
 		assertThat("Auto close saved (super class)", config.getOption(ChannelOption.AUTO_CLOSE),
 				is(equalTo(true)));
@@ -138,6 +177,14 @@ public class DefaultSerialPortChannelConfigTests {
 		final SerialStopBits stopBits = SerialStopBits.Two;
 		final int waitTime = 1;
 		final int readTimeout = 2;
+		final Set<SerialFlowControl> flowControl = EnumSet.of(SerialFlowControl.RTS,
+				SerialFlowControl.CTS);
+		final Boolean rs485 = Boolean.TRUE;
+		final boolean rs485RtsHigh = true;
+		final boolean rs485Term = true;
+		final boolean rs485Echo = true;
+		final int rs485BeforeSendDelay = 1234;
+		final int rs485AfterSendDelay = 2345;
 
 		// WHEN
 		config.setBaudRate(baudRate);
@@ -146,6 +193,13 @@ public class DefaultSerialPortChannelConfigTests {
 		config.setStopBits(stopBits);
 		config.setWaitTime(waitTime);
 		config.setReadTimeout(readTimeout);
+		config.setFlowControl(flowControl);
+		config.setRs485ModeEnabled(rs485);
+		config.setRs485RtsHighEnabled(rs485RtsHigh);
+		config.setRs485TerminationEnabled(rs485Term);
+		config.setRs485EchoEnabled(rs485Echo);
+		config.setRs485BeforeSendDelay(rs485BeforeSendDelay);
+		config.setRs485AfterSendDelay(rs485AfterSendDelay);
 
 		// THEN
 		assertThat("Baud rate saved", config.getBaudRate(), is(equalTo(baudRate)));
@@ -154,6 +208,16 @@ public class DefaultSerialPortChannelConfigTests {
 		assertThat("Stop bits saved", config.getStopBits(), is(equalTo(stopBits)));
 		assertThat("Wait time saved", config.getWaitTime(), is(equalTo(waitTime)));
 		assertThat("Read timeout saved", config.getReadTimeout(), is(equalTo(readTimeout)));
+		assertThat("Flow control saved", config.getFlowControl(), is(equalTo(flowControl)));
+		assertThat("RS-485 mode saved", config.getRs485ModeEnabled(), is(equalTo(rs485)));
+		assertThat("RS-485 RTS high saved", config.isRs485RtsHighEnabled(), is(equalTo(rs485RtsHigh)));
+		assertThat("RS-485 termination saved", config.isRs485TerminationEnabled(),
+				is(equalTo(rs485Term)));
+		assertThat("RS-485 echo saved", config.isRs485EchoEnabled(), is(equalTo(rs485Echo)));
+		assertThat("RS-485 before send delay saved", config.getRs485BeforeSendDelay(),
+				is(equalTo(rs485BeforeSendDelay)));
+		assertThat("RS-485 after send delay saved", config.getRs485AfterSendDelay(),
+				is(equalTo(rs485AfterSendDelay)));
 	}
 
 	@Test
@@ -169,6 +233,22 @@ public class DefaultSerialPortChannelConfigTests {
 		// WHEN
 		assertThrows(IllegalArgumentException.class, () -> {
 			config.setReadTimeout(-1);
+		}, "Negative value is not allowed");
+	}
+
+	@Test
+	public void setRs485BeforeSendDelay_negative() {
+		// WHEN
+		assertThrows(IllegalArgumentException.class, () -> {
+			config.setRs485BeforeSendDelay(-1);
+		}, "Negative value is not allowed");
+	}
+
+	@Test
+	public void setRs485AfterSendDelay_negative() {
+		// WHEN
+		assertThrows(IllegalArgumentException.class, () -> {
+			config.setRs485AfterSendDelay(-1);
 		}, "Negative value is not allowed");
 	}
 

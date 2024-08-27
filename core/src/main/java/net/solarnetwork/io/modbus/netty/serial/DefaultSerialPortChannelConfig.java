@@ -24,16 +24,25 @@ package net.solarnetwork.io.modbus.netty.serial;
 
 import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.BAUD_RATE;
 import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.DATA_BITS;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.FLOW_CONTROL;
 import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.PARITY;
 import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.READ_TIMEOUT;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.RS485;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.RS485_AFTER_SEND_DELAY;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.RS485_BEFORE_SEND_DELAY;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.RS485_ECHO;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.RS485_RTS_HIGH;
+import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.RS485_TERMINATION;
 import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.STOP_BITS;
 import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.WAIT_TIME;
 import java.util.Map;
+import java.util.Set;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.DefaultChannelConfig;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
+import net.solarnetwork.io.modbus.serial.SerialFlowControl;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
 
@@ -50,6 +59,13 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
 	private volatile SerialStopBits stopBits = DEFAULT_STOP_BITS;
 	private volatile int dataBits = DEFAULT_DATA_BITS;
 	private volatile SerialParity parity = DEFAULT_PARITY;
+	private Set<SerialFlowControl> flowControl;
+	private volatile Boolean rs485ModeEnabled;
+	private volatile boolean rs485RtsHighEnabled = DEFAULT_RS485_RTS_HIGH_ENABLED;
+	private volatile boolean rs485TerminationEnabled;
+	private volatile boolean rs485EchoEnabled;
+	private volatile int rs485BeforeSendDelay = DEFAULT_RS485_BEFORE_SEND_DELAY;
+	private volatile int rs485AfterSendDelay = DEFAULT_RS485_AFTER_SEND_DELAY;
 	private volatile int waitTime;
 	private volatile int readTimeout = DEFAULT_READ_TIMEOUT;
 
@@ -71,7 +87,8 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
 	@Override
 	public Map<ChannelOption<?>, Object> getOptions() {
 		return getOptions(super.getOptions(), BAUD_RATE, STOP_BITS, DATA_BITS, PARITY, WAIT_TIME,
-				READ_TIMEOUT);
+				READ_TIMEOUT, FLOW_CONTROL, RS485, RS485_RTS_HIGH, RS485_TERMINATION, RS485_ECHO,
+				RS485_BEFORE_SEND_DELAY, RS485_AFTER_SEND_DELAY);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -95,9 +112,32 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
 		if ( option == READ_TIMEOUT ) {
 			return (T) Integer.valueOf(getReadTimeout());
 		}
+		if ( option == FLOW_CONTROL ) {
+			return (T) getFlowControl();
+		}
+		if ( option == RS485 ) {
+			return (T) getRs485ModeEnabled();
+		}
+		if ( option == RS485_RTS_HIGH ) {
+			return (T) Boolean.valueOf(isRs485RtsHighEnabled());
+		}
+		if ( option == RS485_TERMINATION ) {
+			return (T) Boolean.valueOf(isRs485TerminationEnabled());
+		}
+		if ( option == RS485_ECHO ) {
+			return (T) Boolean.valueOf(isRs485EchoEnabled());
+		}
+		if ( option == RS485_BEFORE_SEND_DELAY ) {
+			return (T) Integer.valueOf(getRs485BeforeSendDelay());
+		}
+		if ( option == RS485_AFTER_SEND_DELAY ) {
+			return (T) Integer.valueOf(getRs485AfterSendDelay());
+		}
+
 		return super.getOption(option);
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public <T> boolean setOption(ChannelOption<T> option, T value) {
 		validate(option, value);
@@ -114,6 +154,20 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
 			setWaitTime((Integer) value);
 		} else if ( option == READ_TIMEOUT ) {
 			setReadTimeout((Integer) value);
+		} else if ( option == FLOW_CONTROL ) {
+			setFlowControl((Set<SerialFlowControl>) value);
+		} else if ( option == RS485 ) {
+			setRs485ModeEnabled((Boolean) value);
+		} else if ( option == RS485_RTS_HIGH ) {
+			setRs485RtsHighEnabled((Boolean) value);
+		} else if ( option == RS485_TERMINATION ) {
+			setRs485TerminationEnabled((Boolean) value);
+		} else if ( option == RS485_ECHO ) {
+			setRs485EchoEnabled((Boolean) value);
+		} else if ( option == RS485_BEFORE_SEND_DELAY ) {
+			setRs485BeforeSendDelay((Integer) value);
+		} else if ( option == RS485_AFTER_SEND_DELAY ) {
+			setRs485AfterSendDelay((Integer) value);
 		} else {
 			return super.setOption(option, value);
 		}
@@ -161,6 +215,89 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
 	@Override
 	public SerialPortChannelConfig setParity(final SerialParity parity) {
 		this.parity = parity;
+		return this;
+	}
+
+	@Override
+	public Set<SerialFlowControl> getFlowControl() {
+		return flowControl;
+	}
+
+	@Override
+	public SerialPortChannelConfig setFlowControl(Set<SerialFlowControl> flowControl) {
+		this.flowControl = flowControl;
+		return this;
+	}
+
+	@Override
+	public Boolean getRs485ModeEnabled() {
+		return rs485ModeEnabled;
+	}
+
+	@Override
+	public SerialPortChannelConfig setRs485ModeEnabled(Boolean rs485ModeEnabled) {
+		this.rs485ModeEnabled = rs485ModeEnabled;
+		return this;
+	}
+
+	@Override
+	public boolean isRs485RtsHighEnabled() {
+		return rs485RtsHighEnabled;
+	}
+
+	@Override
+	public SerialPortChannelConfig setRs485RtsHighEnabled(boolean rs485RtsHighEnabled) {
+		this.rs485RtsHighEnabled = rs485RtsHighEnabled;
+		return this;
+	}
+
+	@Override
+	public boolean isRs485TerminationEnabled() {
+		return rs485TerminationEnabled;
+	}
+
+	@Override
+	public SerialPortChannelConfig setRs485TerminationEnabled(boolean rs485TerminationEnabled) {
+		this.rs485TerminationEnabled = rs485TerminationEnabled;
+		return this;
+	}
+
+	@Override
+	public boolean isRs485EchoEnabled() {
+		return rs485EchoEnabled;
+	}
+
+	@Override
+	public SerialPortChannelConfig setRs485EchoEnabled(boolean rs485EchoEnabled) {
+		this.rs485EchoEnabled = rs485EchoEnabled;
+		return this;
+	}
+
+	@Override
+	public int getRs485BeforeSendDelay() {
+		return rs485BeforeSendDelay;
+	}
+
+	@Override
+	public SerialPortChannelConfig setRs485BeforeSendDelay(int rs485BeforeSendDelay) {
+		if ( rs485BeforeSendDelay < 0 ) {
+			throw new IllegalArgumentException("The before send delay must be >= 0");
+		}
+		this.rs485BeforeSendDelay = rs485BeforeSendDelay;
+		return this;
+	}
+
+	@Override
+	public int getRs485AfterSendDelay() {
+		return rs485AfterSendDelay;
+	}
+
+	@Override
+	public SerialPortChannelConfig setRs485AfterSendDelay(int rs485AfterSendDelay) {
+		if ( rs485AfterSendDelay < 0 ) {
+			throw new IllegalArgumentException("The after send delay must be >= 0");
+		}
+		this.rs485AfterSendDelay = rs485AfterSendDelay;
 		return this;
 	}
 

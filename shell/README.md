@@ -30,6 +30,7 @@ The following application arguments are supported:
 | `--parity` `-P` | `none` | The parity. One of `none`/`n`, `even`/`e`, `odd`/`o`. |
 | `--stop` `-s` | `1` | The number of stop bits. One of `1` or `2`. |
 | `--bits` | `8N1` | A shorthand form of the data, parity, and stop options. |
+| `--flow` `-f` | `None` | The flow control to use, one of `cts`, `rts/cts`,  `dsr`, `dtr/dsr`, `xon`, `xoff`, `xon/xoff`. |
 | `--debug` |  | Enables support for wire-level message logging. See [below](#logging). |
 | `--pjc` |  | Use the [PureJavaComm](../rtu-pjc) serial port implementation, instead of the default jSerialComm implementation. |
 

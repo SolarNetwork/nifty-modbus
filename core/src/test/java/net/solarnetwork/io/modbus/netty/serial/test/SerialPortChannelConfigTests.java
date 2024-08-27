@@ -25,10 +25,13 @@ package net.solarnetwork.io.modbus.netty.serial.test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import java.util.EnumSet;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
 import net.solarnetwork.io.modbus.netty.serial.SerialPortChannelConfig;
 import net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption;
+import net.solarnetwork.io.modbus.serial.SerialFlowControl;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialPort;
@@ -62,6 +65,14 @@ public class SerialPortChannelConfigTests {
 		final SerialParity parity = SerialParity.Odd;
 		final int dataBits = 3;
 		final int baudRate = 4;
+		final Set<SerialFlowControl> flowControl = EnumSet.of(SerialFlowControl.RTS,
+				SerialFlowControl.CTS);
+		final Boolean rs485 = Boolean.TRUE;
+		final boolean rs485RtsHigh = true;
+		final boolean rs485Term = true;
+		final boolean rs485Echo = true;
+		final int rs485BeforeSendDelay = 1234;
+		final int rs485AfterSendDelay = 2345;
 		config.setSerialParameters(new SerialParameters() {
 
 			@Override
@@ -93,6 +104,42 @@ public class SerialPortChannelConfigTests {
 			public int getBaudRate() {
 				return baudRate;
 			}
+
+			@Override
+			public Set<SerialFlowControl> getFlowControl() {
+				return flowControl;
+			}
+
+			@Override
+			public Boolean getRs485ModeEnabled() {
+				return rs485;
+			}
+
+			@Override
+			public boolean isRs485RtsHighEnabled() {
+				return rs485RtsHigh;
+			}
+
+			@Override
+			public boolean isRs485TerminationEnabled() {
+				return rs485Term;
+			}
+
+			@Override
+			public boolean isRs485EchoEnabled() {
+				return rs485Echo;
+			}
+
+			@Override
+			public int getRs485BeforeSendDelay() {
+				return rs485BeforeSendDelay;
+			}
+
+			@Override
+			public int getRs485AfterSendDelay() {
+				return rs485AfterSendDelay;
+			}
+
 		});
 
 		// THEN
@@ -107,6 +154,22 @@ public class SerialPortChannelConfigTests {
 				is(equalTo(dataBits)));
 		assertThat("Baud rate set", config.getOption(SerialPortChannelOption.BAUD_RATE),
 				is(equalTo(baudRate)));
+		assertThat("Flow control saved", config.getOption(SerialPortChannelOption.FLOW_CONTROL),
+				is(equalTo(flowControl)));
+		assertThat("RS-485 mode saved", config.getOption(SerialPortChannelOption.RS485),
+				is(equalTo(rs485)));
+		assertThat("RS-485 RTS high saved", config.getOption(SerialPortChannelOption.RS485_RTS_HIGH),
+				is(equalTo(rs485RtsHigh)));
+		assertThat("RS-485 termination saved",
+				config.getOption(SerialPortChannelOption.RS485_TERMINATION), is(equalTo(rs485Term)));
+		assertThat("RS-485 echo saved", config.getOption(SerialPortChannelOption.RS485_ECHO),
+				is(equalTo(rs485Echo)));
+		assertThat("RS-485 before send delay saved",
+				config.getOption(SerialPortChannelOption.RS485_BEFORE_SEND_DELAY),
+				is(equalTo(rs485BeforeSendDelay)));
+		assertThat("RS-485 after send delay saved",
+				config.getOption(SerialPortChannelOption.RS485_AFTER_SEND_DELAY),
+				is(equalTo(rs485AfterSendDelay)));
 	}
 
 }

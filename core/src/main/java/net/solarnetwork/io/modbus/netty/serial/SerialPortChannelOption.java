@@ -22,7 +22,9 @@
 
 package net.solarnetwork.io.modbus.netty.serial;
 
+import java.util.Set;
 import io.netty.channel.ChannelOption;
+import net.solarnetwork.io.modbus.serial.SerialFlowControl;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
 
@@ -45,6 +47,29 @@ public class SerialPortChannelOption<T> extends ChannelOption<T> {
 
 	/** The parity bit. */
 	public static final ChannelOption<SerialParity> PARITY = valueOf("PARITY");
+
+	/** The parity bit. */
+	public static final ChannelOption<Set<SerialFlowControl>> FLOW_CONTROL = valueOf("FLOW_CONTROL");
+
+	/** The RS-485 mode. */
+	public static final ChannelOption<Boolean> RS485 = valueOf("RS485");
+
+	/** The RS-485 RTS high mode. */
+	public static final ChannelOption<Boolean> RS485_RTS_HIGH = valueOf("RS485_RTS_HIGH");
+
+	/** The RS-485 termination mode. */
+	public static final ChannelOption<Boolean> RS485_TERMINATION = valueOf("RS485_TERMINATION");
+
+	/** The RS-485 echo mode. */
+	public static final ChannelOption<Boolean> RS485_ECHO = valueOf("RS485_ECHO");
+
+	/** The RS-485 before send delay, in microseconds. */
+	public static final ChannelOption<Integer> RS485_BEFORE_SEND_DELAY = valueOf(
+			"RS485_BEFORE_SEND_DELAY");
+
+	/** The RS-485 after send delay, in microseconds. */
+	public static final ChannelOption<Integer> RS485_AFTER_SEND_DELAY = valueOf(
+			"RS485_AFTER_SEND_DELAY");
 
 	/** The wait time, in milliseconds. */
 	public static final ChannelOption<Integer> WAIT_TIME = valueOf("WAIT_TIME");

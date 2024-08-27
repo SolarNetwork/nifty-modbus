@@ -26,11 +26,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.fazecast.jSerialComm.SerialPort;
 import com.fazecast.jSerialComm.SerialPortInvalidPortException;
+import net.solarnetwork.io.modbus.serial.SerialFlowControl;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
@@ -155,8 +157,43 @@ public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPo
 		serialPort.setComPortParameters(serialParams.getBaudRate(), serialParams.getDataBits(),
 				stopBitsCode, parityCode);
 
+		serialPort.setFlowControl(flowControlMode(serialParams.getFlowControl()));
+
+		if ( serialParams.getRs485ModeEnabled() != null ) {
+			serialPort.setRs485ModeParameters(serialParams.getRs485ModeEnabled().booleanValue(),
+					serialParams.isRs485RtsHighEnabled(), serialParams.isRs485TerminationEnabled(),
+					serialParams.isRs485EchoEnabled(), serialParams.getRs485BeforeSendDelay(),
+					serialParams.getRs485AfterSendDelay());
+		}
+
 		serialPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING,
 				serialParams.getReadTimeout(), 0);
+
+	}
+
+	private int flowControlMode(Set<SerialFlowControl> flowControl) {
+		int result = SerialPort.FLOW_CONTROL_DISABLED;
+		if ( flowControl != null ) {
+			if ( flowControl.contains(SerialFlowControl.CTS) ) {
+				result |= SerialPort.FLOW_CONTROL_CTS_ENABLED;
+			}
+			if ( flowControl.contains(SerialFlowControl.RTS) ) {
+				result |= SerialPort.FLOW_CONTROL_RTS_ENABLED;
+			}
+			if ( flowControl.contains(SerialFlowControl.DSR) ) {
+				result |= SerialPort.FLOW_CONTROL_DSR_ENABLED;
+			}
+			if ( flowControl.contains(SerialFlowControl.DTR) ) {
+				result |= SerialPort.FLOW_CONTROL_DTR_ENABLED;
+			}
+			if ( flowControl.contains(SerialFlowControl.XonXoffIn) ) {
+				result |= SerialPort.FLOW_CONTROL_XONXOFF_IN_ENABLED;
+			}
+			if ( flowControl.contains(SerialFlowControl.XonXoffOut) ) {
+				result |= SerialPort.FLOW_CONTROL_XONXOFF_OUT_ENABLED;
+			}
+		}
+		return result;
 	}
 
 	@Override

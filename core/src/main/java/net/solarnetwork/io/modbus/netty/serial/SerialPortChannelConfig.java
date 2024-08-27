@@ -22,10 +22,12 @@
 
 package net.solarnetwork.io.modbus.netty.serial;
 
+import java.util.Set;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelConfig;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
+import net.solarnetwork.io.modbus.serial.SerialFlowControl;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
@@ -52,6 +54,13 @@ public interface SerialPortChannelConfig extends ChannelConfig, SerialParameters
 		setStopBits(serialParameters.getStopBits());
 		setWaitTime(serialParameters.getWaitTime());
 		setReadTimeout(serialParameters.getReadTimeout());
+		setFlowControl(serialParameters.getFlowControl());
+		setRs485ModeEnabled(serialParameters.getRs485ModeEnabled());
+		setRs485RtsHighEnabled(serialParameters.isRs485RtsHighEnabled());
+		setRs485TerminationEnabled(serialParameters.isRs485TerminationEnabled());
+		setRs485EchoEnabled(serialParameters.isRs485EchoEnabled());
+		setRs485BeforeSendDelay(serialParameters.getRs485BeforeSendDelay());
+		setRs485AfterSendDelay(serialParameters.getRs485AfterSendDelay());
 		return this;
 	}
 
@@ -98,6 +107,76 @@ public interface SerialPortChannelConfig extends ChannelConfig, SerialParameters
 	 * @return this instance
 	 */
 	SerialPortChannelConfig setParity(SerialParity parity);
+
+	/**
+	 * Set the flow control.
+	 *
+	 * @param flowControl
+	 *        the flow control, or {@literal null} for none
+	 * @return this instance
+	 */
+	SerialPortChannelConfig setFlowControl(Set<SerialFlowControl> flowControl);
+
+	/**
+	 * Set the RS-485 mode.
+	 *
+	 * <p>
+	 * When this is set to {@literal true} then the other {@code getRs485*}
+	 * settings are used.
+	 * </p>
+	 *
+	 * @param rs485ModeEnabled
+	 *        {@literal true} to enable RS-485 mode
+	 * @return this instance
+	 */
+	SerialPortChannelConfig setRs485ModeEnabled(Boolean rs485ModeEnabled);
+
+	/**
+	 * Set the RS-485 RTS "high" mode.
+	 *
+	 * @param rs485RtsHighEnabled
+	 *        {@literal true} to set the RTS line high (to 1) when transmitting
+	 * @return this instance
+	 */
+	SerialPortChannelConfig setRs485RtsHighEnabled(boolean rs485RtsHighEnabled);
+
+	/**
+	 * Set the RS-485 termination mode.
+	 *
+	 * @param rs485TerminationEnabled
+	 *        {@literal true} to enable RS-485 bus termination
+	 * @return this instance
+	 */
+	SerialPortChannelConfig setRs485TerminationEnabled(boolean rs485TerminationEnabled);
+
+	/**
+	 * Set the RS-485 "echo" mode.
+	 *
+	 * @param rs485EchoEnabled
+	 *        {@literal true} to enable receive during transmit
+	 * @return this instance
+	 */
+	SerialPortChannelConfig setRs485EchoEnabled(boolean rs485EchoEnabled);
+
+	/**
+	 * Set a time to wait after enabling transmit mode before sending data when
+	 * in RS-485 mode.
+	 *
+	 * @param rs485BeforeSendDelay
+	 *        the delay, in microseconds
+	 * @return this instance
+	 */
+	SerialPortChannelConfig setRs485BeforeSendDelay(int rs485BeforeSendDelay);
+
+	/**
+	 * Set a time to wait after sending data before disabling transmit mode when
+	 * in RS-485 mode
+	 *
+	 * @param rs485AfterSendDelay
+	 *        the delay, in microseconds
+	 * @return this instance
+	 */
+	SerialPortChannelConfig setRs485AfterSendDelay(int rs485AfterSendDelay);
 
 	/**
 	 * Set the time to wait after opening the serial port and before sending it

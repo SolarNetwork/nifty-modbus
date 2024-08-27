@@ -25,6 +25,7 @@ package net.solarnetwork.io.modbus.serial.test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialParity;
@@ -111,9 +112,70 @@ public class SerialParametersTests {
 		assertThat("Default stop bits", p.getStopBits(),
 				is(equalTo(SerialParameters.DEFAULT_STOP_BITS)));
 		assertThat("Default parity", p.getParity(), is(equalTo(SerialParameters.DEFAULT_PARITY)));
+		assertThat("Default flow control", p.getFlowControl(), is(nullValue()));
 		assertThat("Default wait time", p.getWaitTime(), is(equalTo(0)));
 		assertThat("Default read timeout", p.getReadTimeout(),
 				is(equalTo(SerialParameters.DEFAULT_READ_TIMEOUT)));
+		assertThat("Default RS-485 mode", p.getRs485ModeEnabled(), is(nullValue()));
+		assertThat("Default RS-485 RTS high", p.isRs485RtsHighEnabled(),
+				is(equalTo(SerialParameters.DEFAULT_RS485_RTS_HIGH_ENABLED)));
+		assertThat("Default RS-485 termination", p.isRs485TerminationEnabled(), is(false));
+		assertThat("Default RS-485 echo", p.isRs485EchoEnabled(), is(false));
+		assertThat("Default RS-485 before send delay", p.getRs485BeforeSendDelay(),
+				is(equalTo(SerialParameters.DEFAULT_RS485_BEFORE_SEND_DELAY)));
+		assertThat("Default RS-485 after send delay", p.getRs485AfterSendDelay(),
+				is(equalTo(SerialParameters.DEFAULT_RS485_AFTER_SEND_DELAY)));
+	}
+
+	@Test
+	public void rs485Flags_default() {
+		// GIVEN
+		SerialParameters p = defaultParams();
+
+		// THEN
+		assertThat("Default RS-485 flags", p.rs485Flags(),
+				is(equalTo(String.format("%s,%s=%d,%s=%d", SerialParameters.RS485_RTS_HIGH_FLAG,
+						SerialParameters.RS485_BEFORE_SEND_DELAY_FLAG,
+						SerialParameters.DEFAULT_RS485_BEFORE_SEND_DELAY,
+						SerialParameters.RS485_AFTER_SEND_DELAY_FLAG,
+						SerialParameters.DEFAULT_RS485_AFTER_SEND_DELAY))));
+	}
+
+	@Test
+	public void rs485Flags_custom() {
+		// GIVEN
+		SerialParameters p = new SerialParameters() {
+
+			@Override
+			public boolean isRs485RtsHighEnabled() {
+				return false;
+			}
+
+			@Override
+			public boolean isRs485TerminationEnabled() {
+				return true;
+			}
+
+			@Override
+			public boolean isRs485EchoEnabled() {
+				return true;
+			}
+
+			@Override
+			public int getRs485BeforeSendDelay() {
+				return 0;
+			}
+
+			@Override
+			public int getRs485AfterSendDelay() {
+				return 0;
+			}
+
+		};
+
+		// THEN
+		assertThat("Custom RS-485 flags", p.rs485Flags(), is(equalTo(String.format("%s,%s",
+				SerialParameters.RS485_TERMINATION_FLAG, SerialParameters.RS485_ECHO_FLAG))));
 	}
 
 }

@@ -1,21 +1,21 @@
 /* ==================================================================
  * ModbusShell.java - 2/12/2022 12:23:23 pm
- * 
+ *
  * Copyright 2022 SolarNetwork.net Dev Team
- * 
- * This program is free software; you can redistribute it and/or 
- * modify it under the terms of the GNU General Public License as 
- * published by the Free Software Foundation; either version 2 of 
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
  * the License, or (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful, 
- * but WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License 
- * along with this program; if not, write to the Free Software 
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
  * 02111-1307 USA
  * ==================================================================
  */
@@ -48,6 +48,7 @@ import net.solarnetwork.io.modbus.rtu.netty.NettyRtuModbusClientConfig;
 import net.solarnetwork.io.modbus.rtu.netty.RtuNettyModbusClient;
 import net.solarnetwork.io.modbus.rtu.pjc.PjcSerialPortProvider;
 import net.solarnetwork.io.modbus.serial.BasicSerialParameters;
+import net.solarnetwork.io.modbus.serial.SerialFlowControl;
 import net.solarnetwork.io.modbus.serial.SerialParity;
 import net.solarnetwork.io.modbus.serial.SerialStopBits;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
@@ -55,7 +56,7 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
 
 /**
  * Basic Modbus interactive shell for TCP and RTU using jSerialComm.
- * 
+ *
  * @author matt
  * @version 1.0
  */
@@ -67,7 +68,7 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param client
 	 *        the cleint to use
 	 * @param in
@@ -513,7 +514,7 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 
 	/**
 	 * Main entry.
-	 * 
+	 *
 	 * @param args
 	 *        the arguments
 	 */
@@ -546,6 +547,11 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 						params.setDataBits(Integer.parseInt(args[++i]));
 						break;
 
+					case "-f":
+					case "--flow":
+						params.setFlowControl(SerialFlowControl.forAbbreviation(args[++i]));
+						break;
+
 					case "-s":
 					case "--stop":
 						params.setStopBits(SerialStopBits.forCode(Integer.parseInt(args[++i])));
@@ -566,6 +572,12 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 						params.setParity(SerialParity.forAbbreviation(m.group(2)));
 						params.setStopBits(SerialStopBits.forCode(Integer.parseInt(m.group(3))));
 					}
+						break;
+
+					case "--rs485":
+						if ( setupRs485Mode(params, (i + 1 < args.length ? args[i + 1] : null)) ) {
+							i++;
+						}
 						break;
 
 					case "-h":
@@ -620,6 +632,26 @@ public class ModbusShell implements ModbusClientConnectionObserver {
 		client.setConnectionObserver(shell);
 		client.setWireLogging(wireLogging);
 		shell.start();
+	}
+
+	/**
+	 * Setup RS-485 mode, with optional settings.
+	 *
+	 * @param params
+	 *        the parameters to configure
+	 * @param arg
+	 *        the RS-485 argument; a comma-delimited list of RS-485 settings
+	 * @return {@literal true} if {@code arg} was processed as RS-485 settings,
+	 *         or {@literal false} if not
+	 * @see BasicSerialParameters#populateRs485Flags(String)
+	 */
+	private static boolean setupRs485Mode(BasicSerialParameters params, String arg) {
+		params.setRs485ModeEnabled(true);
+		if ( arg == null || arg.startsWith("-") ) {
+			return false;
+		}
+		params.populateRs485Flags(arg);
+		return true;
 	}
 
 }
