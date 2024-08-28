@@ -124,17 +124,18 @@ That requires the following dependencies:
 
 # Maven Central Repository coordinates
 
-Nifty Modbus can be integrated into your project using the following coordinates:
+Nifty Modbus can be integrated into your project using the following coordinates,
+all of which use the `net.solarnetwork.common` Group identifier:
 
-| Group | Artifact | Notes |
-|:------|:---------|:------|
-| `net.solarnetwork.common` | `nifty-modbus-api` | Required in all cases. |
-| `net.solarnetwork.common` | `nifty-modbus-core` | Required in all cases. |
-| `net.solarnetwork.common` | `nifty-modbus-rtu` | Required for Modbus RTU support, along with a serial port implementation. |
-| `net.solarnetwork.common` | `nifty-modbus-rtu-jsc` | Provides a serial port implementation based on [jSerialComm][jSerialComm]. |
-| `net.solarnetwork.common` | `nifty-modbus-rtu-pjc` | Provides a serial port implementation based on [PureJavaComm][PureJavaComm]. |
-| `net.solarnetwork.common` | `nifty-modbus-shell` | Provides an interactive Modbus command-line application.  |
-| `net.solarnetwork.common` | `nifty-modbus-tcp` | Required for Modbus TCP support. |
+| Artifact | Notes |
+|:---------|:------|
+| `nifty-modbus-api` | Required in all cases. |
+| `nifty-modbus-core` | Required in all cases. |
+| `nifty-modbus-rtu` | Required for Modbus RTU support, along with a serial port implementation. |
+| `nifty-modbus-rtu-jsc` | Provides a serial port implementation based on [jSerialComm][jSerialComm]. |
+| `nifty-modbus-rtu-pjc` | | Provides a serial port implementation based on [PureJavaComm][PureJavaComm]. |
+| `nifty-modbus-shell` | Provides an interactive Modbus command-line application.  |
+| `nifty-modbus-tcp` | Required for Modbus TCP support. |
 
 Usually it is sufficient to declare just the RTU and/or TCP components in your project, and the
 others will be pulled in automatically. For example to include both RTU using jSerialComm and TCP
