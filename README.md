@@ -133,7 +133,7 @@ all of which use the `net.solarnetwork.common` Group identifier:
 | `nifty-modbus-core` | Required in all cases. |
 | `nifty-modbus-rtu` | Required for Modbus RTU support, along with a serial port implementation. |
 | `nifty-modbus-rtu-jsc` | Provides a serial port implementation based on [jSerialComm][jSerialComm]. |
-| `nifty-modbus-rtu-pjc` | | Provides a serial port implementation based on [PureJavaComm][PureJavaComm]. |
+| `nifty-modbus-rtu-pjc` | Provides a serial port implementation based on [PureJavaComm][PureJavaComm]. |
 | `nifty-modbus-shell` | Provides an interactive Modbus command-line application.  |
 | `nifty-modbus-tcp` | Required for Modbus TCP support. |
 
