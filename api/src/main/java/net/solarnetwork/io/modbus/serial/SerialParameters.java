@@ -229,7 +229,7 @@ public interface SerialParameters {
 
 	/**
 	 * Get a time to wait after sending data before disabling transmit mode when
-	 * in RS-485 mode
+	 * in RS-485 mode.
 	 *
 	 * <p>
 	 * This setting is only applicable when {@link #getRs485ModeEnabled()} is
