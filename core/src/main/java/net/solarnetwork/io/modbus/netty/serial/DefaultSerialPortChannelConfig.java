@@ -38,6 +38,7 @@ import static net.solarnetwork.io.modbus.netty.serial.SerialPortChannelOption.WA
 import java.util.Map;
 import java.util.Set;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.DefaultChannelConfig;
 import io.netty.channel.MessageSizeEstimator;
@@ -50,7 +51,7 @@ import net.solarnetwork.io.modbus.serial.SerialStopBits;
  * Default implementation of {@link SerialPortChannelConfig}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
 		implements SerialPortChannelConfig {
@@ -69,7 +70,7 @@ public class DefaultSerialPortChannelConfig extends DefaultChannelConfig
 	private volatile int waitTime;
 	private volatile int readTimeout = DEFAULT_READ_TIMEOUT;
 
-	DefaultSerialPortChannelConfig(SerialPortChannel channel) {
+	DefaultSerialPortChannelConfig(Channel channel) {
 		super(channel);
 	}
 

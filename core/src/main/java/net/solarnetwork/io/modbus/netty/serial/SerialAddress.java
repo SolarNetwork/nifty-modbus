@@ -23,13 +23,14 @@
 package net.solarnetwork.io.modbus.netty.serial;
 
 import java.net.SocketAddress;
+import java.util.Objects;
 
 /**
  * A {@link SocketAddress} subclass to wrap a serial port device such as
  * {@literal COM1} or {@literal /dev/ttyUSB0}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class SerialAddress extends SocketAddress {
 
@@ -61,6 +62,23 @@ public class SerialAddress extends SocketAddress {
 	@Override
 	public String toString() {
 		return name;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(name);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if ( this == obj ) {
+			return true;
+		}
+		if ( !(obj instanceof SerialAddress) ) {
+			return false;
+		}
+		SerialAddress other = (SerialAddress) obj;
+		return Objects.equals(name, other.name);
 	}
 
 }

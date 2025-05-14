@@ -25,13 +25,17 @@ package net.solarnetwork.io.modbus.rtu.jsc;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.SelectionKey;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.fazecast.jSerialComm.SerialPort;
+import com.fazecast.jSerialComm.SerialPortDataListener;
+import com.fazecast.jSerialComm.SerialPortEvent;
 import com.fazecast.jSerialComm.SerialPortInvalidPortException;
+import net.solarnetwork.io.modbus.netty.serial.SerialPollingSelector;
 import net.solarnetwork.io.modbus.serial.SerialFlowControl;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
 import net.solarnetwork.io.modbus.serial.SerialParity;
@@ -42,7 +46,7 @@ import net.solarnetwork.io.modbus.serial.SerialStopBits;
  * {@link net.solarnetwork.io.modbus.serial.SerialPort}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPort {
 
@@ -68,7 +72,7 @@ public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPo
 
 	@Override
 	public String getName() {
-		return serialPort.getSystemPortName();
+		return name;
 	}
 
 	@Override
@@ -241,6 +245,50 @@ public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPo
 		} catch ( Exception e ) {
 			throw new IOException("Error opening serial port [" + name + "] output stream: " + e, e);
 		}
+	}
+
+	@Override
+	public int bytesAvailable() throws IOException {
+		if ( !isOpen() ) {
+			throw new IOException("Serial port [" + name + "] is not open.");
+		}
+		return serialPort.bytesAvailable();
+	}
+
+	@Override
+	public int read(byte[] buffer, int offset, int len) throws IOException {
+		if ( !isOpen() ) {
+			throw new IOException("Serial port [" + name + "] is not open.");
+		}
+		return serialPort.readBytes(buffer, len, offset);
+	}
+
+	@Override
+	public int write(byte[] buffer, int offset, int len) throws IOException {
+		if ( !isOpen() ) {
+			throw new IOException("Serial port [" + name + "] is not open.");
+		}
+		return serialPort.writeBytes(buffer, len, offset);
+	}
+
+	@Override
+	public void registerSelectionKey(SelectionKey selectionKey) throws IOException {
+		if ( !isOpen() ) {
+			throw new IOException("Serial port [" + name + "] is not open.");
+		}
+		serialPort.addDataListener(new SerialPortDataListener() {
+
+			@Override
+			public int getListeningEvents() {
+				return SerialPort.LISTENING_EVENT_DATA_AVAILABLE;
+			}
+
+			@Override
+			public void serialEvent(SerialPortEvent event) {
+				((SerialPollingSelector) selectionKey.selector()).addEvent(
+						new SerialPollingSelector.SelectorEvent(selectionKey, SelectionKey.OP_READ));
+			}
+		});
 	}
 
 }
