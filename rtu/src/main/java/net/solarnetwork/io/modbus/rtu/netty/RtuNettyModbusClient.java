@@ -130,7 +130,6 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 			SerialPortProvider serialPortProvider) {
 		super(clientConfig, scheduler, pending);
 		if ( eventLoopGroup == null ) {
-			// TODO: need a non-deprecated replacement
 			eventLoopGroup = defaultEventLoopGroup();
 			this.privateEventLoopGroup = true;
 		} else {
