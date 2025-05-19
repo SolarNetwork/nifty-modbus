@@ -42,8 +42,9 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LoggingHandler;
@@ -193,9 +194,9 @@ public class NettyTcpModbusServer {
 			return;
 		}
 		try {
-			NioEventLoopGroup bGroup = new NioEventLoopGroup();
+			EventLoopGroup bGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
 			this.bossGroup = bGroup;
-			NioEventLoopGroup wGroup = new NioEventLoopGroup();
+			EventLoopGroup wGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
 			this.workerGroup = wGroup;
 
 			// @formatter:off

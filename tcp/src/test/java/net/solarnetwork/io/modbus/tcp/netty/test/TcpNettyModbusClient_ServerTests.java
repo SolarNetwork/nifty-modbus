@@ -49,7 +49,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
@@ -107,7 +108,7 @@ public class TcpNettyModbusClient_ServerTests {
 	@Test
 	public void start_externalEventLoopGroup_channelClosed() throws Exception {
 		// GIVEN
-		EventLoopGroup group = new NioEventLoopGroup();
+		EventLoopGroup group = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
 		TcpNettyModbusClient c = new TcpNettyModbusClient(
 				new NettyTcpModbusClientConfig("127.0.0.1", server.getPort()), null, pending, group,
 				null, pendingMessages, idSupplier::incrementAndGet);
