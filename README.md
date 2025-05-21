@@ -150,7 +150,8 @@ dependencies {
 
 # Building from source
 
-To build Nifty Modbus yourself, clone or download this repository. Then:
+To build Nifty Modbus yourself, clone or download this repository. **Note** that Java 11+
+is required for building. Then:
 
 ```sh
 # Linux/macOS/etc
