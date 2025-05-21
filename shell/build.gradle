@@ -1,11 +1,13 @@
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     id 'java-library'
     id 'eclipse'
 }
 
 apply plugin: 'java-library'
-apply plugin: 'maven-publish'
 apply plugin: 'signing'
+apply plugin: 'com.vanniktech.maven.publish'    
 
 description = 'Nifty Modbus: Shell'
 archivesBaseName = 'nifty-modbus-shell'
@@ -45,50 +47,39 @@ task runWithJavaExec(type: JavaExec) {
 	standardInput = System.in
 }
 
-publishing {
-	publications {
-		mavenJava(MavenPublication) {
-			from components.java
-			pom {
-				name = project.description
-				description = 'Nifty Modbus interactive command-line shell application.'
-				url = 'https://github.com/SolarNetwork/nifty-modbus/shell'
-				licenses {
-					license {
-						name = 'GNU General Public License, Version 2.0'
-						url = 'https://opensource.org/licenses/GPL-2.0'
-					}
-				}
-				developers {
-					developer {
-						id = 'msqr'
-						name = 'Matt Magoffin'
-						email = 'matt@solarnetwork.net'
-						organization = 'SolarNetwork Foundation'
-						organizationUrl = 'https://solarnetwork.org.nz'
-					}
-				}
-				scm {
-					connection = 'scm:git:https://github.com/SolarNetwork/nifty-modbus.git'
-					developerConnection = 'scm:git:git@github.com:SolarNetwork/nifty-modbus.git'
-					url = 'https://github.com/SolarNetwork/nifty-modbus'
-				}
+mavenPublishing {
+	coordinates(group, archivesBaseName, version)
+	publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+	signAllPublications()
+
+	pom {
+		name = project.description
+		description = 'Nifty Modbus interactive command-line shell application.'
+		url = 'https://github.com/SolarNetwork/nifty-modbus/shell'
+		inceptionYear = '2024'
+		licenses {
+			license {
+				name = 'GNU General Public License, Version 2.0'
+				url = 'https://opensource.org/licenses/GPL-2.0'
 			}
 		}
-	}
-	repositories {
-		maven {
-			name = "OSSRH"
-			url "https://oss.sonatype.org/service/local/staging/deploy/maven2"
-			credentials {
-				username = ossrhUsername
-				password = ossrhPassword
+		developers {
+			developer {
+				id = 'msqr'
+				name = 'Matt Magoffin'
+				email = 'matt@solarnetwork.net'
+				organization = 'SolarNetwork Foundation'
+				organizationUrl = 'https://solarnetwork.org.nz'
 			}
+		}
+		scm {
+			connection = 'scm:git:https://github.com/SolarNetwork/nifty-modbus.git'
+			developerConnection = 'scm:git:git@github.com:SolarNetwork/nifty-modbus.git'
+			url = 'https://github.com/SolarNetwork/nifty-modbus'
 		}
 	}
 }
 
 signing {
 	useGpgCmd()
-	sign publishing.publications.mavenJava
 }

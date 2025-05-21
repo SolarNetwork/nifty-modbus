@@ -1,3 +1,5 @@
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     id 'java-library'
     id 'eclipse'
@@ -5,8 +7,8 @@ plugins {
 }
 
 apply plugin: 'java-library'
-apply plugin: 'maven-publish'
 apply plugin: 'signing'
+apply plugin: 'com.vanniktech.maven.publish'    
 
 description = 'Nifty Modbus: TCP'
 archivesBaseName = 'nifty-modbus-tcp'
@@ -26,15 +28,17 @@ jar.manifest {
     attributes('Implementation-Version': version)
 }
 
-sourcesJar.manifest {
-	attributes(
-		'Bundle-SymbolicName': 'net.solarnetwork.common.io.modbus.tcp.sources',
-		'Bundle-Name': 'SolarNetwork Modbus TCP Sources',
-		'Bundle-Version': version,
-		'Bundle-ManifestVersion': '2',
-		'Eclipse-SourceBundle': 'net.solarnetwork.common.io.modbus.tcp;version="'
-			+ version + '";roots:="."'
-	)
+tasks.withType(Jar).matching { it.name.contains('sources') }.configureEach {
+	manifest {
+		attributes(
+			'Bundle-SymbolicName': 'net.solarnetwork.common.io.modbus.tcp.sources',
+			'Bundle-Name': 'SolarNetwork Modbus TCP Sources',
+			'Bundle-Version': version,
+			'Bundle-ManifestVersion': '2',
+			'Eclipse-SourceBundle': 'net.solarnetwork.common.io.modbus.tcp;version="'
+				+ version + '";roots:="."'
+		)
+	}
 }
 
 eclipse {
@@ -43,50 +47,39 @@ eclipse {
 	}
 }
 
-publishing {
-	publications {
-		mavenJava(MavenPublication) {
-			from components.java
-			pom {
-				name = project.description
-				description = 'Nifty Modbus TCP implementation.'
-				url = 'https://github.com/SolarNetwork/nifty-modbus/tcp'
-				licenses {
-					license {
-						name = 'GNU General Public License, Version 2.0'
-						url = 'https://opensource.org/licenses/GPL-2.0'
-					}
-				}
-				developers {
-					developer {
-						id = 'msqr'
-						name = 'Matt Magoffin'
-						email = 'matt@solarnetwork.net'
-						organization = 'SolarNetwork Foundation'
-						organizationUrl = 'https://solarnetwork.org.nz'
-					}
-				}
-				scm {
-					connection = 'scm:git:https://github.com/SolarNetwork/nifty-modbus.git'
-					developerConnection = 'scm:git:git@github.com:SolarNetwork/nifty-modbus.git'
-					url = 'https://github.com/SolarNetwork/nifty-modbus'
-				}
+mavenPublishing {
+	coordinates(group, archivesBaseName, version)
+	publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+	signAllPublications()
+
+	pom {
+		name = project.description
+		description = 'Nifty Modbus TCP implementation.'
+		url = 'https://github.com/SolarNetwork/nifty-modbus/tcp'
+		inceptionYear = '2024'
+		licenses {
+			license {
+				name = 'GNU General Public License, Version 2.0'
+				url = 'https://opensource.org/licenses/GPL-2.0'
 			}
 		}
-	}
-	repositories {
-		maven {
-			name = "OSSRH"
-			url "https://oss.sonatype.org/service/local/staging/deploy/maven2"
-			credentials {
-				username = ossrhUsername
-				password = ossrhPassword
+		developers {
+			developer {
+				id = 'msqr'
+				name = 'Matt Magoffin'
+				email = 'matt@solarnetwork.net'
+				organization = 'SolarNetwork Foundation'
+				organizationUrl = 'https://solarnetwork.org.nz'
 			}
+		}
+		scm {
+			connection = 'scm:git:https://github.com/SolarNetwork/nifty-modbus.git'
+			developerConnection = 'scm:git:git@github.com:SolarNetwork/nifty-modbus.git'
+			url = 'https://github.com/SolarNetwork/nifty-modbus'
 		}
 	}
 }
 
 signing {
 	useGpgCmd()
-	sign publishing.publications.mavenJava
 }

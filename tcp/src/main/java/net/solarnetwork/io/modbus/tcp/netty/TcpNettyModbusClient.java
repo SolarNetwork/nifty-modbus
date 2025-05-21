@@ -36,7 +36,8 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import net.solarnetwork.io.modbus.ModbusClient;
@@ -75,7 +76,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 * Constructor.
 	 * 
 	 * <p>
-	 * A default {@link NioEventLoopGroup} will be used.
+	 * A default {@link EventLoopGroup} will be used.
 	 * </p>
 	 * 
 	 * @param clientConfig
@@ -94,8 +95,8 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 * @param eventLoopGroup
 	 *        the event loop group, or {@literal null} to create an internal one
 	 * @param channelClass
-	 *        the channel class, or {@literal null} to use
-	 *        {@link NioEventLoopGroup}
+	 *        the channel class, or {@literal null} to use a default
+	 *        {@link EventLoopGroup}
 	 */
 	public TcpNettyModbusClient(TcpModbusClientConfig clientConfig, EventLoopGroup eventLoopGroup,
 			Class<? extends Channel> channelClass) {
@@ -107,7 +108,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 * Constructor.
 	 * 
 	 * <p>
-	 * A default {@link NioEventLoopGroup} will be used.
+	 * A default {@link EventLoopGroup} will be used.
 	 * </p>
 	 * 
 	 * @param clientConfig
@@ -142,8 +143,8 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	 * @param eventLoopGroup
 	 *        the event loop group, or {@literal null} to create an internal one
 	 * @param channelClass
-	 *        the channel class, or {@literal null} to use
-	 *        {@link NioEventLoopGroup}
+	 *        the channel class, or {@literal null} to use a default
+	 *        {@link EventLoopGroup}
 	 * @param pendingMessages
 	 *        a mapping of transaction IDs to associated pendingMessages, to
 	 *        handle request and response pairing
@@ -160,7 +161,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 			IntSupplier transactionIdSupplier) {
 		super(clientConfig, scheduler, pending);
 		if ( eventLoopGroup == null ) {
-			eventLoopGroup = new NioEventLoopGroup();
+			eventLoopGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
 			this.privateEventLoopGroup = true;
 		} else {
 			this.privateEventLoopGroup = false;
@@ -186,7 +187,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 		}
 		if ( eventLoopGroup.isShuttingDown() ) {
 			if ( privateEventLoopGroup ) {
-				eventLoopGroup = new NioEventLoopGroup();
+				eventLoopGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
 			} else {
 				throw new IOException("External EventLoopGroup is stopped.");
 			}

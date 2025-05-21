@@ -7,14 +7,13 @@ buildscript {
 }
 
 plugins {
-	id 'maven-publish'
-	id 'signing'
+	id "com.vanniktech.maven.publish" version "0.32.0"
 }
 
 ext {
 	jscVersion = '2.10.4'
 	logbackClassicVersion = '1.3.15'
-	nettyVersion = '4.1.121.Final'
+	nettyVersion = '4.2.1.Final'
 	pjcVersion = '1.0.2.SN20200831A'
 	slf4jVersion = '1.7.36'
 	ossrhUsername = 'ossrh-username'
@@ -36,10 +35,6 @@ allprojects {
         mavenCentral()
 		maven { url "https://plugins.gradle.org/m2/" }
     }
-	java {
-		withJavadocJar()
-		withSourcesJar()
-	}
 }
 
 subprojects {
