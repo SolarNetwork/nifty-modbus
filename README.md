@@ -97,15 +97,15 @@ The above snippet was taken from the  [TcpServerExample][ex-tcp-server] class.
 
 # Dependencies
 
-Nifty Modbus requires a Java 8 or later runtime and has core dependencies on Netty 4.1 and slf4j
+Nifty Modbus requires a Java 8 or later runtime and has core dependencies on Netty 4.2 and slf4j
 1.7. For Modbus RTU (serial port) the [rtu-jsc](./rtu-jsc/) component depends on
 [jSerialComm][jSerialComm] 2.9. More specifically, it requires the following direct dependencies:
 
 | Dependency | Version | Description |
 |:-----------|:--------|:------------|
 | Java                       | 8   | Java 8 is the _minimum_ runtime needed. |
-| `io.netty:netty-codec`     | 4.1 | Nifty Modbus implements decoders/encoders for the Modbus protocol. |
-| `io.netty:netty-handler`   | 4.1 | Provides wire-level logging support. |
+| `io.netty:netty-codec`     | 4.2 | Nifty Modbus implements decoders/encoders for the Modbus protocol. |
+| `io.netty:netty-handler`   | 4.2 | Provides wire-level logging support. |
 | `org.slf4j:slf4j-api`      | 1.7 | For logging. |
 | `com.fazecast:jSerialComm` | 2.9 | For RTU serial support. Not needed for TCP. |
 
