@@ -7,8 +7,7 @@ buildscript {
 }
 
 plugins {
-	id 'maven-publish'
-	id 'signing'
+	id "com.vanniktech.maven.publish" version "0.32.0"
 }
 
 ext {
@@ -36,10 +35,6 @@ allprojects {
         mavenCentral()
 		maven { url "https://plugins.gradle.org/m2/" }
     }
-	java {
-		withJavadocJar()
-		withSourcesJar()
-	}
 }
 
 subprojects {
