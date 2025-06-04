@@ -150,7 +150,7 @@ dependencies {
 
 # Building from source
 
-To build Nifty Modbus yourself, clone or download this repository. **Note** that Java 11+
+To build Nifty Modbus yourself, clone or download this repository. **Note** that Java 17+
 is required for building. Then:
 
 ```sh
