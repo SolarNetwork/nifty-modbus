@@ -39,6 +39,10 @@ allprojects {
 subprojects {
 	group = "net.solarnetwork.common"
 	version = '0.18.0'
+	
+	base {
+		archivesName = project.name
+	}
 
 	java {
 		toolchain {

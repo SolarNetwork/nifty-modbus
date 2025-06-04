@@ -5,4 +5,4 @@ Bundle-Vendor: SolarNetwork
 Export-Package: \
 	net.solarnetwork.io.modbus.*
 Import-Package: \
-	*
+	!java.*, *
