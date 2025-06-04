@@ -11,7 +11,6 @@ apply plugin: 'signing'
 apply plugin: 'com.vanniktech.maven.publish'    
 
 description = 'Nifty Modbus: Core'
-archivesBaseName = 'nifty-modbus-core'
 
 dependencies {
 	implementation project(':nifty-modbus-api')
@@ -47,7 +46,7 @@ eclipse {
 }
 
 mavenPublishing {
-	coordinates(group, archivesBaseName, version)
+	coordinates(group, project.name, version)
 	publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
 	signAllPublications()
 

@@ -6,7 +6,6 @@ plugins {
 apply plugin: 'java-library'
 
 description = 'Nifty Modbus: Examples'
-archivesBaseName = 'nifty-modbus-examples'
 
 dependencies {
 	implementation project(':nifty-modbus-api')
