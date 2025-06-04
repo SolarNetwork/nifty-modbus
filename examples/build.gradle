@@ -25,6 +25,6 @@ jar.manifest {
 
 eclipse {
 	jdt {
-		javaRuntimeName 'JavaSE-1.8'
+		javaRuntimeName = 'JavaSE-1.8'
 	}
 }

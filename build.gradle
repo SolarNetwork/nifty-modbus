@@ -109,9 +109,9 @@ subprojects {
 	test {
 		testLogging {
 			exceptionFormat = 'full'
-			showExceptions true
-			showCauses true
-			showStackTraces true
+			showExceptions = true
+			showCauses = true
+			showStackTraces = true
 		}
 		maxHeapSize = '1500m'
 	}
