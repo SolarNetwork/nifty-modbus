@@ -82,6 +82,25 @@ try {
 
 The above snippet was taken from the  [TcpServerExample][ex-tcp-server] class.
 
+## Client connection listener
+
+You can configure a callback for client connection events, to be notified when a client connects
+or disconnects from the server. In the connection callback, you can also reject the connection
+by returning `false`. For example:
+
+```java
+server.setClientConnectionListener((address, connected) -> {
+	log.info("Client connection event: {} -> {}", address, connected ? "connected" : "disconnected");
+	
+	// if connected == true you can return false here to close the new connection
+	if ( connected && clientShouldNotBeAllowedToConnect(address) ) {
+		return false;
+	}
+	
+	return true;
+});
+```
+
 [ex-tcp-client]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/test/java/net/solarnetwork/io/modbus/tcp/example/TcpClientReadRegistersExample.java
 [ex-tcp-server]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/test/java/net/solarnetwork/io/modbus/tcp/example/TcpServerExample.java
 [NettyTcpModbusServer]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/main/java/net/solarnetwork/io/modbus/tcp/netty/NettyTcpModbusServer.java

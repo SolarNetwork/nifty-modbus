@@ -23,12 +23,14 @@
 package net.solarnetwork.io.modbus.tcp.netty;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import org.slf4j.Logger;
@@ -87,6 +89,7 @@ public class NettyTcpModbusServer {
 	private ScheduledFuture<?> cleanupTask;
 
 	private BiConsumer<ModbusMessage, Consumer<ModbusMessage>> messageHandler;
+	private BiFunction<InetSocketAddress, Boolean, Boolean> clientConnectionListener;
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
 	private boolean wireLogging;
 
@@ -284,11 +287,24 @@ public class NettyTcpModbusServer {
 		@Override
 		public void channelActive(ChannelHandlerContext ctx) throws Exception {
 			log.info("Client connected: {}", ctx.channel());
+			final BiFunction<InetSocketAddress, Boolean, Boolean> listener = getClientConnectionListener();
+			if ( listener != null ) {
+				Boolean result = listener.apply((InetSocketAddress) ctx.channel().remoteAddress(), true);
+				if ( result != null && !result ) {
+					// close the connection
+					ctx.close();
+				}
+			}
 		}
 
 		@Override
 		public void channelInactive(ChannelHandlerContext ctx) throws Exception {
 			log.info("Client disconnected: {}", ctx.channel());
+			final BiFunction<InetSocketAddress, Boolean, Boolean> listener = getClientConnectionListener();
+			if ( listener != null ) {
+				// note the return value is not used here
+				listener.apply((InetSocketAddress) ctx.channel().remoteAddress(), false);
+			}
 		}
 
 		@Override
@@ -379,6 +395,39 @@ public class NettyTcpModbusServer {
 	 */
 	public void setMessageHandler(BiConsumer<ModbusMessage, Consumer<ModbusMessage>> messageHandler) {
 		this.messageHandler = messageHandler;
+	}
+
+	/**
+	 * Get an optional listener for client connection events.
+	 * 
+	 * @return a client connection listener, or {@code null}
+	 * @see #setClientConnectionListener(BiFunction)
+	 */
+	public BiFunction<InetSocketAddress, Boolean, Boolean> getClientConnectionListener() {
+		return clientConnectionListener;
+	}
+
+	/**
+	 * Set an optional listener for client connection events.
+	 * 
+	 * <p>
+	 * The client remote address is passed to the consumer as the first
+	 * argument. When a client connects, {@code true} will be passed as the
+	 * second argument; when a client disconnects, {@code false} will be passed.
+	 * </p>
+	 * 
+	 * <p>
+	 * The return argument is inspected only after a connection event. If
+	 * {@code false} is returned, the client connection will be closed. This
+	 * provides a way to deny a client connection.
+	 * </p>
+	 * 
+	 * @param clientConnectionListener
+	 *        the client connection listener, or {@code null}
+	 */
+	public void setClientConnectionListener(
+			BiFunction<InetSocketAddress, Boolean, Boolean> clientConnectionListener) {
+		this.clientConnectionListener = clientConnectionListener;
 	}
 
 	/**
