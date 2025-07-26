@@ -29,8 +29,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -386,6 +388,75 @@ public class TcpNettyModbusClient_ServerTests {
 
 		// WHEN
 		client.start().get(10, TimeUnit.SECONDS);
+	}
+
+	private static final class ClientConnectionEvent {
+
+		private final InetSocketAddress address;
+		private final boolean connected;
+
+		private ClientConnectionEvent(InetSocketAddress address, boolean connected) {
+			super();
+			this.address = address;
+			this.connected = connected;
+		}
+	}
+
+	@Test
+	public void clientConnectionListener() throws Exception {
+		// GIVEN
+		final List<ClientConnectionEvent> connectionEvents = new ArrayList<>(1);
+		server.setClientConnectionListener((address, connected) -> {
+			log.info("Client connection event: {} -> {}", address,
+					connected ? "connected" : "disconnected");
+			connectionEvents.add(new ClientConnectionEvent(address, connected));
+			return true;
+		});
+		server.start();
+
+		// WHEN
+		client.start().get(10, TimeUnit.SECONDS);
+
+		client.stop().get(10, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Connect and disconnect connection event callbacks received", connectionEvents,
+				hasSize(2));
+		assertThat("First event has address", connectionEvents.get(0).address, is(notNullValue()));
+		assertThat("First event is 'connected'", connectionEvents.get(0).connected, is(true));
+		assertThat("Second event has address", connectionEvents.get(1).address, is(notNullValue()));
+		assertThat("Second event address same instance as first event", connectionEvents.get(1).address,
+				is(sameInstance(connectionEvents.get(0).address)));
+		assertThat("Second event is 'disconnected'", connectionEvents.get(1).connected, is(false));
+	}
+
+	@Test
+	public void clientConnectionListener_deny() throws Exception {
+		// GIVEN
+		final List<ClientConnectionEvent> connectionEvents = new ArrayList<>(1);
+		server.setClientConnectionListener((address, connected) -> {
+			log.info("Client connection event: {} -> {}", address,
+					connected ? "connected" : "disconnected");
+			connectionEvents.add(new ClientConnectionEvent(address, connected));
+			return false;
+		});
+		server.start();
+
+		// WHEN
+		((NettyTcpModbusClientConfig) client.getClientConfig()).setAutoReconnect(false);
+		client.start().get(10, TimeUnit.SECONDS);
+
+		Thread.sleep(200);
+
+		// THEN
+		assertThat("Connect and disconnect connection event callbacks received", connectionEvents,
+				hasSize(2));
+		assertThat("First event has address", connectionEvents.get(0).address, is(notNullValue()));
+		assertThat("First event is 'connected'", connectionEvents.get(0).connected, is(true));
+		assertThat("Second event has address", connectionEvents.get(1).address, is(notNullValue()));
+		assertThat("Second event address same instance as first event", connectionEvents.get(1).address,
+				is(sameInstance(connectionEvents.get(0).address)));
+		assertThat("Second event is 'disconnected'", connectionEvents.get(1).connected, is(false));
 	}
 
 }

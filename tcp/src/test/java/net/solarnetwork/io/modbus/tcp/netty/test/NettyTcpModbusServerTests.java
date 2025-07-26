@@ -28,8 +28,10 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.IOException;
 import java.net.BindException;
+import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusMessage;
@@ -86,6 +88,27 @@ public class NettyTcpModbusServerTests {
 
 		// THEN
 		assertThat("Getter returns set value", s.getMessageHandler(), is(sameInstance(handler)));
+	}
+
+	@Test
+	public void configure_connectionListener() {
+		// GIVEN
+		NettyTcpModbusServer s = new NettyTcpModbusServer(502);
+
+		// WHEN
+		BiFunction<InetSocketAddress, Boolean, Boolean> listener = new BiFunction<InetSocketAddress, Boolean, Boolean>() {
+
+			@Override
+			public Boolean apply(InetSocketAddress address, Boolean connected) {
+				// nadda
+				return false;
+			}
+		};
+		s.setClientConnectionListener(listener);
+
+		// THEN
+		assertThat("Getter returns set value", s.getClientConnectionListener(),
+				is(sameInstance(listener)));
 	}
 
 	@Test
