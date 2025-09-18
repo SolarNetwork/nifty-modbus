@@ -1,5 +1,3 @@
-import com.vanniktech.maven.publish.SonatypeHost
-
 plugins {
     id 'java-library'
     id 'eclipse'
@@ -48,7 +46,7 @@ task runWithJavaExec(type: JavaExec) {
 
 mavenPublishing {
 	coordinates(group, project.name, version)
-	publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+	publishToMavenCentral()
 	signAllPublications()
 
 	pom {
