@@ -34,7 +34,7 @@ import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 
 /**
- * A addressed Modbus message for bit-related blocks, like coils and discrete
+ * An addressed Modbus message for bit-related blocks, like coils and discrete
  * input registers.
  *
  * @author matt
