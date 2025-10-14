@@ -361,7 +361,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	}
 
 	/**
-	 * Create a bits register request message.
+	 * Create a register request message.
 	 * 
 	 * @param type
 	 *        the block type; only Input and Holding types are supported
