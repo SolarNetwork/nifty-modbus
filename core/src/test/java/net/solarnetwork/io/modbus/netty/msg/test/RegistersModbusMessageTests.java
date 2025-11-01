@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import io.netty.buffer.ByteBuf;
@@ -55,7 +56,7 @@ import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
  * Test cases for the {@link RegistersModbusMessage}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RegistersModbusMessageTests {
 
@@ -206,6 +207,32 @@ public class RegistersModbusMessageTests {
 				0x3400,
 		}), is(equalTo(true)));
 		// @formatter:on
+	}
+
+	@Test
+	public void dataDecodeString_empty() {
+		// GIVEN
+		RegistersModbusMessage msg = new RegistersModbusMessage(1, READ_HOLDING_REGISTERS, 0, 1);
+
+		// WHEN
+		String r = msg.dataDecodeString(StandardCharsets.US_ASCII);
+
+		// THEN
+		assertThat("Null string when no data", r, is(nullValue()));
+	}
+
+	@Test
+	public void dataDecodeString() {
+		// GIVEN
+		final String src = "hello!";
+		byte[] data = src.getBytes(StandardCharsets.US_ASCII);
+		RegistersModbusMessage msg = new RegistersModbusMessage(1, READ_HOLDING_REGISTERS, 0, 3, data);
+
+		// WHEN
+		String r = msg.dataDecodeString(StandardCharsets.US_ASCII);
+
+		// THEN
+		assertThat("String extracted", r, is(equalTo(src)));
 	}
 
 	@Test

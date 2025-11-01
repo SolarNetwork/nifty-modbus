@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.netty.msg;
 
 import static net.solarnetwork.io.modbus.ModbusByteUtils.encode16;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import io.netty.buffer.ByteBuf;
 import net.solarnetwork.io.modbus.ModbusBlockType;
@@ -38,7 +39,7 @@ import net.solarnetwork.io.modbus.ModbusMessage;
  * address range.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RegistersModbusMessage extends AddressedModbusMessage
 		implements net.solarnetwork.io.modbus.RegistersModbusMessage {
@@ -361,7 +362,7 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	}
 
 	/**
-	 * Create a bits register request message.
+	 * Create a register request message.
 	 * 
 	 * @param type
 	 *        the block type; only Input and Holding types are supported
@@ -573,6 +574,14 @@ public class RegistersModbusMessage extends AddressedModbusMessage
 	@Override
 	public int[] dataDecodeUnsigned() {
 		return ModbusByteUtils.decodeUnsigned(data);
+	}
+
+	@Override
+	public String dataDecodeString(Charset charset) {
+		if ( data == null ) {
+			return null;
+		}
+		return new String(data, charset);
 	}
 
 	@Override
