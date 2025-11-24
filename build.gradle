@@ -12,7 +12,7 @@ plugins {
 
 ext {
 	jscVersion = '2.11.2'
-	logbackClassicVersion = '1.3.15'
+	logbackClassicVersion = '1.3.16'
 	nettyVersion = '4.2.6.Final'
 	pjcVersion = '1.0.2.SN20200831A'
 	slf4jVersion = '1.7.36'
