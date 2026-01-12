@@ -95,6 +95,52 @@ try {
 
 The above snippet was taken from the  [TcpServerExample][ex-tcp-server] class.
 
+# Modbus RTU Server
+
+The [rtu](./rtu/) component provides a basic Modbus server in addition to a Modbus client, in the
+[NettyRtuModbusServer][NettyRtuModbusServer] class. This server works very similarly to the TCP
+server shown in the previous section.
+
+Here is an example of using the Nifty Modbus RTU server to respond to read holding register
+requests:
+
+```java
+BasicSerialParameters params = new BasicSerialParameters();
+params.setBaudRate(9600);
+NettyRtuModbusServer server = new NettyRtuModbusServer("/dev/ttyUSB0", params,
+		new JscSerialPortProvider());
+server.setMessageHandler((msg, sender) -> {
+	// this handler only supports read holding registers requests
+	RegistersModbusMessage req = msg.unwrap(RegistersModbusMessage.class);
+	if ( req != null && req.getFunction().blockType() == ModbusBlockType.Holding ) {
+
+		// generate some fake data that matches the request register count
+		short[] resultData = new short[req.getCount()];
+		for ( int i = 0; i < resultData.length; i++ ) {
+			resultData[i] = (short) i;
+		}
+
+		// respond with the fake data
+		sender.accept(readHoldingsResponse(req.getUnitId(), req.getAddress(), resultData));
+	} else {
+		// send back error that we don't handle that request
+		sender.accept(new BaseModbusMessage(msg.getUnitId(), msg.getFunction(),
+				ModbusErrorCode.IllegalFunction));
+	}
+});
+
+try {
+	server.start();
+	while ( true ) {
+		Thread.sleep(60_000);
+	}
+} finally {
+	server.stop();
+}
+```
+
+See the example [RTU Server][ex-rtu-server] class for more details.
+
 # Dependencies
 
 Nifty Modbus requires a Java 8 or later runtime and has core dependencies on Netty 4.2 and slf4j
@@ -182,7 +228,9 @@ uploaded to [Codecov](https://codecov.io/github/SolarNetwork/nifty-modbus/).
 
 
 [jSerialComm]: https://fazecast.github.io/jSerialComm/
+[ex-rtu-server]: https://github.com/SolarNetwork/nifty-modbus/blob/main/examples/src/main/java/nifty/modbus/example/rtu/Server.java
 [ex-tcp-client]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/test/java/net/solarnetwork/io/modbus/tcp/example/TcpClientReadRegistersExample.java
 [ex-tcp-server]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/test/java/net/solarnetwork/io/modbus/tcp/example/TcpServerExample.java
+[NettyRtuModbusServer]: https://github.com/SolarNetwork/nifty-modbus/blob/main/rtu/src/main/java/net/solarnetwork/io/modbus/rtu/netty/NettyRtuModbusServer.java
 [NettyTcpModbusServer]: https://github.com/SolarNetwork/nifty-modbus/blob/main/tcp/src/main/java/net/solarnetwork/io/modbus/tcp/netty/NettyTcpModbusServer.java
 [PureJavaComm]: http://www.sparetimelabs.com/purejavacomm/purejavacomm.php
