@@ -38,7 +38,7 @@ allprojects {
 
 subprojects {
 	group = "net.solarnetwork.common"
-	version = '1.2.0'
+	version = '1.2.1'
 	
 	base {
 		archivesName = project.name
