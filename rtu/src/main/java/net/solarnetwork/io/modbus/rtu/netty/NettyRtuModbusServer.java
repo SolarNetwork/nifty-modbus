@@ -157,7 +157,7 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 			return;
 		}
 		try {
-			if ( eventLoopGroup.isShuttingDown() ) {
+			if ( eventLoopGroup != null && eventLoopGroup.isShuttingDown() ) {
 				if ( privateEventLoopGroup ) {
 					eventLoopGroup = defaultEventLoopGroup();
 				} else {
@@ -177,8 +177,9 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 
 				@Override
 				public void operationComplete(ChannelFuture future) throws Exception {
-					if ( privateEventLoopGroup ) {
-						eventLoopGroup.shutdownGracefully();
+					final EventLoopGroup group = eventLoopGroup;
+					if ( group != null && privateEventLoopGroup ) {
+						group.shutdownGracefully();
 					}
 				}
 			});
