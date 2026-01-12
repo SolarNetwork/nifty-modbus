@@ -85,8 +85,6 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 	 *        the serial parameters
 	 * @param serialPortProvider
 	 *        the serial port provider
-	 * @param eventLoopGroup
-	 *        the event loop group, or {@literal null} to create an internal one
 	 * @throws IllegalArgumentException
 	 *         if any argument is {@literal null}
 	 */
@@ -209,8 +207,8 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 	 * @param channel
 	 *        the channel to initialize
 	 */
-	protected void initChannel(Channel ch) {
-		ChannelPipeline pipeline = ch.pipeline();
+	protected void initChannel(Channel channel) {
+		ChannelPipeline pipeline = channel.pipeline();
 		if ( wireLogging ) {
 			pipeline.addLast(new LoggingHandler("net.solarnetwork.io.modbus.server." + device));
 		}
