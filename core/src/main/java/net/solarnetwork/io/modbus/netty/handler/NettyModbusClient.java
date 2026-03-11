@@ -37,6 +37,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +48,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -65,7 +67,7 @@ import net.solarnetwork.io.modbus.ModbusTimeoutException;
  * @param <C>
  *        the configuration type
  * @author matt
- * @version 1.1
+ * @version 1.2
  */
 public abstract class NettyModbusClient<C extends ModbusClientConfig> implements ModbusClient {
 
@@ -117,6 +119,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	private ScheduledExecutorService scheduler;
 
 	private @Nullable ModbusClientConnectionObserver connectionObserver;
+	private @Nullable BiFunction<Object, Boolean, EventLoopGroup> eventLoopGroupProvider;
 	private boolean wireLogging;
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
 	private long replyTimeout = DEFAULT_REPLY_TIMEOUT;
@@ -661,6 +664,33 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	 */
 	public void setReplyTimeout(long replyTimeout) {
 		this.replyTimeout = replyTimeout;
+	}
+
+	/**
+	 * Get an {@link EventLoopGroup} provider.
+	 * 
+	 * @return the provider, or {@code null}
+	 * @since 1.5
+	 */
+	public final BiFunction<Object, Boolean, EventLoopGroup> getEventLoopGroupProvider() {
+		return eventLoopGroupProvider;
+	}
+
+	/**
+	 * Set an {@link EventLoopGroup} provider.
+	 * 
+	 * <p>
+	 * This function will be passed the client configuration for context, and
+	 * {@code false} always.
+	 * </p>
+	 * 
+	 * @param eventLoopGroupProvider
+	 *        the provider to set, or {@code null} to use a default provider
+	 * @since 1.5
+	 */
+	public final void setEventLoopGroupProvider(
+			@Nullable BiFunction<Object, Boolean, EventLoopGroup> eventLoopGroupProvider) {
+		this.eventLoopGroupProvider = eventLoopGroupProvider;
 	}
 
 }

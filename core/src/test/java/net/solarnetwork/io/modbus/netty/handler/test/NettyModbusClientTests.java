@@ -48,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -58,6 +59,7 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.solarnetwork.io.modbus.ModbusClient;
 import net.solarnetwork.io.modbus.ModbusClientConfig;
@@ -199,6 +201,24 @@ public class NettyModbusClientTests {
 
 		// THEN
 		assertThat("Client with private scheduler created", c, is(notNullValue()));
+	}
+
+	@Test
+	public void configure_eventLoopGroupProvider() {
+		// WHEN
+		BiFunction<Object, Boolean, EventLoopGroup> provider = new BiFunction<Object, Boolean, EventLoopGroup>() {
+
+			@Override
+			public EventLoopGroup apply(Object context, Boolean connected) {
+				// nadda
+				return null;
+			}
+		};
+		client.setEventLoopGroupProvider(provider);
+
+		// THEN
+		assertThat("Getter returns set value", client.getEventLoopGroupProvider(),
+				is(sameInstance(provider)));
 	}
 
 	@Test

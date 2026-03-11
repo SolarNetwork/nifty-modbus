@@ -34,6 +34,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
+import io.netty.channel.EventLoopGroup;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusServer;
@@ -109,6 +110,27 @@ public class NettyTcpModbusServerTests {
 		// THEN
 		assertThat("Getter returns set value", s.getClientConnectionListener(),
 				is(sameInstance(listener)));
+	}
+
+	@Test
+	public void configure_eventLoopGroupProvider() {
+		// GIVEN
+		NettyTcpModbusServer s = new NettyTcpModbusServer(502);
+
+		// WHEN
+		BiFunction<Object, Boolean, EventLoopGroup> provider = new BiFunction<Object, Boolean, EventLoopGroup>() {
+
+			@Override
+			public EventLoopGroup apply(Object context, Boolean connected) {
+				// nadda
+				return null;
+			}
+		};
+		s.setEventLoopGroupProvider(provider);
+
+		// THEN
+		assertThat("Getter returns set value", s.getEventLoopGroupProvider(),
+				is(sameInstance(provider)));
 	}
 
 	@Test

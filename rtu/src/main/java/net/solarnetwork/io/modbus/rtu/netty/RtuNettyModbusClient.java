@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiFunction;
 import org.jspecify.annotations.Nullable;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -49,14 +50,14 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * RTU implementation of {@link ModbusClient}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfig>
 		implements ChannelFactory<SerialPortChannel> {
 
 	private final boolean privateEventLoopGroup;
 	private final SerialPortProvider serialPortProvider;
-	private EventLoopGroup eventLoopGroup;
+	private @Nullable EventLoopGroup eventLoopGroup;
 	private @Nullable CompletableFuture<?> eventLoopGroupStopFuture;
 
 	/**
@@ -135,7 +136,6 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 			@Nullable EventLoopGroup eventLoopGroup, SerialPortProvider serialPortProvider) {
 		super(clientConfig, scheduler, pending);
 		if ( eventLoopGroup == null ) {
-			eventLoopGroup = defaultEventLoopGroup();
 			this.privateEventLoopGroup = true;
 		} else {
 			this.privateEventLoopGroup = false;
@@ -147,10 +147,13 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		this.serialPortProvider = serialPortProvider;
 	}
 
-	@SuppressWarnings("deprecation")
-	private static EventLoopGroup defaultEventLoopGroup() {
-		// TODO: need a non-deprecated replacement
-		return new io.netty.channel.oio.OioEventLoopGroup();
+	private EventLoopGroup defaultEventLoopGroup() {
+		final BiFunction<Object, Boolean, EventLoopGroup> provider = getEventLoopGroupProvider();
+		if ( provider != null ) {
+			return provider.apply(this, false);
+		}
+		return net.solarnetwork.io.modbus.netty.channel.OioEventLoopGroupFactory.INSTANCE.apply(provider,
+				false);
 	}
 
 	@Override
@@ -167,9 +170,11 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		if ( name == null || name.isEmpty() ) {
 			throw new IllegalArgumentException("No serial device name configured, cannot connect.");
 		}
-		if ( eventLoopGroup.isShuttingDown() ) {
+		EventLoopGroup eventLoopGroup = this.eventLoopGroup;
+		if ( eventLoopGroup == null || eventLoopGroup.isShuttingDown() ) {
 			if ( privateEventLoopGroup ) {
 				eventLoopGroup = defaultEventLoopGroup();
+				this.eventLoopGroup = eventLoopGroup;
 			} else {
 				throw new IOException("External EventLoopGroup is stopped.");
 			}
@@ -190,7 +195,8 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		if ( !privateEventLoopGroup ) {
 			return f;
 		}
-		if ( eventLoopGroupStopFuture == null ) {
+		final EventLoopGroup eventLoopGroup = this.eventLoopGroup;
+		if ( eventLoopGroupStopFuture == null && eventLoopGroup != null ) {
 			eventLoopGroupStopFuture = new CompletableFuture<Void>();
 			try {
 				eventLoopGroup.shutdownGracefully().get(10L, TimeUnit.SECONDS);

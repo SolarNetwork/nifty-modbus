@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiFunction;
 import java.util.function.IntSupplier;
 import org.jspecify.annotations.Nullable;
 import io.netty.bootstrap.Bootstrap;
@@ -37,8 +38,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.MultiThreadIoEventLoopGroup;
-import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import net.solarnetwork.io.modbus.ModbusClient;
@@ -68,7 +67,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 	private final IntSupplier transactionIdSupplier;
 
 	/** The event loop group. */
-	private EventLoopGroup eventLoopGroup;
+	private @Nullable EventLoopGroup eventLoopGroup;
 
 	/** A future for stopping the private event loop group. */
 	private @Nullable CompletableFuture<?> eventLoopGroupStopFuture;
@@ -162,13 +161,6 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
 			IntSupplier transactionIdSupplier) {
 		super(clientConfig, scheduler, pending);
-		if ( eventLoopGroup == null ) {
-			eventLoopGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
-			this.privateEventLoopGroup = true;
-		} else {
-			this.privateEventLoopGroup = false;
-		}
-		this.eventLoopGroup = eventLoopGroup;
 		this.channelClass = (channelClass != null ? channelClass : NioSocketChannel.class);
 		if ( pendingMessages == null ) {
 			throw new IllegalArgumentException("The pendingMessages argument must not be null.");
@@ -178,6 +170,12 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 			throw new IllegalArgumentException("The transactionIdSupplier argument must not be null.");
 		}
 		this.transactionIdSupplier = transactionIdSupplier;
+		if ( eventLoopGroup == null ) {
+			this.privateEventLoopGroup = true;
+		} else {
+			this.privateEventLoopGroup = false;
+		}
+		this.eventLoopGroup = eventLoopGroup;
 	}
 
 	@Override
@@ -187,9 +185,11 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 		if ( host == null || host.isEmpty() ) {
 			throw new IllegalArgumentException("No host configured, cannot connect.");
 		}
-		if ( eventLoopGroup.isShuttingDown() ) {
+		EventLoopGroup eventLoopGroup = this.eventLoopGroup;
+		if ( eventLoopGroup == null || eventLoopGroup.isShuttingDown() ) {
 			if ( privateEventLoopGroup ) {
-				eventLoopGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
+				eventLoopGroup = eventLoopGroup();
+				this.eventLoopGroup = eventLoopGroup;
 			} else {
 				throw new IOException("External EventLoopGroup is stopped.");
 			}
@@ -204,13 +204,23 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 		return bootstrap.connect();
 	}
 
+	private EventLoopGroup eventLoopGroup() {
+		final BiFunction<Object, Boolean, EventLoopGroup> provider = getEventLoopGroupProvider();
+		if ( provider != null ) {
+			return provider.apply(this, false);
+		}
+		return net.solarnetwork.io.modbus.netty.channel.MultiThreadIoEventLoopGroupFactory.INSTANCE
+				.apply(provider, false);
+	}
+
 	@Override
 	public synchronized CompletableFuture<?> stop() {
 		CompletableFuture<?> f = super.stop();
 		if ( !privateEventLoopGroup ) {
 			return f;
 		}
-		if ( eventLoopGroupStopFuture == null ) {
+		final EventLoopGroup eventLoopGroup = this.eventLoopGroup;
+		if ( eventLoopGroupStopFuture == null && eventLoopGroup != null ) {
 			eventLoopGroupStopFuture = new CompletableFuture<Void>();
 			try {
 				eventLoopGroup.shutdownGracefully().get(10L, TimeUnit.SECONDS);

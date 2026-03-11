@@ -45,9 +45,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LoggingHandler;
@@ -69,7 +67,7 @@ import net.solarnetwork.io.modbus.tcp.TcpModbusUnsupportedFunctionException;
  * </p>
  *
  * @author matt
- * @version 1.1
+ * @version 1.2
  */
 public class NettyTcpModbusServer {
 
@@ -94,6 +92,8 @@ public class NettyTcpModbusServer {
 	private @Nullable BiConsumer<ModbusMessage, Consumer<ModbusMessage>> messageHandler;
 	private @Nullable BiConsumer<Throwable, Consumer<ModbusMessage>> exceptionHandler;
 	private @Nullable BiFunction<InetSocketAddress, Boolean, Boolean> clientConnectionListener;
+	private @Nullable BiFunction<Object, Boolean, EventLoopGroup> eventLoopGroupProvider;
+
 	private long pendingMessageTtl = DEFAULT_PENDING_MESSAGE_TTL;
 	private boolean wireLogging;
 
@@ -201,9 +201,9 @@ public class NettyTcpModbusServer {
 			return;
 		}
 		try {
-			EventLoopGroup bGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
+			EventLoopGroup bGroup = eventLoopGroup(true);
 			this.bossGroup = bGroup;
-			EventLoopGroup wGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
+			EventLoopGroup wGroup = eventLoopGroup(false);
 			this.workerGroup = wGroup;
 
 			// @formatter:off
@@ -243,6 +243,15 @@ public class NettyTcpModbusServer {
 			}
 			throw new RuntimeException(msg, e);
 		}
+	}
+
+	private EventLoopGroup eventLoopGroup(boolean parent) {
+		final BiFunction<Object, Boolean, EventLoopGroup> provider = getEventLoopGroupProvider();
+		if ( provider != null ) {
+			return provider.apply(this, parent);
+		}
+		return net.solarnetwork.io.modbus.netty.channel.MultiThreadIoEventLoopGroupFactory.INSTANCE
+				.apply(provider, parent);
 	}
 
 	/**
@@ -531,6 +540,34 @@ public class NettyTcpModbusServer {
 	 */
 	public void setPendingMessageTtl(long pendingMessageTtl) {
 		this.pendingMessageTtl = pendingMessageTtl;
+	}
+
+	/**
+	 * Get an {@link EventLoopGroup} provider.
+	 * 
+	 * @return the provider, or {@code null}
+	 * @since 1.5
+	 */
+	public final BiFunction<Object, Boolean, EventLoopGroup> getEventLoopGroupProvider() {
+		return eventLoopGroupProvider;
+	}
+
+	/**
+	 * Set an {@link EventLoopGroup} provider.
+	 * 
+	 * <p>
+	 * This function will be passed this server instance for context, and
+	 * {@code true} when creating the parent ("boss") group or {@code false} for
+	 * the child ("worker") group.
+	 * </p>
+	 * 
+	 * @param eventLoopGroupProvider
+	 *        the provider to set, or {@code null} to use a default provider
+	 * @since 1.5
+	 */
+	public final void setEventLoopGroupProvider(
+			@Nullable BiFunction<Object, Boolean, EventLoopGroup> eventLoopGroupProvider) {
+		this.eventLoopGroupProvider = eventLoopGroupProvider;
 	}
 
 }
