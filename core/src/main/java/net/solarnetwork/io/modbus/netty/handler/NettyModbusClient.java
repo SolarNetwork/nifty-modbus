@@ -680,7 +680,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	 * Set an {@link EventLoopGroup} provider.
 	 * 
 	 * <p>
-	 * This function will be passed the client configuration for context, and
+	 * This function will be passed this server instance for context, and
 	 * {@code false} always.
 	 * </p>
 	 * 
