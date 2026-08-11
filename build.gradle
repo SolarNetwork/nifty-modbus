@@ -29,6 +29,7 @@ ext {
 }
 
 allprojects {
+	apply plugin: 'eclipse'
     apply plugin: 'java'
     apply plugin: 'jacoco'
 	apply plugin: 'net.ltgt.errorprone'
@@ -37,6 +38,14 @@ allprojects {
         mavenCentral()
 		maven { url = "https://plugins.gradle.org/m2/" }
     }
+    
+	eclipse {
+		jdt {
+			sourceCompatibility = 1.8
+    		targetCompatibility = 1.8
+			javaRuntimeName = 'JavaSE-1.8'
+		}
+	}
 }
 
 subprojects {

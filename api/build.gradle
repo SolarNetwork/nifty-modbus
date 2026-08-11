@@ -34,12 +34,6 @@ tasks.withType(Jar).matching { it.name.contains('sources') }.configureEach {
 	}
 }
 
-eclipse {
-	jdt {
-		javaRuntimeName = 'JavaSE-1.8'
-	}
-}
-
 mavenPublishing {
 	coordinates(group, project.name, version)
 	publishToMavenCentral()
