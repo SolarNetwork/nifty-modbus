@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: Generate and submit dependency graph
-      uses: gradle/actions/dependency-submission@v3
+      uses: gradle/actions/dependency-submission@v6
       env:
         # Exclude all dependencies that originate solely in the examples or test projects
         DEPENDENCY_GRAPH_EXCLUDE_PROJECTS: ':(examples|test)'
