@@ -95,6 +95,7 @@ public class TcpModbusMessage
 		return this;
 	}
 
+	@SuppressWarnings("ReferenceEquality")
 	@Override
 	public boolean isSameAs(@Nullable ModbusMessage obj) {
 		if ( obj == this ) {

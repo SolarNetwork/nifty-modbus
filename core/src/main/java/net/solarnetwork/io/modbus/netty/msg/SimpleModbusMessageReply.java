@@ -93,6 +93,7 @@ public class SimpleModbusMessageReply implements ModbusMessageReply, ModbusPaylo
 		return reply.validate();
 	}
 
+	@SuppressWarnings("ReferenceEquality")
 	@Override
 	public boolean isSameAs(@Nullable ModbusMessage obj) {
 		if ( obj == this ) {

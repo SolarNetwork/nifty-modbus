@@ -96,6 +96,7 @@ public class BaseModbusMessage implements ModbusMessage, ModbusPayloadEncoder {
 		this.error = error;
 	}
 
+	@SuppressWarnings("ReferenceEquality")
 	@Override
 	public boolean isSameAs(@Nullable ModbusMessage obj) {
 		if ( this == obj ) {
