@@ -8,7 +8,7 @@ buildscript {
 
 plugins {
 	id "com.vanniktech.maven.publish" version "0.34.0" apply false
-	id 'net.ltgt.errorprone' version '4.2.0' apply false
+	id 'net.ltgt.errorprone' version '5.1.1' apply false
 }
 
 ext {
@@ -109,7 +109,7 @@ subprojects {
 
 	dependencies {
 		testImplementation libraries.hamcrest
-		errorprone 'com.google.errorprone:error_prone_core:2.45.0'
+		errorprone 'com.google.errorprone:error_prone_core:2.50.0'
 	}
 
 	allprojects {
