@@ -57,7 +57,7 @@ import net.solarnetwork.io.modbus.test.support.ModbusTestUtils;
  * Test cases for the {@link RtuModbusMessageDecoder} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RtuModbusMessageDecoderTests {
 
@@ -315,6 +315,165 @@ public class RtuModbusMessageDecoderTests {
 		short[] data = rmm.dataDecode();
 		assertThat("First reg value", data[0], is(equalTo((short) 0x436a)));
 		assertThat("Last reg value", data[63], is(equalTo((short) 0xfffe)));
+	}
+
+	private static byte[] readHoldingsResponseFrame(int unitId, int value) {
+		final RtuModbusMessage rtu = new RtuModbusMessage(unitId,
+				net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage.readHoldingsResponse(unitId,
+						0, new short[] { (short) value }));
+		final ByteBuf buf = Unpooled.buffer(rtu.payloadLength());
+		rtu.encodeModbusPayload(buf);
+		final byte[] result = new byte[buf.readableBytes()];
+		buf.readBytes(result);
+		return result;
+	}
+
+	private static ByteBuf readBuffer(byte[]... data) {
+		// use a buffer with spare capacity, like the one a real channel reads into
+		final ByteBuf buf = Unpooled.buffer(2048);
+		for ( byte[] d : data ) {
+			buf.writeBytes(d);
+		}
+		return buf;
+	}
+
+	private static void assertReadHoldingsResponse(String msg, RtuModbusMessage message, int unitId,
+			int value) {
+		assertThat(msg + " decoded", message, is(notNullValue()));
+		assertThat(msg + " unit ID", message.getUnitId(), is(equalTo(unitId)));
+		assertThat(msg + " function", message.getFunction(),
+				is(equalTo(ModbusFunctionCode.ReadHoldingRegisters)));
+		assertThat(msg + " CRC valid", message.isCrcValid(), is(equalTo(true)));
+		RegistersModbusMessage rmm = message.unwrap(RegistersModbusMessage.class);
+		assertThat(msg + " is registers", rmm, is(notNullValue()));
+		assertThat(msg + " data", Arrays.equals(rmm.dataDecodeUnsigned(), new int[] { value }),
+				is(equalTo(true)));
+	}
+
+	@Test
+	public void controller_badData_discardsBufferedInput() {
+		// GIVEN
+		// a valid message followed by noise with an unknown function code, in the same read
+		final byte[] noise = new byte[] { (byte) 0x01, (byte) 0x65, (byte) 0xAA };
+
+		// WHEN
+		controllerChannel.writeInbound(readBuffer(readHoldingsResponseFrame(1, 7), noise));
+
+		// THEN
+		assertReadHoldingsResponse("Message before noise", controllerChannel.readInbound(), 1, 7);
+		Object none = controllerChannel.readInbound();
+		assertThat("Noise not decoded", none, is(nullValue()));
+
+		// every following message decoded
+		for ( int i = 1; i <= 3; i++ ) {
+			controllerChannel.writeInbound(readBuffer(readHoldingsResponseFrame(1, i)));
+			assertReadHoldingsResponse("Message " + i + " after noise", controllerChannel.readInbound(),
+					1, i);
+		}
+	}
+
+	@Test
+	public void controller_unsupportedFunction_recovers() {
+		// GIVEN
+		// @formatter:off
+		final byte[] unsupported = new byte[] {
+				(byte)0x01,
+				ModbusFunctionCodes.GET_COMM_EVENT_LOG,
+				(byte)0x02,
+				(byte)0xCC,
+				(byte)0xDD,
+				(byte)0x01,
+				(byte)0x02,
+		};
+		// @formatter:on
+
+		// WHEN
+		assertThrows(DecoderException.class, () -> {
+			controllerChannel.writeInbound(readBuffer(unsupported));
+		}, "DecoderException thrown by unsupported function");
+
+		// THEN
+		for ( int i = 1; i <= 3; i++ ) {
+			controllerChannel.writeInbound(readBuffer(readHoldingsResponseFrame(1, i)));
+			assertReadHoldingsResponse("Message " + i + " after unsupported function",
+					controllerChannel.readInbound(), 1, i);
+		}
+	}
+
+	@Test
+	public void responder_unsupportedFunction_recovers() {
+		// GIVEN
+		// @formatter:off
+		final byte[] unsupported = new byte[] {
+				(byte)0x01,
+				ModbusFunctionCodes.GET_COMM_EVENT_LOG,
+				(byte)0x00,
+				(byte)0xCC,
+				(byte)0xDD,
+				(byte)0x01
+		};
+		final byte[] request = new byte[] {
+				(byte)0x01,
+				ModbusFunctionCodes.READ_INPUT_REGISTERS,
+				(byte)0x00,
+				(byte)0x08,
+				(byte)0x00,
+				(byte)0x01,
+				(byte)0xB0,
+				(byte)0x08,
+		};
+		// @formatter:on
+
+		// WHEN
+		assertThrows(DecoderException.class, () -> {
+			responderChannel.writeInbound(readBuffer(unsupported));
+		}, "DecoderException thrown by unsupported function");
+
+		// THEN
+		for ( int i = 1; i <= 3; i++ ) {
+			responderChannel.writeInbound(readBuffer(request));
+			RtuModbusMessage msg = responderChannel.readInbound();
+			assertThat("Request " + i + " decoded", msg, is(notNullValue()));
+			assertThat("Request " + i + " unit ID", msg.getUnitId(), is(equalTo(1)));
+			assertThat("Request " + i + " function", msg.getFunction(),
+					is(equalTo(ModbusFunctionCode.ReadInputRegisters)));
+			assertThat("Request " + i + " CRC valid", msg.isCrcValid(), is(equalTo(true)));
+			RegistersModbusMessage rmm = msg.unwrap(RegistersModbusMessage.class);
+			assertThat("Request " + i + " address", rmm.getAddress(), is(equalTo(0x0008)));
+		}
+	}
+
+	@Test
+	public void controller_reset() {
+		// GIVEN
+		final RtuModbusMessageDecoder decoder = controllerChannel.pipeline()
+				.get(RtuModbusMessageDecoder.class);
+		final byte[] message = readHoldingsResponseFrame(1, 7);
+		final byte[] partial = Arrays.copyOf(message, 4);
+
+		// WHEN
+		controllerChannel.writeInbound(readBuffer(partial));
+		Object none = controllerChannel.readInbound();
+		assertThat("Partial message not decoded", none, is(nullValue()));
+		decoder.reset();
+		controllerChannel.writeInbound(readBuffer(message));
+
+		// THEN
+		assertReadHoldingsResponse("Message after reset", controllerChannel.readInbound(), 1, 7);
+	}
+
+	@Test
+	public void controller_reset_noInput() {
+		// GIVEN
+		final RtuModbusMessageDecoder decoder = controllerChannel.pipeline()
+				.get(RtuModbusMessageDecoder.class);
+
+		// WHEN
+		decoder.reset();
+		controllerChannel.writeInbound(readBuffer(readHoldingsResponseFrame(1, 7)));
+
+		// THEN
+		assertReadHoldingsResponse("Message after reset", controllerChannel.readInbound(), 1, 7);
 	}
 
 }

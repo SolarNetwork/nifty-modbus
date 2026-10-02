@@ -23,12 +23,16 @@
 package net.solarnetwork.io.modbus.tcp.netty.test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.IOException;
 import java.net.BindException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -36,6 +40,7 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import io.netty.channel.EventLoopGroup;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.channel.MultiThreadIoEventLoopGroupFactory;
 import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusServer;
 import net.solarnetwork.io.modbus.tcp.netty.test.support.TcpTestUtils;
@@ -44,7 +49,7 @@ import net.solarnetwork.io.modbus.tcp.netty.test.support.TcpTestUtils;
  * Test cases for the {@link NettyTcpModbusServer} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class NettyTcpModbusServerTests {
 
@@ -199,6 +204,106 @@ public class NettyTcpModbusServerTests {
 			assertThrows(BindException.class, () -> {
 				s2.start();
 			}, "Cannot start server when port in use");
+		} finally {
+			s.stop();
+		}
+	}
+
+	@Test
+	public void start_portInUse_eventLoopGroupsShutDown() throws IOException {
+		// GIVEN
+		NettyTcpModbusServer s = new NettyTcpModbusServer(TcpTestUtils.freePort());
+		final List<EventLoopGroup> groups = new ArrayList<>(2);
+		try {
+			s.start();
+			NettyTcpModbusServer s2 = new NettyTcpModbusServer(s.getPort());
+			s2.setEventLoopGroupProvider((context, parent) -> {
+				EventLoopGroup group = MultiThreadIoEventLoopGroupFactory.INSTANCE.apply(context,
+						parent);
+				groups.add(group);
+				return group;
+			});
+
+			// WHEN
+			assertThrows(BindException.class, () -> {
+				s2.start();
+			}, "Cannot start server when port in use");
+
+			// THEN
+			assertThat("Boss and worker groups were created", groups, hasSize(2));
+			for ( EventLoopGroup group : groups ) {
+				assertThat("Group shut down after failing to start", group.isShuttingDown(),
+						is(equalTo(true)));
+			}
+		} finally {
+			s.stop();
+			for ( EventLoopGroup group : groups ) {
+				group.shutdownGracefully();
+			}
+		}
+	}
+
+	@Test
+	public void start_eventLoopGroupProviderThrowsException() throws IOException {
+		// GIVEN
+		final IllegalStateException t = new IllegalStateException("No groups for you.");
+		NettyTcpModbusServer s = new NettyTcpModbusServer(TcpTestUtils.freePort());
+		s.setEventLoopGroupProvider((context, parent) -> {
+			throw t;
+		});
+
+		// WHEN
+		RuntimeException e = assertThrows(RuntimeException.class, () -> {
+			s.start();
+		}, "Start fails when event loop group cannot be created");
+
+		// THEN
+		assertThat("Exception from provider is cause", e.getCause(), is(sameInstance(t)));
+	}
+
+	@Test
+	public void start_workerEventLoopGroupProviderThrowsException() throws IOException {
+		// GIVEN
+		final IllegalStateException t = new IllegalStateException("No worker group for you.");
+		final List<EventLoopGroup> groups = new ArrayList<>(1);
+		NettyTcpModbusServer s = new NettyTcpModbusServer(TcpTestUtils.freePort());
+		s.setEventLoopGroupProvider((context, parent) -> {
+			if ( !parent ) {
+				throw t;
+			}
+			EventLoopGroup group = MultiThreadIoEventLoopGroupFactory.INSTANCE.apply(context, parent);
+			groups.add(group);
+			return group;
+		});
+		try {
+			// WHEN
+			RuntimeException e = assertThrows(RuntimeException.class, () -> {
+				s.start();
+			}, "Start fails when worker event loop group cannot be created");
+
+			// THEN
+			assertThat("Exception from provider is cause", e.getCause(), is(sameInstance(t)));
+			assertThat("Boss group was created", groups, hasSize(1));
+			assertThat("Boss group shut down after failing to start", groups.get(0).isShuttingDown(),
+					is(equalTo(true)));
+		} finally {
+			for ( EventLoopGroup group : groups ) {
+				group.shutdownGracefully();
+			}
+		}
+	}
+
+	@Test
+	public void start_noPendingMessageTtl() throws IOException {
+		// GIVEN
+		NettyTcpModbusServer s = new NettyTcpModbusServer(TcpTestUtils.freePort());
+		s.setPendingMessageTtl(0);
+		try {
+			// WHEN
+			s.start();
+
+			// THEN
+			assertThat("Pending message TTL disabled", s.getPendingMessageTtl(), is(equalTo(0L)));
 		} finally {
 			s.stop();
 		}

@@ -50,7 +50,7 @@ import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
  * TCP implementation of {@link ModbusClient}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfig> {
 
@@ -59,6 +59,9 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 
 	/** The channel class to use. */
 	private final Class<? extends Channel> channelClass;
+
+	/** The request messages pending responses. */
+	private final ConcurrentMap<ModbusMessage, PendingMessage> pending;
 
 	/** A mapping of transaction pendingMessages to pair requests/responses. */
 	private final ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
@@ -161,6 +164,7 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
 			IntSupplier transactionIdSupplier) {
 		super(clientConfig, scheduler, pending);
+		this.pending = pending;
 		this.channelClass = (channelClass != null ? channelClass : NioSocketChannel.class);
 		if ( pendingMessages == null ) {
 			throw new IllegalArgumentException("The pendingMessages argument must not be null.");
@@ -235,7 +239,8 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 				eventLoopGroupStopFuture.completeExceptionally(e);
 			}
 		}
-		return f.thenCompose(s -> eventLoopGroupStopFuture);
+		final CompletableFuture<?> groupStopFuture = this.eventLoopGroupStopFuture;
+		return (groupStopFuture != null ? f.thenCompose(s -> groupStopFuture) : f);
 	}
 
 	@Override
@@ -244,8 +249,24 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 		pipeline.addLast(MESSAGE_ENCODER_HANDLER_NAME,
 				new TcpModbusMessageEncoder(pendingMessages, transactionIdSupplier));
 		pipeline.addLast(MESSAGE_DECODER_HANDLER_NAME,
-				new TcpModbusMessageDecoder(true, pendingMessages));
+				new TcpModbusMessageDecoder(true, pendingMessages, this::responseDecodingFailed));
 		super.initChannel(channel);
+	}
+
+	/**
+	 * Complete a request whose response could not be decoded.
+	 * 
+	 * @param request
+	 *        the request
+	 * @param cause
+	 *        the reason the response could not be decoded
+	 */
+	private void responseDecodingFailed(ModbusMessage request, Throwable cause) {
+		log.debug("Response to {} could not be decoded: {}", request, cause.toString());
+		final PendingMessage p = pending.remove(request);
+		if ( p != null ) {
+			p.getFuture().completeExceptionally(cause);
+		}
 	}
 
 	private final class HandlerInitializer extends ChannelInitializer<SocketChannel> {

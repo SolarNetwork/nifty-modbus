@@ -9,6 +9,7 @@ buildscript {
 plugins {
 	id "com.vanniktech.maven.publish" version "0.34.0" apply false
 	id 'net.ltgt.errorprone' version '5.1.1' apply false
+	id 'com.diffplug.spotless' version "8.10.2" apply false
 }
 
 ext {
@@ -29,28 +30,20 @@ ext {
 }
 
 allprojects {
-	apply plugin: 'eclipse'
     apply plugin: 'java'
     apply plugin: 'jacoco'
 	apply plugin: 'net.ltgt.errorprone'
+	apply plugin: 'com.diffplug.spotless'
 
     repositories {
         mavenCentral()
 		maven { url = "https://plugins.gradle.org/m2/" }
     }
-    
-	eclipse {
-		jdt {
-			sourceCompatibility = 1.8
-    		targetCompatibility = 1.8
-			javaRuntimeName = 'JavaSE-1.8'
-		}
-	}
 }
 
 subprojects {
     group = 'net.solarnetwork.common'
-	version = '1.5.1-dev.0'
+	version = '1.6.0'
 
 	base {
 		archivesName = project.name
@@ -136,6 +129,22 @@ subprojects {
 			showStackTraces = true
 		}
 		maxHeapSize = '1500m'
+
+		// Pass on system properties that enable optional tests, such as those
+		// that need a serial device, e.g. -Dnifty.modbus.test.jsc.port=/dev/ttyUSB0
+		System.properties.each { k, v ->
+			if ( k.toString().startsWith('nifty.modbus.test.') ) {
+				systemProperty k.toString(), v
+			}
+		}
+	}
+
+	spotless {
+		java {
+			eclipse()
+				.configFile("${project.rootDir}/config/codeformatter.xml")
+			
+		}
 	}
 
 	jacocoTestReport {

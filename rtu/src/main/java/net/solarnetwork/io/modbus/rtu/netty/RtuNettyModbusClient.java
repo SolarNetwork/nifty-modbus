@@ -40,6 +40,7 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import net.solarnetwork.io.modbus.ModbusClient;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
 import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
 import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
@@ -48,15 +49,53 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 
 /**
  * RTU implementation of {@link ModbusClient}.
+ * 
+ * <p>
+ * Modbus RTU only supports one outstanding request at a time. This client can
+ * be used by multiple threads: requests are queued and sent one at a time, in
+ * the order they were submitted, each waiting for the response to (or timeout
+ * of) the one before it. See {@link RtuModbusExchangeHandler} for details. The
+ * {@link #getReplyTimeout()} value is used as the maximum time to wait for a
+ * response after a request is sent, falling back to
+ * {@link #getPendingMessageTtl()} if no reply timeout is configured. Note that
+ * when using {@link #send(ModbusMessage)} the reply timeout includes any time
+ * spent waiting for previously submitted requests to complete.
+ * </p>
+ *
+ * <p>
+ * No device responds to a
+ * {@link net.solarnetwork.io.modbus.rtu.RtuModbusMessage#isBroadcast(ModbusMessage)
+ * broadcast} request. The response returned for a broadcast request is a reply
+ * that echoes the request, provided as soon as the request has been sent. That
+ * reply can be identified with
+ * {@link net.solarnetwork.io.modbus.rtu.RtuModbusMessage#isBroadcast(ModbusMessage)}.
+ * The next request is then held back for the
+ * {@link #getBroadcastTurnaroundDelay()}.
+ * </p>
+ * 
+ * <p>
+ * The {@link RtuModbusClientConfig#getSendMinimumDelayMs()} delay is applied
+ * between one request being sent and the next being sent, however long the next
+ * request has been queued for, and does not block the calling thread.
+ * </p>
  *
  * @author matt
- * @version 1.1
+ * @version 1.2
  */
 public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfig>
 		implements ChannelFactory<SerialPortChannel> {
 
+	/**
+	 * The handler name used for the request/response exchange handler.
+	 * 
+	 * @since 1.2
+	 */
+	public static final String EXCHANGE_HANDLER_NAME = "modbusExchange";
+
+	private final ConcurrentMap<ModbusMessage, PendingMessage> pending;
 	private final boolean privateEventLoopGroup;
 	private final SerialPortProvider serialPortProvider;
+	private volatile long broadcastTurnaroundDelay = RtuModbusExchangeHandler.DEFAULT_BROADCAST_TURNAROUND_DELAY;
 	private @Nullable EventLoopGroup eventLoopGroup;
 	private @Nullable CompletableFuture<?> eventLoopGroupStopFuture;
 
@@ -135,6 +174,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 			ConcurrentMap<ModbusMessage, PendingMessage> pending,
 			@Nullable EventLoopGroup eventLoopGroup, SerialPortProvider serialPortProvider) {
 		super(clientConfig, scheduler, pending);
+		this.pending = pending;
 		if ( eventLoopGroup == null ) {
 			this.privateEventLoopGroup = true;
 		} else {
@@ -152,8 +192,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		if ( provider != null ) {
 			return provider.apply(this, false);
 		}
-		return net.solarnetwork.io.modbus.netty.channel.OioEventLoopGroupFactory.INSTANCE.apply(provider,
-				false);
+		return LocalIoEventLoopGroupFactory.INSTANCE.apply(this, false);
 	}
 
 	@Override
@@ -211,7 +250,8 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 				eventLoopGroupStopFuture.completeExceptionally(e);
 			}
 		}
-		return f.thenCompose(s -> eventLoopGroupStopFuture);
+		final CompletableFuture<?> groupStopFuture = this.eventLoopGroupStopFuture;
+		return (groupStopFuture != null ? f.thenCompose(s -> groupStopFuture) : f);
 	}
 
 	@Override
@@ -219,7 +259,60 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		ChannelPipeline pipeline = channel.pipeline();
 		pipeline.addLast(MESSAGE_ENCODER_HANDLER_NAME, new RtuModbusMessageEncoder());
 		pipeline.addLast(MESSAGE_DECODER_HANDLER_NAME, new RtuModbusMessageDecoder(true));
+		pipeline.addLast(EXCHANGE_HANDLER_NAME,
+				new RtuModbusExchangeHandler(pending, this::exchangeTimeout,
+						this::getBroadcastTurnaroundDelay, clientConfig::getSendMinimumDelayMs));
 		super.initChannel(channel);
+	}
+
+	/**
+	 * Enforce the minimum delay between requests.
+	 * 
+	 * <p>
+	 * This implementation does nothing, because the
+	 * {@link RtuModbusExchangeHandler} enforces the delay between requests
+	 * actually being written to the serial port, without blocking the calling
+	 * thread.
+	 * </p>
+	 */
+	@Override
+	protected void enforceSendDelay() {
+		// nothing to do
+	}
+
+	private long exchangeTimeout() {
+		final long timeout = getReplyTimeout();
+		return (timeout > 0 ? timeout : getPendingMessageTtl());
+	}
+
+	/**
+	 * Get the broadcast turnaround delay.
+	 * 
+	 * @return the time to wait after sending a broadcast request before sending
+	 *         the next request, in milliseconds; defaults to
+	 *         {@link RtuModbusExchangeHandler#DEFAULT_BROADCAST_TURNAROUND_DELAY}
+	 * @since 1.2
+	 */
+	public long getBroadcastTurnaroundDelay() {
+		return broadcastTurnaroundDelay;
+	}
+
+	/**
+	 * Set the broadcast turnaround delay.
+	 * 
+	 * <p>
+	 * No device responds to a broadcast request, so this delay gives them time
+	 * to process a broadcast before the next request is sent.
+	 * </p>
+	 * 
+	 * @param broadcastTurnaroundDelay
+	 *        the time to wait after sending a broadcast request before sending
+	 *        the next request, in milliseconds; anything less than {@literal 1}
+	 *        disables the delay
+	 * @since 1.2
+	 */
+	public void setBroadcastTurnaroundDelay(long broadcastTurnaroundDelay) {
+		this.broadcastTurnaroundDelay = broadcastTurnaroundDelay;
 	}
 
 	private final class HandlerInitializer extends ChannelInitializer<SerialPortChannel> {

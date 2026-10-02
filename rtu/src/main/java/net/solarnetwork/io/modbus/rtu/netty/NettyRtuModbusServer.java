@@ -39,9 +39,11 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.DecoderException;
 import io.netty.handler.logging.LoggingHandler;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusUnsupportedFunctionException;
+import net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
 import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
@@ -59,9 +61,23 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * provide a response {@link ModbusMessage}, which this server will then encode
  * and send back to the connected client.
  * </p>
+ * 
+ * <p>
+ * A request that fails its CRC check is discarded: it is not passed to the
+ * message handler and no response is sent, as required by the Modbus
+ * specification.
+ * </p>
+ * 
+ * <p>
+ * A
+ * {@link net.solarnetwork.io.modbus.rtu.RtuModbusMessage#isBroadcast(ModbusMessage)
+ * broadcast} request is passed to the message handler like any other, so it can
+ * be acted on, but any response the handler provides is discarded, as a
+ * broadcast must not be responded to.
+ * </p>
  *
  * @author matt
- * @version 1.1
+ * @version 1.2
  */
 public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 
@@ -135,10 +151,8 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 		this.eventLoopGroup = eventLoopGroup;
 	}
 
-	@SuppressWarnings("deprecation")
 	private static EventLoopGroup defaultEventLoopGroup() {
-		// TODO: need a non-deprecated replacement
-		return new io.netty.channel.oio.OioEventLoopGroup();
+		return LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 	}
 
 	@Override
@@ -153,24 +167,33 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 	 * 
 	 * <p>
 	 * Upon return the server will be bound and ready to accept connections on
-	 * the configured port.
+	 * the configured port. The server can be started again after
+	 * {@link #stop()} has been called, or after the serial port has closed
+	 * because of an error.
 	 * </p>
 	 */
 	public synchronized void start() throws IOException {
-		if ( this.channel != null ) {
+		if ( this.channel != null && this.channel.isOpen() ) {
 			return;
 		}
 		try {
-			if ( eventLoopGroup != null && eventLoopGroup.isShuttingDown() ) {
+			// a closed channel left from a failure has shut down, or is about to
+			// shut down, its private group
+			final boolean reopening = (this.channel != null && privateEventLoopGroup);
+			this.channel = null;
+			EventLoopGroup group = this.eventLoopGroup;
+			if ( group == null || group.isShuttingDown() || reopening ) {
 				if ( privateEventLoopGroup ) {
-					eventLoopGroup = defaultEventLoopGroup();
+					group = defaultEventLoopGroup();
+					this.eventLoopGroup = group;
 				} else {
 					throw new IOException("External EventLoopGroup is stopped.");
 				}
 			}
+			final EventLoopGroup channelGroup = group;
 			// @formatter:off
 			Bootstrap bootstrap = new Bootstrap()
-					.group(eventLoopGroup)
+					.group(channelGroup)
 					.channelFactory(this)
 					.remoteAddress(new SerialAddress(device))
 					.handler(new HandlerInitializer());
@@ -182,9 +205,8 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 				@SuppressWarnings("FutureReturnValueIgnored")
 				@Override
 				public void operationComplete(ChannelFuture future) throws Exception {
-					final EventLoopGroup group = eventLoopGroup;
-					if ( group != null && privateEventLoopGroup ) {
-						group.shutdownGracefully();
+					if ( privateEventLoopGroup ) {
+						channelGroup.shutdownGracefully();
 					}
 				}
 			});
@@ -227,13 +249,13 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 	 */
 	@SuppressWarnings("FutureReturnValueIgnored")
 	public synchronized void stop() {
-		if ( privateEventLoopGroup && eventLoopGroup != null ) {
-			eventLoopGroup.shutdownGracefully();
-			eventLoopGroup = null;
-		}
 		if ( channel != null ) {
 			channel.close().awaitUninterruptibly();
 			channel = null;
+		}
+		if ( privateEventLoopGroup && eventLoopGroup != null ) {
+			eventLoopGroup.shutdownGracefully();
+			eventLoopGroup = null;
 		}
 	}
 
@@ -283,17 +305,35 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 		@Override
 		protected void channelRead0(ChannelHandlerContext ctx, ModbusMessage msg) throws Exception {
 			log.debug("Request: {}", msg);
+			if ( msg instanceof RtuModbusMessage && !((RtuModbusMessage) msg).isCrcValid() ) {
+				log.debug("Discarding request with invalid CRC: {}", msg);
+				// the framing can't be trusted, so discard whatever followed the request
+				final RtuModbusMessageDecoder decoder = ctx.pipeline()
+						.get(RtuModbusMessageDecoder.class);
+				if ( decoder != null ) {
+					decoder.reset();
+				}
+				return;
+			}
 			final BiConsumer<ModbusMessage, Consumer<ModbusMessage>> h = getMessageHandler();
 			if ( h == null ) {
 				return;
 			}
+			final boolean broadcast = net.solarnetwork.io.modbus.rtu.RtuModbusMessage.isBroadcast(msg);
 			h.accept(msg, (r) -> {
+				if ( broadcast ) {
+					log.debug("Not responding to broadcast request: {}", msg);
+					return;
+				}
 				ctx.channel().writeAndFlush(new SimpleModbusMessageReply(msg, r));
 			});
 		}
 
 		@Override
-		public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+		public void exceptionCaught(ChannelHandlerContext ctx, Throwable t) throws Exception {
+			// provide the reason a message could not be decoded, not the decoder's wrapper
+			final Throwable cause = (t instanceof DecoderException && t.getCause() != null ? t.getCause()
+					: t);
 			log.debug("Exception: {}", cause);
 			final BiConsumer<Throwable, Consumer<ModbusMessage>> h = getExceptionHandler();
 			if ( h == null ) {
@@ -304,6 +344,10 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 				if ( cause instanceof ModbusUnsupportedFunctionException ) {
 					ModbusUnsupportedFunctionException ufe = (ModbusUnsupportedFunctionException) cause;
 					ModbusMessage msg = new BaseModbusMessage(ufe.getUnitId(), ufe.getCode());
+					if ( net.solarnetwork.io.modbus.rtu.RtuModbusMessage.isBroadcast(msg) ) {
+						log.debug("Not responding to broadcast request: {}", msg);
+						return;
+					}
 					response = new SimpleModbusMessageReply(new RtuModbusMessage(ufe.getUnitId(), msg),
 							r);
 				}

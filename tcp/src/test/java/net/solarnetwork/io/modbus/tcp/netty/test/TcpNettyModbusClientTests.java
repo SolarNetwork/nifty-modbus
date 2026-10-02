@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 import org.junit.jupiter.api.AfterEach;
@@ -48,15 +49,18 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.CorruptedFrameException;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
+import net.solarnetwork.io.modbus.ModbusException;
 import net.solarnetwork.io.modbus.ModbusMessage;
-import net.solarnetwork.io.modbus.UserModbusFunction;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
+import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
 import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
+import net.solarnetwork.io.modbus.tcp.TcpModbusUnsupportedFunctionException;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
@@ -65,7 +69,7 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
  * Test cases for the {@link TcpNettyModbusClient} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpNettyModbusClientTests {
 
@@ -411,10 +415,10 @@ public class TcpNettyModbusClientTests {
 		client.start();
 		Future<ModbusMessage> f = client.sendAsync(req);
 
-		// provide response
+		// provide junk, whose frame length field (0x0405) is not possible for Modbus
 		final int txId = idSupplier.get();
 		// @formatter:off
-		final byte[] responseData = new byte[] {
+		final byte[] junkData = new byte[] {
 				(byte)0x00,
 				(byte)0x01,
 				(byte)0x02,
@@ -424,13 +428,14 @@ public class TcpNettyModbusClientTests {
 				(byte)0x06,
 				(byte)0x65,
 		};
-		ByteBuf response = Unpooled.copiedBuffer(responseData);
 		// @formatter:on
-		channel.writeOneInbound(response).sync();
+		assertThrows(CorruptedFrameException.class, () -> {
+			channel.writeOneInbound(Unpooled.copiedBuffer(junkData)).sync();
+		}, "Junk is rejected");
 
 		// THEN
-		assertThat("Future returned", f, is(notNullValue()));
-		assertThat("Request should not be pending", pending.keySet(), hasSize(0));
+		assertThat("Request not completed by junk", f.isDone(), is(equalTo(false)));
+		assertThat("Request still pending", pending.keySet(), hasSize(1));
 
 		ByteBuf requestData = channel.readOutbound();
 		assertThat("Request bytes produced", requestData, is(notNullValue()));
@@ -451,15 +456,193 @@ public class TcpNettyModbusClientTests {
 						(byte)(count >>> 8 & 0xFF),
 						(byte)(count & 0xFF),
 				})));
+
+		// the junk was discarded, so the response that follows is decoded
+		final byte[] responseData = new byte[] {
+				(byte)(txId >>> 8 & 0xFF),
+				(byte)(txId & 0xFF),
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x09,
+				(byte)(unitId & 0xFF),
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+				(byte)0x06,
+				(byte)0x02,
+				(byte)0x2B,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x64,
+		};
 		// @formatter:on
+		channel.writeOneInbound(Unpooled.copiedBuffer(responseData)).sync();
 
 		assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
+		assertThat("Request should no longer be pending", pending.keySet(), hasSize(0));
 		ModbusMessage resp = f.get();
 		assertThat("Response is not an error", resp.getError(), is(nullValue()));
-		assertThat("Response function is user function", resp.getFunction(),
-				is(instanceOf(UserModbusFunction.class)));
-		assertThat("Response function is from junk", resp.getFunction().getCode(),
-				is(equalTo((byte) 0x65)));
+		net.solarnetwork.io.modbus.RegistersModbusMessage respReg = resp
+				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+		assertThat("Response is Registers", respReg, is(notNullValue()));
+		assertThat("Response data decoded",
+				java.util.Arrays.equals(respReg.dataDecodeUnsigned(), new int[] { 0x022B, 0, 0x64 }),
+				is(equalTo(true)));
+	}
+
+	@Test
+	public void stop_notStarted() throws Exception {
+		// GIVEN
+		NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig("localhost", 502);
+		TcpNettyModbusClient c = new TcpNettyModbusClient(config);
+
+		// WHEN
+		Object result = c.stop().get(5, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Stop completes without error", result, is(nullValue()));
+		assertThat("Not started", c.isStarted(), is(equalTo(false)));
+	}
+
+	private static ByteBuf readHoldingsResponseFrame(int txId, int unitId, short... values) {
+		final TcpModbusMessage tcp = new TcpModbusMessage(txId,
+				RegistersModbusMessage.readHoldingsResponse(unitId, 0, values));
+		final ByteBuf buf = Unpooled.buffer(tcp.payloadLength());
+		tcp.encodeModbusPayload(buf);
+		return buf;
+	}
+
+	@Test
+	public void send_recvUnsupportedFunction() throws Exception {
+		// GIVEN
+		// report server ID is a function whose response is not able to be decoded
+		final BaseModbusMessage req = new BaseModbusMessage(1, ModbusFunctionCodes.REPORT_SERVER_ID);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+		final int txId = idSupplier.get();
+		// @formatter:off
+		final byte[] responseData = new byte[] {
+				(byte)(txId >>> 8 & 0xFF),
+				(byte)(txId & 0xFF),
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x05,
+				(byte)0x01,
+				ModbusFunctionCodes.REPORT_SERVER_ID,
+				(byte)0x02,
+				(byte)0xAA,
+				(byte)0xFF,
+		};
+		// @formatter:on
+		channel.writeOneInbound(Unpooled.copiedBuffer(responseData)).sync();
+
+		// THEN
+		assertThat("Request completed as soon as response received", f.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f.get();
+		}, "Request failed");
+		assertThat("Request failed because response function is unsupported", e.getCause(),
+				is(instanceOf(TcpModbusUnsupportedFunctionException.class)));
+		assertThat("Exception is for the transaction",
+				((TcpModbusUnsupportedFunctionException) e.getCause()).getTransactionId(),
+				is(equalTo(txId)));
+		assertThat("Request no longer pending", pending.keySet(), hasSize(0));
+		assertThat("Transaction no longer pending", pendingMessages.keySet(), hasSize(0));
+
+		// the connection carries on working
+		ByteBuf out = channel.readOutbound();
+		out.release();
+		Future<ModbusMessage> f2 = client.sendAsync(RegistersModbusMessage.readHoldingsRequest(1, 0, 1));
+		channel.writeOneInbound(readHoldingsResponseFrame(idSupplier.get(), 1, (short) 7)).sync();
+		assertThat("Next request completed", f2.isDone(), is(equalTo(true)));
+		assertThat("Next response is not an error", f2.get().getError(), is(nullValue()));
+	}
+
+	@Test
+	public void send_recvUndecodable() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+		final int txId = idSupplier.get();
+		// a response claiming 6 bytes of data, in a frame with only 2
+		// @formatter:off
+		final byte[] responseData = new byte[] {
+				(byte)(txId >>> 8 & 0xFF),
+				(byte)(txId & 0xFF),
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x05,
+				(byte)0x01,
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+				(byte)0x06,
+				(byte)0x00,
+				(byte)0x01,
+		};
+		// @formatter:on
+		channel.writeOneInbound(Unpooled.copiedBuffer(responseData)).sync();
+
+		// THEN
+		assertThat("Request completed as soon as response received", f.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f.get();
+		}, "Request failed");
+		assertThat("Request failed with a Modbus exception", e.getCause(),
+				is(instanceOf(ModbusException.class)));
+		assertThat("Request no longer pending", pending.keySet(), hasSize(0));
+		assertThat("Transaction no longer pending", pendingMessages.keySet(), hasSize(0));
+	}
+
+	@Test
+	public void construct_eventLoopGroup() {
+		// GIVEN
+		NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig("localhost", 502);
+
+		// WHEN
+		TcpNettyModbusClient c = new TcpNettyModbusClient(config, channel.eventLoop(), null);
+
+		// THEN
+		assertThat("Provided client config returned", c.getClientConfig(), is(sameInstance(config)));
+	}
+
+	@Test
+	public void send_recvUnsupportedFunction_requestNoLongerPending() throws Exception {
+		// GIVEN
+		final BaseModbusMessage req = new BaseModbusMessage(1, ModbusFunctionCodes.REPORT_SERVER_ID);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+		final int txId = idSupplier.get();
+
+		// the request is given up on before its response arrives
+		pending.clear();
+		// @formatter:off
+		final byte[] responseData = new byte[] {
+				(byte)(txId >>> 8 & 0xFF),
+				(byte)(txId & 0xFF),
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x05,
+				(byte)0x01,
+				ModbusFunctionCodes.REPORT_SERVER_ID,
+				(byte)0x02,
+				(byte)0xAA,
+				(byte)0xFF,
+		};
+		// @formatter:on
+		channel.writeOneInbound(Unpooled.copiedBuffer(responseData)).sync();
+
+		// THEN
+		assertThat("Request not completed, as it was no longer pending", f.isDone(), is(equalTo(false)));
+		assertThat("Transaction no longer pending", pendingMessages.keySet(), hasSize(0));
 	}
 
 }

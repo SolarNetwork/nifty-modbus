@@ -24,10 +24,15 @@ package net.solarnetwork.io.modbus.tcp.netty;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiConsumer;
+import org.jspecify.annotations.Nullable;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.CorruptedFrameException;
+import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.ReplayingDecoder;
 import net.solarnetwork.io.modbus.AddressedModbusMessage;
+import net.solarnetwork.io.modbus.ModbusException;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusUnsupportedFunctionException;
 import net.solarnetwork.io.modbus.netty.msg.ModbusMessageUtils;
@@ -37,9 +42,32 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageDecoder.DecoderState
 
 /**
  * Decoder for TCP Modbus messages.
+ * 
+ * <p>
+ * Frames are delimited using the length field of the frame header, so a frame
+ * that cannot be decoded, for example because it uses an unsupported function,
+ * does not prevent the frames that follow it from being decoded. When a frame
+ * cannot be decoded a {@link DecoderException} is fired on the channel
+ * pipeline, with the reason as its cause, and decoding continues with the next
+ * frame.
+ * </p>
+ * 
+ * <p>
+ * A frame header with a length outside the range allowed by Modbus cannot be
+ * the start of a frame. When that happens all buffered input is discarded and a
+ * {@link CorruptedFrameException} is thrown.
+ * </p>
+ * 
+ * <p>
+ * When decoding responses, a handler can be configured to be given the request
+ * of any response that cannot be decoded, along with the reason. That allows
+ * the request to be completed straight away instead of waiting for a response
+ * that has already been received. When that handler is used, no exception is
+ * fired on the channel pipeline for that response.
+ * </p>
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 
@@ -74,8 +102,22 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 	/** A mapping of transaction messages to pair requests/responses. */
 	private final ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
 
+	/** A handler for requests whose response cannot be decoded. */
+	private final @Nullable BiConsumer<ModbusMessage, Throwable> responseFailureHandler;
+
+	/**
+	 * The smallest valid frame length field value: a unit ID and function code.
+	 */
+	private static final int MIN_FRAME_LENGTH = 2;
+
+	/**
+	 * The largest valid frame length field value: a unit ID and 253 byte PDU.
+	 */
+	private static final int MAX_FRAME_LENGTH = 254;
+
 	private int transactionId;
 	private short unitId;
+	private int payloadLength;
 
 	/**
 	 * Constructor.
@@ -92,12 +134,38 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 	 */
 	public TcpModbusMessageDecoder(boolean controller,
 			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages) {
+		this(controller, pendingMessages, null);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param controller
+	 *        {@code true} if operating as a controller where decoding is for
+	 *        Modbus response message, or {@code false} if operating as a
+	 *        responder where decoding is for Modbus request messages
+	 * @param pendingMessages
+	 *        a mapping of transaction IDs to associated messages, to handle
+	 *        request and response pairing
+	 * @param responseFailureHandler
+	 *        an optional handler to pass a request to, along with the reason,
+	 *        when operating as a controller and the response to the request
+	 *        cannot be decoded; the transaction is removed from
+	 *        {@code pendingMessages} before the handler is called
+	 * @throws IllegalArgumentException
+	 *         if {@code pendingMessages} is {@code null}
+	 * @since 1.1
+	 */
+	public TcpModbusMessageDecoder(boolean controller,
+			ConcurrentMap<Integer, TcpModbusMessage> pendingMessages,
+			@Nullable BiConsumer<ModbusMessage, Throwable> responseFailureHandler) {
 		super(DecoderState.READ_FIXED_HEADER);
 		this.controller = controller;
 		if ( pendingMessages == null ) {
 			throw new IllegalArgumentException("The pendingMessages argument must not be null.");
 		}
 		this.pendingMessages = pendingMessages;
+		this.responseFailureHandler = responseFailureHandler;
 	}
 
 	@Override
@@ -108,24 +176,36 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 				break;
 
 			case READ_PAYLOAD:
-				readPayload(in, out);
+				readPayload(ctx, in, out);
 				break;
 		}
 	}
 
 	private void readFixedHeader(ByteBuf in) {
 		transactionId = in.readUnsignedShort();
-		in.skipBytes(4); // just assuming is 0 for TCP, and we don't mind about payload length bytes
+		in.skipBytes(2); // just assuming is 0 for TCP
+		final int length = in.readUnsignedShort();
 		unitId = in.readUnsignedByte();
+		if ( length < MIN_FRAME_LENGTH || length > MAX_FRAME_LENGTH ) {
+			// not the start of a frame, so where the next frame starts is unknown
+			in.skipBytes(actualReadableBytes());
+			checkpoint(DecoderState.READ_FIXED_HEADER);
+			throw new CorruptedFrameException("Invalid Modbus TCP frame length " + length + ".");
+		}
+		payloadLength = length - 1; // length includes unit ID
 		checkpoint(DecoderState.READ_PAYLOAD);
 	}
 
-	private void readPayload(ByteBuf in, List<Object> out) {
+	private void readPayload(ChannelHandlerContext ctx, ByteBuf frame, List<Object> out) {
+		// take the complete payload, so the next frame can be found regardless of how decoding goes
+		final ByteBuf in = frame.readSlice(payloadLength);
+		checkpoint(DecoderState.READ_FIXED_HEADER);
+
+		final TcpModbusMessage req = (controller ? pendingMessages.get(transactionId) : null);
 		ModbusMessage msg = null;
 		try {
 			if ( controller ) {
 				// inbound response
-				TcpModbusMessage req = pendingMessages.get(transactionId);
 				AddressedModbusMessage addr = (req != null ? req.unwrap(AddressedModbusMessage.class)
 						: null);
 				ModbusMessage payload = ModbusMessageUtils.decodeResponsePayload(unitId,
@@ -144,19 +224,49 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 				// inbound request
 				ModbusMessage payload = ModbusMessageUtils.decodeRequestPayload(unitId, 0, 0, in);
 				if ( payload != null ) {
-					TcpModbusMessage req = new TcpModbusMessage(System.currentTimeMillis(),
+					TcpModbusMessage tcp = new TcpModbusMessage(System.currentTimeMillis(),
 							transactionId, payload);
-					pendingMessages.put(transactionId, req);
-					msg = req;
+					pendingMessages.put(transactionId, tcp);
+					msg = tcp;
 				}
 			}
 		} catch ( ModbusUnsupportedFunctionException ufe ) {
-			throw new TcpModbusUnsupportedFunctionException(ufe.getCode(), ufe.getUnitId(),
-					transactionId);
+			decodeFailed(ctx, req, new TcpModbusUnsupportedFunctionException(ufe.getCode(),
+					ufe.getUnitId(), transactionId));
+			return;
+		} catch ( RuntimeException e ) {
+			decodeFailed(ctx, req, e);
+			return;
 		}
 		if ( msg != null ) {
 			out.add(msg);
 		}
-		checkpoint(DecoderState.READ_FIXED_HEADER);
+	}
+
+	/**
+	 * Handle a frame that could not be decoded.
+	 * 
+	 * @param ctx
+	 *        the channel context
+	 * @param req
+	 *        the request the frame is a response to, if known
+	 * @param cause
+	 *        the reason the frame could not be decoded
+	 */
+	private void decodeFailed(ChannelHandlerContext ctx, @Nullable TcpModbusMessage req,
+			RuntimeException cause) {
+		final BiConsumer<ModbusMessage, Throwable> handler = this.responseFailureHandler;
+		final ModbusMessage request = (req != null ? req.unwrap(ModbusMessage.class) : null);
+		if ( handler != null && req != null && request != null ) {
+			// the response has been received, so nothing more will arrive for the request
+			pendingMessages.remove(transactionId, req);
+			handler.accept(request,
+					cause instanceof ModbusException ? cause
+							: new ModbusException(
+									String.format("Error decoding response to %s: %s", request, cause),
+									cause));
+			return;
+		}
+		ctx.fireExceptionCaught(cause instanceof DecoderException ? cause : new DecoderException(cause));
 	}
 }

@@ -36,6 +36,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import org.jspecify.annotations.Nullable;
@@ -67,7 +68,7 @@ import net.solarnetwork.io.modbus.ModbusTimeoutException;
  * @param <C>
  *        the configuration type
  * @author matt
- * @version 1.2
+ * @version 1.3
  */
 public abstract class NettyModbusClient<C extends ModbusClientConfig> implements ModbusClient {
 
@@ -116,7 +117,13 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	private final boolean privateScheduler;
 
 	/** The scheduler. */
-	private ScheduledExecutorService scheduler;
+	private volatile ScheduledExecutorService scheduler;
+
+	/**
+	 * A count of the times the client has been stopped, so connection tasks
+	 * started before the client was stopped can tell they are no longer wanted.
+	 */
+	private final AtomicInteger stopCount = new AtomicInteger();
 
 	private @Nullable ModbusClientConnectionObserver connectionObserver;
 	private @Nullable BiFunction<Object, Boolean, EventLoopGroup> eventLoopGroupProvider;
@@ -125,6 +132,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 	private long replyTimeout = DEFAULT_REPLY_TIMEOUT;
 
 	private @Nullable ScheduledFuture<?> cleanupTask;
+	private volatile @Nullable ScheduledFuture<?> reconnectTask;
 	private @Nullable CompletableFuture<?> connFuture;
 	private @Nullable CompletableFuture<?> stopFuture;
 	private volatile @Nullable Channel channel;
@@ -191,14 +199,18 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		if ( privateScheduler && scheduler.isShutdown() ) {
 			scheduler = Executors.newSingleThreadScheduledExecutor();
 		}
-		CompletableFuture<?> result = handleConnect(false);
+		CompletableFuture<?> result = handleConnect(stopCount.get(), false);
 		if ( cleanupTask == null ) {
 			long period = getPendingMessageTtl() * 2;
 			if ( period > 0 ) {
-				result = result.thenRun(() -> {
+				try {
 					cleanupTask = scheduler.scheduleWithFixedDelay(new PendingMessageExpiredCleaner(),
 							period, period, TimeUnit.MILLISECONDS);
-				});
+				} catch ( RejectedExecutionException e ) {
+					log.warn("Unable to schedule pending message cleaner for {}: {}",
+							clientConfig.getDescription(),
+							scheduler.isShutdown() ? "scheduler is shut down" : e.getMessage());
+				}
 			}
 		}
 		connFuture = result;
@@ -217,6 +229,12 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			return stopFuture;
 		}
 		stopFuture = new CompletableFuture<Void>();
+		stopCount.incrementAndGet();
+		final ScheduledFuture<?> reconnect = this.reconnectTask;
+		if ( reconnect != null ) {
+			reconnect.cancel(false);
+			reconnectTask = null;
+		}
 		if ( privateScheduler && !scheduler.isShutdown() ) {
 			scheduler.shutdown();
 			try {
@@ -250,21 +268,45 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		return stopFuture;
 	}
 
-	private synchronized CompletableFuture<?> handleConnect(boolean reconnecting) {
+	/**
+	 * Establish the connection, unless the client has been stopped.
+	 * 
+	 * @param stops
+	 *        the {@code stopCount} value when the connection was asked for
+	 * @param reconnecting
+	 *        {@code true} if reconnecting after a previous connection
+	 * @return the connection future
+	 */
+	@SuppressWarnings("FutureReturnValueIgnored")
+	private synchronized CompletableFuture<?> handleConnect(final int stops, boolean reconnecting) {
 		CompletableFuture<Void> completable = new CompletableFuture<>();
+		if ( stopped || stops != stopCount.get() ) {
+			completable.cancel(false);
+			return completable;
+		}
 		try {
 			ChannelFuture channelFuture = connect();
 			channelFuture.addListener((ChannelFutureListener) f -> {
 				Channel c = f.channel();
 				if ( f.isSuccess() ) {
+					if ( stops != stopCount.get() ) {
+						// stopped while connecting
+						c.close();
+						completable.cancel(false);
+						return;
+					}
 					c.closeFuture().addListener((ChannelFutureListener) chFuture -> {
 						// TODO: could offer a "connection closed" callback API here
-						handleCloseAndScheduleReconnectIfRequired(true);
+						handleCloseAndScheduleReconnectIfRequired(stops, true);
 					});
 					channel = c;
+					if ( stops != stopCount.get() ) {
+						// stopped after the check above, and stop() might not have seen the channel
+						c.close();
+					}
 					completable.complete(null);
 				} else {
-					handleCloseAndScheduleReconnectIfRequired(reconnecting);
+					handleCloseAndScheduleReconnectIfRequired(stops, reconnecting);
 					if ( !reconnecting ) {
 						completable.completeExceptionally(f.cause());
 					}
@@ -276,16 +318,44 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 		return completable;
 	}
 
+	/*
+	 * Note this is called from the channel's event loop, so must not
+	 * synchronize on this object: stop() waits for the channel to close while
+	 * holding that lock.
+	 */
 	@SuppressWarnings("FutureReturnValueIgnored")
-	private void handleCloseAndScheduleReconnectIfRequired(boolean reconnecting) {
-		if ( clientConfig.isAutoReconnect() && !stopped ) {
-			try {
-				scheduler.schedule((Runnable) () -> handleConnect(reconnecting),
-						clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
-			} catch ( RejectedExecutionException e ) {
-				log.warn("Unable to schedule reconnection to {}: {}", clientConfig.getDescription(),
-						scheduler.isShutdown() ? "scheduler is shut down" : e.getMessage());
+	private void handleCloseAndScheduleReconnectIfRequired(final int stops, boolean reconnecting) {
+		if ( !clientConfig.isAutoReconnect() || stopped || stops != stopCount.get() ) {
+			return;
+		}
+		try {
+			final ScheduledFuture<?> task = scheduler.schedule((Runnable) () -> {
+				if ( stops == stopCount.get() ) {
+					handleConnect(stops, reconnecting);
+				}
+			}, clientConfig.getAutoReconnectDelaySeconds(), TimeUnit.SECONDS);
+			reconnectTask = task;
+			if ( stops != stopCount.get() ) {
+				// stopped after the check above, and stop() might not have seen the task
+				task.cancel(false);
 			}
+		} catch ( RejectedExecutionException e ) {
+			log.warn("Unable to schedule reconnection to {}: {}", clientConfig.getDescription(),
+					scheduler.isShutdown() ? "scheduler is shut down" : e.getMessage());
+		}
+	}
+
+	/**
+	 * Complete all pending requests with an exception.
+	 * 
+	 * @param cause
+	 *        the exception
+	 */
+	private void failPending(Throwable cause) {
+		for ( Iterator<PendingMessage> itr = pending.values().iterator(); itr.hasNext(); ) {
+			PendingMessage p = itr.next();
+			itr.remove();
+			p.future.completeExceptionally(cause);
 		}
 	}
 
@@ -319,28 +389,36 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 				String.format("Connection to %s is closed.", clientConfig.getDescription())));
 	}
 
-	private void enforceSendDelay() {
+	/**
+	 * Enforce the minimum delay between requests, before a request is sent.
+	 * 
+	 * <p>
+	 * This implementation blocks the calling thread until the
+	 * {@link ModbusClientConfig#getSendMinimumDelayMs()} has passed since the
+	 * previous request was allowed to be sent. Each request is allocated its
+	 * own time to be sent at, so requests from multiple threads are spaced
+	 * apart as well. Extending classes can override this to enforce the delay
+	 * another way.
+	 * </p>
+	 * 
+	 * @since 1.3
+	 */
+	protected void enforceSendDelay() {
 		final long sendMinimumDelayMs = clientConfig.getSendMinimumDelayMs();
 		if ( sendMinimumDelayMs < 1 ) {
 			return;
 		}
-		long now;
-		long expire;
-		long last;
-		do {
-			now = System.currentTimeMillis();
-			last = lastSendDate.get();
-			expire = last + sendMinimumDelayMs;
-			if ( now < expire ) {
-				try {
-					Thread.sleep(expire - now);
-				} catch ( InterruptedException e ) {
-					// stop waiting
-					break;
-				}
+		final long now = System.currentTimeMillis();
+		// claim the next time a request is allowed to be sent
+		final long sendDate = lastSendDate
+				.updateAndGet(last -> Math.max(last + sendMinimumDelayMs, now));
+		if ( sendDate > now ) {
+			try {
+				Thread.sleep(sendDate - now);
+			} catch ( InterruptedException e ) {
+				// stop waiting
 			}
-		} while ( now < expire );
-		lastSendDate.compareAndSet(last, System.currentTimeMillis());
+		}
 	}
 
 	/**
@@ -366,6 +444,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			}
 			return f.get();
 		} catch ( InterruptedException e ) {
+			f.cancel(true);
 			log.warn("Interrupted waiting for response to {}", request);
 			throw new ModbusException(format("Interrupted waiting for response to %s.", request), e);
 		} catch ( ExecutionException e ) {
@@ -377,6 +456,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			throw new ModbusException(format("Internal exception waiting for response to %s: %s.",
 					request, t.getMessage()), t);
 		} catch ( TimeoutException e ) {
+			f.cancel(true);
 			log.warn("Timeout waiting for response to {}", request);
 			throw new ModbusTimeoutException(format("Timeout waiting for response to %s.", request), e);
 		}
@@ -453,9 +533,16 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			}
 		}
 
+		@SuppressWarnings("ReferenceEquality")
 		@Override
 		public void channelInactive(ChannelHandlerContext ctx) throws Exception {
 			super.channelInactive(ctx);
+			final Channel current = channel;
+			if ( current == null || current == ctx.channel() ) {
+				// no response can arrive for a request sent on a closed connection
+				failPending(new IOException(
+						format("Connection to %s closed.", clientConfig.getDescription())));
+			}
 			final ModbusClientConnectionObserver obs = getConnectionObserver();
 			if ( obs != null ) {
 				try {

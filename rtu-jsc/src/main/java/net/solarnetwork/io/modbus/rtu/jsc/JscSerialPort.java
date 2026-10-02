@@ -43,7 +43,7 @@ import net.solarnetwork.io.modbus.serial.SerialStopBits;
  * {@link net.solarnetwork.io.modbus.serial.SerialPort}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPort {
 
@@ -70,8 +70,9 @@ public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPo
 	}
 
 	@Override
-	public String getName() {
-		return serialPort.getSystemPortName();
+	public synchronized String getName() {
+		final SerialPort port = this.serialPort;
+		return (port != null ? port.getSystemPortName() : name);
 	}
 
 	@Override
@@ -79,12 +80,14 @@ public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPo
 		if ( serialPort != null ) {
 			return; // throw exception?
 		}
+		SerialPort port = null;
 		try {
-			serialPort = SerialPort.getCommPort(name);
-			setupSerialPortParameters(serialPort, parameters);
-			if ( !serialPort.openPort() ) {
+			port = SerialPort.getCommPort(name);
+			setupSerialPortParameters(port, parameters);
+			if ( !port.openPort() ) {
 				throw new IOException("Serial port [" + name + "] failed to open");
 			}
+			serialPort = port;
 		} catch ( SerialPortInvalidPortException e ) {
 			try {
 				SerialPort[] ports = SerialPort.getCommPorts();
@@ -97,12 +100,14 @@ public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPo
 				log.warn("Invalid serial port [{}]; failed to get list of available ports: {}", name,
 						e2.toString());
 			}
-			throw new IOException("Invalid serial port [" + name + "]");
+			throw new IOException("Invalid serial port [" + name + "]", e);
 		} catch ( RuntimeException e ) {
-			try {
-				close();
-			} catch ( Exception e2 ) {
-				// ignore this
+			if ( port != null ) {
+				try {
+					port.closePort();
+				} catch ( Exception e2 ) {
+					// ignore this
+				}
 			}
 			throw new IOException("Error opening serial port [" + name + "]:" + e, e);
 		}
@@ -214,7 +219,8 @@ public class JscSerialPort implements net.solarnetwork.io.modbus.serial.SerialPo
 
 	@Override
 	public synchronized boolean isOpen() {
-		return serialPort != null;
+		final SerialPort port = this.serialPort;
+		return (port != null && port.isOpen());
 	}
 
 	@Override

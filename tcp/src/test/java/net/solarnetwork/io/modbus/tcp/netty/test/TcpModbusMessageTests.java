@@ -283,4 +283,17 @@ public class TcpModbusMessageTests {
 		assertThat("Delegated exception is returned", mve, is(sameInstance(ex)));
 	}
 
+	@Test
+	public void validate_valid() {
+		// GIVEN
+		TcpModbusMessage tcp = new TcpModbusMessage(4,
+				new BaseModbusMessage(0, ModbusFunctionCodes.READ_COILS));
+
+		// WHEN
+		TcpModbusMessage result = tcp.validate();
+
+		// THEN
+		assertThat("Validated message is same instance", result, is(sameInstance(tcp)));
+	}
+
 }

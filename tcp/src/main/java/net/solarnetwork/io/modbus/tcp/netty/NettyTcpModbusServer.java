@@ -48,6 +48,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.DecoderException;
 import io.netty.handler.logging.LoggingHandler;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
@@ -67,7 +68,7 @@ import net.solarnetwork.io.modbus.tcp.TcpModbusUnsupportedFunctionException;
  * </p>
  *
  * @author matt
- * @version 1.2
+ * @version 1.3
  */
 public class NettyTcpModbusServer {
 
@@ -196,15 +197,18 @@ public class NettyTcpModbusServer {
 	 * the configured port.
 	 * </p>
 	 */
+	@SuppressWarnings("FutureReturnValueIgnored")
 	public synchronized void start() throws IOException {
 		if ( this.channel != null ) {
 			return;
 		}
+		EventLoopGroup bGroup = null;
+		EventLoopGroup wGroup = null;
 		try {
-			EventLoopGroup bGroup = eventLoopGroup(true);
-			this.bossGroup = bGroup;
-			EventLoopGroup wGroup = eventLoopGroup(false);
-			this.workerGroup = wGroup;
+			bGroup = eventLoopGroup(true);
+			wGroup = eventLoopGroup(false);
+			final EventLoopGroup boss = bGroup;
+			final EventLoopGroup worker = wGroup;
 
 			// @formatter:off
 			ServerBootstrap bootstrap = new ServerBootstrap();
@@ -221,10 +225,12 @@ public class NettyTcpModbusServer {
 				@SuppressWarnings("FutureReturnValueIgnored")
 				@Override
 				public void operationComplete(ChannelFuture future) throws Exception {
-					wGroup.shutdownGracefully();
-					bGroup.shutdownGracefully();
+					worker.shutdownGracefully();
+					boss.shutdownGracefully();
 				}
 			});
+			this.bossGroup = bGroup;
+			this.workerGroup = wGroup;
 			this.channel = channel;
 			if ( cleanupTask == null ) {
 				long period = getPendingMessageTtl() * 2;
@@ -234,6 +240,15 @@ public class NettyTcpModbusServer {
 				}
 			}
 		} catch ( Exception e ) {
+			if ( this.channel == null ) {
+				// don't leave event loop threads running for a server that did not start
+				if ( wGroup != null ) {
+					wGroup.shutdownGracefully();
+				}
+				if ( bGroup != null ) {
+					bGroup.shutdownGracefully();
+				}
+			}
 			String msg = String.format("Error starting Modbus server on port %d", port);
 			if ( e instanceof IOException ) {
 				log.warn("{}: {}", msg, e.getMessage());
@@ -259,14 +274,6 @@ public class NettyTcpModbusServer {
 	 */
 	@SuppressWarnings("FutureReturnValueIgnored")
 	public synchronized void stop() {
-		if ( workerGroup != null ) {
-			workerGroup.shutdownGracefully();
-			workerGroup = null;
-		}
-		if ( bossGroup != null ) {
-			bossGroup.shutdownGracefully();
-			bossGroup = null;
-		}
 		if ( cleanupTask != null ) {
 			cleanupTask.cancel(true);
 			cleanupTask = null;
@@ -274,6 +281,14 @@ public class NettyTcpModbusServer {
 		if ( channel != null ) {
 			channel.close().awaitUninterruptibly();
 			channel = null;
+		}
+		if ( workerGroup != null ) {
+			workerGroup.shutdownGracefully();
+			workerGroup = null;
+		}
+		if ( bossGroup != null ) {
+			bossGroup.shutdownGracefully();
+			bossGroup = null;
 		}
 	}
 
@@ -337,7 +352,10 @@ public class NettyTcpModbusServer {
 		}
 
 		@Override
-		public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+		public void exceptionCaught(ChannelHandlerContext ctx, Throwable t) throws Exception {
+			// provide the reason a message could not be decoded, not the decoder's wrapper
+			final Throwable cause = (t instanceof DecoderException && t.getCause() != null ? t.getCause()
+					: t);
 			log.debug("Exception: {}", cause);
 			final BiConsumer<Throwable, Consumer<ModbusMessage>> h = getExceptionHandler();
 			if ( h == null ) {
