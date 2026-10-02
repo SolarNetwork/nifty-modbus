@@ -67,6 +67,14 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * message handler and no response is sent, as required by the Modbus
  * specification.
  * </p>
+ * 
+ * <p>
+ * A
+ * {@link net.solarnetwork.io.modbus.rtu.RtuModbusMessage#isBroadcast(ModbusMessage)
+ * broadcast} request is passed to the message handler like any other, so it can
+ * be acted on, but any response the handler provides is discarded, as a
+ * broadcast must not be responded to.
+ * </p>
  *
  * @author matt
  * @version 1.2
@@ -311,7 +319,12 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 			if ( h == null ) {
 				return;
 			}
+			final boolean broadcast = net.solarnetwork.io.modbus.rtu.RtuModbusMessage.isBroadcast(msg);
 			h.accept(msg, (r) -> {
+				if ( broadcast ) {
+					log.debug("Not responding to broadcast request: {}", msg);
+					return;
+				}
 				ctx.channel().writeAndFlush(new SimpleModbusMessageReply(msg, r));
 			});
 		}
@@ -331,6 +344,10 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 				if ( cause instanceof ModbusUnsupportedFunctionException ) {
 					ModbusUnsupportedFunctionException ufe = (ModbusUnsupportedFunctionException) cause;
 					ModbusMessage msg = new BaseModbusMessage(ufe.getUnitId(), ufe.getCode());
+					if ( net.solarnetwork.io.modbus.rtu.RtuModbusMessage.isBroadcast(msg) ) {
+						log.debug("Not responding to broadcast request: {}", msg);
+						return;
+					}
 					response = new SimpleModbusMessageReply(new RtuModbusMessage(ufe.getUnitId(), msg),
 							r);
 				}

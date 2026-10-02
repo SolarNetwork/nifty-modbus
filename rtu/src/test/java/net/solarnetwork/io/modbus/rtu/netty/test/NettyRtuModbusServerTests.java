@@ -27,6 +27,7 @@ import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObject
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -37,6 +38,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -467,6 +470,98 @@ public class NettyRtuModbusServerTests {
 			assertReadInputsResponse("Response " + i, 1, 10 * i, new short[] { 0, 1 });
 		}
 		assertThat("Only valid requests passed to message handler", handled.get(), is(equalTo(3)));
+	}
+
+	@Test
+	public void receive_broadcast() throws Exception {
+		// GIVEN
+		server = new TestRtuNettyModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(null), channel);
+		final List<ModbusMessage> handled = new ArrayList<>(2);
+		server.setMessageHandler((msg, sender) -> {
+			handled.add(msg);
+			RegistersModbusMessage req = msg.unwrap(RegistersModbusMessage.class);
+			if ( req.getFunction().isReadFunction() ) {
+				sender.accept(readInputsResponse(req.getUnitId(), req.getAddress(),
+						new short[req.getCount()]));
+			} else {
+				sender.accept(RegistersModbusMessage.writeHoldingResponse(req.getUnitId(),
+						req.getAddress(), req.dataDecodeUnsigned()[0]));
+			}
+		});
+
+		// WHEN
+		server.start();
+		channel.writeInbound(
+				readBuffer(requestFrame(0, RegistersModbusMessage.writeHoldingRequest(0, 100, 9))));
+
+		// THEN
+		assertThat("Broadcast request passed to message handler", handled, hasSize(1));
+		assertThat("Broadcast request unit ID", handled.get(0).getUnitId(), is(equalTo(0)));
+		assertThat("Broadcast request is a write",
+				handled.get(0).unwrap(RegistersModbusMessage.class).getAddress(), is(equalTo(100)));
+		Object response = channel.readOutbound();
+		assertThat("No response sent for broadcast request", response, is(nullValue()));
+
+		// the same request addressed to a unit is responded to
+		channel.writeInbound(
+				readBuffer(requestFrame(1, RegistersModbusMessage.writeHoldingRequest(1, 100, 9))));
+		assertThat("Addressed request passed to message handler", handled, hasSize(2));
+		final ByteBuf out = channel.readOutbound();
+		assertThat("Response sent for addressed request", out, is(notNullValue()));
+		final ByteBuf expected = Unpooled.buffer();
+		new RtuModbusMessage(1, RegistersModbusMessage.writeHoldingResponse(1, 100, 9))
+				.encodeModbusPayload(expected);
+		assertThat("Response encoded", byteObjectArray(ByteBufUtil.getBytes(out)),
+				arrayContaining(byteObjectArray(ByteBufUtil.getBytes(expected))));
+	}
+
+	@Test
+	public void receive_unitZero_read() throws Exception {
+		// GIVEN
+		server = new TestRtuNettyModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(null), channel);
+		server.setMessageHandler(inputMessageHandler());
+
+		// WHEN
+		server.start();
+		channel.writeInbound(
+				readBuffer(requestFrame(0, RegistersModbusMessage.readInputsRequest(0, 2, 3))));
+
+		// THEN
+		// a read is not a broadcast, so is responded to
+		assertReadInputsResponse("Response", 0, 2, new short[] { 0, 1, 2 });
+	}
+
+	@Test
+	public void exceptionHandler_broadcast_unsupportedFunction() throws Exception {
+		// GIVEN
+		server = new TestRtuNettyModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(null), channel);
+		final AtomicReference<Throwable> exception = new AtomicReference<>();
+		server.setExceptionHandler((ex, sender) -> {
+			exception.set(ex);
+			ModbusUnsupportedFunctionException ufe = (ModbusUnsupportedFunctionException) ex;
+			sender.accept(new BaseModbusMessage(ufe.getUnitId(), ufe.getCode(),
+					ModbusErrorCode.IllegalFunction.getCode()));
+		});
+
+		// a write function, the decoder does not support, sent as a broadcast
+		final int unitId = 0;
+		ByteBuf buf = Unpooled.buffer();
+		new RtuModbusMessage(unitId,
+				new BaseModbusMessage(unitId, ModbusFunctionCodes.WRITE_FILE_RECORD))
+						.encodeModbusPayload(buf);
+
+		// WHEN
+		server.start();
+		channel.writeInbound(buf);
+
+		// THEN
+		assertThat("Exception handler invoked", exception.get(),
+				is(instanceOf(ModbusUnsupportedFunctionException.class)));
+		Object response = channel.readOutbound();
+		assertThat("No error response sent for broadcast request", response, is(nullValue()));
 	}
 
 }
