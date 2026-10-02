@@ -9,6 +9,7 @@ buildscript {
 plugins {
 	id "com.vanniktech.maven.publish" version "0.34.0" apply false
 	id 'net.ltgt.errorprone' version '5.1.1' apply false
+	id 'com.diffplug.spotless' version "8.10.2" apply false
 }
 
 ext {
@@ -32,6 +33,7 @@ allprojects {
     apply plugin: 'java'
     apply plugin: 'jacoco'
 	apply plugin: 'net.ltgt.errorprone'
+	apply plugin: 'com.diffplug.spotless'
 
     repositories {
         mavenCentral()
@@ -127,6 +129,14 @@ subprojects {
 			showStackTraces = true
 		}
 		maxHeapSize = '1500m'
+	}
+
+	spotless {
+		java {
+			eclipse()
+				.configFile("${project.rootDir}/config/codeformatter.xml")
+			
+		}
 	}
 
 	jacocoTestReport {

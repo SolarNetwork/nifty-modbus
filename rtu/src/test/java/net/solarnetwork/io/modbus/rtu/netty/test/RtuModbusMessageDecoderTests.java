@@ -319,8 +319,8 @@ public class RtuModbusMessageDecoderTests {
 
 	private static byte[] readHoldingsResponseFrame(int unitId, int value) {
 		final RtuModbusMessage rtu = new RtuModbusMessage(unitId,
-				net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage.readHoldingsResponse(unitId, 0,
-						new short[] { (short) value }));
+				net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage.readHoldingsResponse(unitId,
+						0, new short[] { (short) value }));
 		final ByteBuf buf = Unpooled.buffer(rtu.payloadLength());
 		rtu.encodeModbusPayload(buf);
 		final byte[] result = new byte[buf.readableBytes()];

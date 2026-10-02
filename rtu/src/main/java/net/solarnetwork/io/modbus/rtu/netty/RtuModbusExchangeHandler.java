@@ -79,9 +79,9 @@ import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
  * </ul>
  *
  * <p>
- * Any buffered input in the {@link RtuModbusMessageDecoder} is discarded
- * before each request is written, so data left over from a previous exchange,
- * such as a partial response, does not corrupt the next one.
+ * Any buffered input in the {@link RtuModbusMessageDecoder} is discarded before
+ * each request is written, so data left over from a previous exchange, such as
+ * a partial response, does not corrupt the next one.
  * </p>
  *
  * @author matt

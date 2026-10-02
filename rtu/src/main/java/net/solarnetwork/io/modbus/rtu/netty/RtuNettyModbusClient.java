@@ -56,9 +56,9 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * of) the one before it. See {@link RtuModbusExchangeHandler} for details. The
  * {@link #getReplyTimeout()} value is used as the maximum time to wait for a
  * response after a request is sent, falling back to
- * {@link #getPendingMessageTtl()} if no reply timeout is configured. Note
- * that when using {@link #send(ModbusMessage)} the reply timeout includes any
- * time spent waiting for previously submitted requests to complete.
+ * {@link #getPendingMessageTtl()} if no reply timeout is configured. Note that
+ * when using {@link #send(ModbusMessage)} the reply timeout includes any time
+ * spent waiting for previously submitted requests to complete.
  * </p>
  *
  * @author matt
