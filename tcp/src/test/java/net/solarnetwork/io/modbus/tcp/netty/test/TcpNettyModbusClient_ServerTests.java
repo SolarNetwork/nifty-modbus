@@ -54,10 +54,14 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunctionCode;
+import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusUnsupportedFunctionException;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
+import net.solarnetwork.io.modbus.tcp.TcpModbusUnsupportedFunctionException;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusServer;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
@@ -68,7 +72,7 @@ import net.solarnetwork.io.modbus.tcp.netty.test.support.TcpTestUtils;
  * Test cases for the {@link TcpNettyModbusClient} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpNettyModbusClient_ServerTests {
 
@@ -457,6 +461,61 @@ public class TcpNettyModbusClient_ServerTests {
 		assertThat("Second event address same instance as first event", connectionEvents.get(1).address,
 				is(sameInstance(connectionEvents.get(0).address)));
 		assertThat("Second event is 'disconnected'", connectionEvents.get(1).connected, is(false));
+	}
+
+	@Test
+	public void unsupportedFunction_exceptionHandler() throws Exception {
+		// GIVEN
+		final List<Throwable> serverExceptions = new ArrayList<>(1);
+		server.setMessageHandler((msg, sender) -> {
+			net.solarnetwork.io.modbus.RegistersModbusMessage reg = msg
+					.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+			sender.accept(RegistersModbusMessage.readHoldingsResponse(msg.getUnitId(), reg.getAddress(),
+					new short[] { (short) reg.getAddress() }));
+		});
+		server.setExceptionHandler((ex, sender) -> {
+			serverExceptions.add(ex);
+			if ( ex instanceof ModbusUnsupportedFunctionException ) {
+				ModbusUnsupportedFunctionException ufe = (ModbusUnsupportedFunctionException) ex;
+				sender.accept(new BaseModbusMessage(ufe.getUnitId(), ufe.getCode(),
+						ModbusErrorCode.IllegalFunction.getCode()));
+			}
+		});
+		server.start();
+		client.start().get(10, TimeUnit.SECONDS);
+
+		// WHEN
+		// a function the server is not able to decode
+		ModbusMessage unsupportedRes = client
+				.sendAsync(new BaseModbusMessage(1, ModbusFunctionCodes.GET_COMM_EVENT_LOG))
+				.get(10, TimeUnit.SECONDS);
+
+		// followed by functions it can
+		ModbusMessage res1 = client.sendAsync(RegistersModbusMessage.readHoldingsRequest(1, 10, 1))
+				.get(10, TimeUnit.SECONDS);
+		ModbusMessage res2 = client.sendAsync(RegistersModbusMessage.readHoldingsRequest(1, 20, 1))
+				.get(10, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Server exception handler given the cause of the decoding failure", serverExceptions,
+				hasSize(1));
+		assertThat("Server exception handler given the cause of the decoding failure",
+				serverExceptions.get(0), is(instanceOf(TcpModbusUnsupportedFunctionException.class)));
+
+		assertThat("Unsupported function answered with error", unsupportedRes.getError(),
+				is(equalTo(ModbusErrorCode.IllegalFunction)));
+		assertThat("Error is for function requested", unsupportedRes.getFunction(),
+				is(equalTo(ModbusFunctionCode.GetCommEventLog)));
+
+		assertThat("Request after unsupported function answered", res1.getError(), is(nullValue()));
+		assertThat("Request after unsupported function answered with own data",
+				Arrays.equals(res1.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class)
+						.dataDecodeUnsigned(), new int[] { 10 }),
+				is(equalTo(true)));
+		assertThat("Later request answered with own data",
+				Arrays.equals(res2.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class)
+						.dataDecodeUnsigned(), new int[] { 20 }),
+				is(equalTo(true)));
 	}
 
 }

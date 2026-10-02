@@ -39,6 +39,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.DecoderException;
 import io.netty.handler.logging.LoggingHandler;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusUnsupportedFunctionException;
@@ -301,7 +302,10 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 		}
 
 		@Override
-		public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+		public void exceptionCaught(ChannelHandlerContext ctx, Throwable t) throws Exception {
+			// provide the reason a message could not be decoded, not the decoder's wrapper
+			final Throwable cause = (t instanceof DecoderException && t.getCause() != null ? t.getCause()
+					: t);
 			log.debug("Exception: {}", cause);
 			final BiConsumer<Throwable, Consumer<ModbusMessage>> h = getExceptionHandler();
 			if ( h == null ) {

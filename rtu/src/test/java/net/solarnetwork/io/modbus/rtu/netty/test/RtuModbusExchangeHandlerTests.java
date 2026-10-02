@@ -47,13 +47,17 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessageReply;
 import net.solarnetwork.io.modbus.ModbusTimeoutException;
 import net.solarnetwork.io.modbus.ModbusUnsupportedFunctionException;
 import net.solarnetwork.io.modbus.ModbusValidationException;
+import net.solarnetwork.io.modbus.UserModbusError;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
+import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.BitsModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.rtu.netty.RtuModbusExchangeHandler;
@@ -418,25 +422,51 @@ public class RtuModbusExchangeHandlerTests {
 	@Test
 	public void reply_error() {
 		// GIVEN
-		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f1 = send(req1);
+		send(req2);
+		assertRequestWritten("Request 1", 1, req1);
+		receive(frame(1, new BaseModbusMessage(1, ModbusFunctionCode.ReadHoldingRegisters,
+				ModbusErrorCode.IllegalDataAddress)));
+
+		// THEN
+		final ModbusMessageReply reply = assertReplyPassedOn("Error reply", req1);
+		assertThat("Reply is an exception", reply.isException(), is(equalTo(true)));
+		assertThat("Reply provides the error", reply.getError(),
+				is(equalTo(ModbusErrorCode.IllegalDataAddress)));
+		assertThat("Reply function is that of request", reply.getFunction(),
+				is(equalTo(ModbusFunctionCode.ReadHoldingRegisters)));
+		reply.validate();
+		assertThat("Request not failed, as error is a valid reply", f1.isCompletedExceptionally(),
+				is(equalTo(false)));
+		assertThat("Request left pending for the client to complete with the reply",
+				pending.containsKey(req1), is(equalTo(true)));
+
+		// error reply completes the exchange
+		assertRequestWritten("Request 2", 1, req2);
+		receive(readHoldingsResponseFrame(1, 200, 2));
+		assertReplyPassedOn("Reply 2", req2, 2);
+	}
+
+	@Test
+	public void reply_error_nonStandardCode() {
+		// GIVEN
+		final ModbusMessage req = RegistersModbusMessage.writeHoldingRequest(1, 100, 9);
 
 		// WHEN
 		send(req);
 		assertRequestWritten("Request", 1, req);
-		// @formatter:off
-		final byte[] error = new byte[] {
-				(byte)0x01,
-				(byte)(ModbusFunctionCodes.READ_HOLDING_REGISTERS | 0x80),
-				(byte)0x02,
-				(byte)0xC0, // CRC
-				(byte)0xF1,
-		};
-		// @formatter:on
-		receive(error);
+		receive(frame(1, new BaseModbusMessage(1, ModbusFunctionCode.WriteHoldingRegister,
+				new UserModbusError((byte) 0x7F))));
 
 		// THEN
 		final ModbusMessageReply reply = assertReplyPassedOn("Error reply", req);
-		assertThat("Reply is an error", reply.isException(), is(equalTo(true)));
+		assertThat("Reply is an exception", reply.isException(), is(equalTo(true)));
+		assertThat("Reply provides the error", reply.getError(),
+				is(equalTo(new UserModbusError((byte) 0x7F))));
 	}
 
 	@Test

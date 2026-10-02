@@ -49,11 +49,11 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.CorruptedFrameException;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
-import net.solarnetwork.io.modbus.UserModbusFunction;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
@@ -412,10 +412,10 @@ public class TcpNettyModbusClientTests {
 		client.start();
 		Future<ModbusMessage> f = client.sendAsync(req);
 
-		// provide response
+		// provide junk, whose frame length field (0x0405) is not possible for Modbus
 		final int txId = idSupplier.get();
 		// @formatter:off
-		final byte[] responseData = new byte[] {
+		final byte[] junkData = new byte[] {
 				(byte)0x00,
 				(byte)0x01,
 				(byte)0x02,
@@ -425,13 +425,14 @@ public class TcpNettyModbusClientTests {
 				(byte)0x06,
 				(byte)0x65,
 		};
-		ByteBuf response = Unpooled.copiedBuffer(responseData);
 		// @formatter:on
-		channel.writeOneInbound(response).sync();
+		assertThrows(CorruptedFrameException.class, () -> {
+			channel.writeOneInbound(Unpooled.copiedBuffer(junkData)).sync();
+		}, "Junk is rejected");
 
 		// THEN
-		assertThat("Future returned", f, is(notNullValue()));
-		assertThat("Request should not be pending", pending.keySet(), hasSize(0));
+		assertThat("Request not completed by junk", f.isDone(), is(equalTo(false)));
+		assertThat("Request still pending", pending.keySet(), hasSize(1));
 
 		ByteBuf requestData = channel.readOutbound();
 		assertThat("Request bytes produced", requestData, is(notNullValue()));
@@ -452,15 +453,38 @@ public class TcpNettyModbusClientTests {
 						(byte)(count >>> 8 & 0xFF),
 						(byte)(count & 0xFF),
 				})));
+
+		// the junk was discarded, so the response that follows is decoded
+		final byte[] responseData = new byte[] {
+				(byte)(txId >>> 8 & 0xFF),
+				(byte)(txId & 0xFF),
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x09,
+				(byte)(unitId & 0xFF),
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+				(byte)0x06,
+				(byte)0x02,
+				(byte)0x2B,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x64,
+		};
 		// @formatter:on
+		channel.writeOneInbound(Unpooled.copiedBuffer(responseData)).sync();
 
 		assertThat("Response has been received and processed", f.isDone(), is(equalTo(true)));
+		assertThat("Request should no longer be pending", pending.keySet(), hasSize(0));
 		ModbusMessage resp = f.get();
 		assertThat("Response is not an error", resp.getError(), is(nullValue()));
-		assertThat("Response function is user function", resp.getFunction(),
-				is(instanceOf(UserModbusFunction.class)));
-		assertThat("Response function is from junk", resp.getFunction().getCode(),
-				is(equalTo((byte) 0x65)));
+		net.solarnetwork.io.modbus.RegistersModbusMessage respReg = resp
+				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+		assertThat("Response is Registers", respReg, is(notNullValue()));
+		assertThat("Response data decoded",
+				java.util.Arrays.equals(respReg.dataDecodeUnsigned(), new int[] { 0x022B, 0, 0x64 }),
+				is(equalTo(true)));
 	}
 
 	@Test

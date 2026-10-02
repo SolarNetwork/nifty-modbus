@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.CorruptedFrameException;
+import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.ReplayingDecoder;
 import net.solarnetwork.io.modbus.AddressedModbusMessage;
 import net.solarnetwork.io.modbus.ModbusMessage;
@@ -37,9 +39,24 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageDecoder.DecoderState
 
 /**
  * Decoder for TCP Modbus messages.
+ * 
+ * <p>
+ * Frames are delimited using the length field of the frame header, so a frame
+ * that cannot be decoded, for example because it uses an unsupported function,
+ * does not prevent the frames that follow it from being decoded. When a frame
+ * cannot be decoded a {@link DecoderException} is fired on the channel
+ * pipeline, with the reason as its cause, and decoding continues with the
+ * next frame.
+ * </p>
+ * 
+ * <p>
+ * A frame header with a length outside the range allowed by Modbus cannot be
+ * the start of a frame. When that happens all buffered input is discarded and
+ * a {@link CorruptedFrameException} is thrown.
+ * </p>
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 
@@ -74,8 +91,15 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 	/** A mapping of transaction messages to pair requests/responses. */
 	private final ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
 
+	/** The smallest valid frame length field value: a unit ID and function code. */
+	private static final int MIN_FRAME_LENGTH = 2;
+
+	/** The largest valid frame length field value: a unit ID and 253 byte PDU. */
+	private static final int MAX_FRAME_LENGTH = 254;
+
 	private int transactionId;
 	private short unitId;
+	private int payloadLength;
 
 	/**
 	 * Constructor.
@@ -108,19 +132,31 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 				break;
 
 			case READ_PAYLOAD:
-				readPayload(in, out);
+				readPayload(ctx, in, out);
 				break;
 		}
 	}
 
 	private void readFixedHeader(ByteBuf in) {
 		transactionId = in.readUnsignedShort();
-		in.skipBytes(4); // just assuming is 0 for TCP, and we don't mind about payload length bytes
+		in.skipBytes(2); // just assuming is 0 for TCP
+		final int length = in.readUnsignedShort();
 		unitId = in.readUnsignedByte();
+		if ( length < MIN_FRAME_LENGTH || length > MAX_FRAME_LENGTH ) {
+			// not the start of a frame, so where the next frame starts is unknown
+			in.skipBytes(actualReadableBytes());
+			checkpoint(DecoderState.READ_FIXED_HEADER);
+			throw new CorruptedFrameException("Invalid Modbus TCP frame length " + length + ".");
+		}
+		payloadLength = length - 1; // length includes unit ID
 		checkpoint(DecoderState.READ_PAYLOAD);
 	}
 
-	private void readPayload(ByteBuf in, List<Object> out) {
+	private void readPayload(ChannelHandlerContext ctx, ByteBuf frame, List<Object> out) {
+		// take the complete payload, so the next frame can be found regardless of how decoding goes
+		final ByteBuf in = frame.readSlice(payloadLength);
+		checkpoint(DecoderState.READ_FIXED_HEADER);
+
 		ModbusMessage msg = null;
 		try {
 			if ( controller ) {
@@ -151,12 +187,15 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 				}
 			}
 		} catch ( ModbusUnsupportedFunctionException ufe ) {
-			throw new TcpModbusUnsupportedFunctionException(ufe.getCode(), ufe.getUnitId(),
-					transactionId);
+			ctx.fireExceptionCaught(new DecoderException(new TcpModbusUnsupportedFunctionException(
+					ufe.getCode(), ufe.getUnitId(), transactionId)));
+			return;
+		} catch ( RuntimeException e ) {
+			ctx.fireExceptionCaught(e instanceof DecoderException ? e : new DecoderException(e));
+			return;
 		}
 		if ( msg != null ) {
 			out.add(msg);
 		}
-		checkpoint(DecoderState.READ_FIXED_HEADER);
 	}
 }

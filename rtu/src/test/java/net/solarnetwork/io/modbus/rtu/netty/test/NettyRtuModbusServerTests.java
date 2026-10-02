@@ -27,6 +27,7 @@ import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObject
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,6 +37,7 @@ import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
@@ -48,7 +50,9 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.solarnetwork.io.modbus.ModbusBlockType;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
+import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusUnsupportedFunctionException;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.rtu.netty.NettyRtuModbusServer;
@@ -307,6 +311,51 @@ public class NettyRtuModbusServerTests {
 		// THEN
 		assertThat("Serial port opened again", port.isOpen(), is(equalTo(true)));
 		assertThat("Serial port opened twice", port.openCount.get(), is(equalTo(2)));
+	}
+
+	@Test
+	public void exceptionHandler_unsupportedFunction() throws Exception {
+		// GIVEN
+		server = new TestRtuNettyModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(null), channel);
+		server.setMessageHandler(inputMessageHandler());
+		final AtomicReference<Throwable> exception = new AtomicReference<>();
+		server.setExceptionHandler((ex, sender) -> {
+			exception.set(ex);
+			if ( ex instanceof ModbusUnsupportedFunctionException ) {
+				ModbusUnsupportedFunctionException ufe = (ModbusUnsupportedFunctionException) ex;
+				sender.accept(new BaseModbusMessage(ufe.getUnitId(), ufe.getCode(),
+						ModbusErrorCode.IllegalFunction.getCode()));
+			}
+		});
+
+		final int unitId = 1;
+		ByteBuf buf = Unpooled.buffer();
+		new RtuModbusMessage(unitId, new BaseModbusMessage(unitId, ModbusFunctionCodes.GET_COMM_EVENT_LOG))
+				.encodeModbusPayload(buf);
+
+		// WHEN
+		server.start();
+		channel.writeInbound(buf);
+
+		// THEN
+		assertThat("Exception handler given the cause of the decoding failure", exception.get(),
+				is(instanceOf(ModbusUnsupportedFunctionException.class)));
+
+		ByteBuf out = channel.readOutbound();
+		assertThat("Error response written", out, is(notNullValue()));
+		final short crc = RtuModbusMessage.computeCrc(unitId, new BaseModbusMessage(unitId,
+				ModbusFunctionCodes.GET_COMM_EVENT_LOG, ModbusErrorCode.IllegalFunction.getCode()));
+		// @formatter:off
+		assertThat("Error response encoded", byteObjectArray(ByteBufUtil.getBytes(out)), arrayContaining(
+				byteObjectArray(new byte[] {
+						(byte)unitId,
+						(byte)(ModbusFunctionCodes.GET_COMM_EVENT_LOG + ModbusFunctionCodes.ERROR_OFFSET),
+						ModbusErrorCode.IllegalFunction.getCode(),
+						(byte)(crc & 0xFF),
+						(byte)(crc >>> 8 & 0xFF),
+				})));
+		// @formatter:on
 	}
 
 }
