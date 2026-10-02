@@ -655,4 +655,19 @@ public class RtuNettyModbusClientTests {
 		assertThat("Nothing pending", pending.keySet(), hasSize(0));
 	}
 
+	@Test
+	public void stop_notStarted() throws Exception {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		RtuNettyModbusClient c = new RtuNettyModbusClient(config, new TestSerialPortProvider(null));
+
+		// WHEN
+		Object result = c.stop().get(5, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Stop completes without error", result, is(nullValue()));
+		assertThat("Not started", c.isStarted(), is(equalTo(false)));
+	}
+
 }

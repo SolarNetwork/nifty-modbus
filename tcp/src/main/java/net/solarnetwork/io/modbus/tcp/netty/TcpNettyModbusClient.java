@@ -50,7 +50,7 @@ import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
  * TCP implementation of {@link ModbusClient}.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfig> {
 
@@ -235,7 +235,8 @@ public class TcpNettyModbusClient extends NettyModbusClient<TcpModbusClientConfi
 				eventLoopGroupStopFuture.completeExceptionally(e);
 			}
 		}
-		return f.thenCompose(s -> eventLoopGroupStopFuture);
+		final CompletableFuture<?> groupStopFuture = this.eventLoopGroupStopFuture;
+		return (groupStopFuture != null ? f.thenCompose(s -> groupStopFuture) : f);
 	}
 
 	@Override

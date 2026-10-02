@@ -232,7 +232,8 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 				eventLoopGroupStopFuture.completeExceptionally(e);
 			}
 		}
-		return f.thenCompose(s -> eventLoopGroupStopFuture);
+		final CompletableFuture<?> groupStopFuture = this.eventLoopGroupStopFuture;
+		return (groupStopFuture != null ? f.thenCompose(s -> groupStopFuture) : f);
 	}
 
 	@Override

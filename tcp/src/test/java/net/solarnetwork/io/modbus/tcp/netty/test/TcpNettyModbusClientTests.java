@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 import org.junit.jupiter.api.AfterEach;
@@ -65,7 +66,7 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
  * Test cases for the {@link TcpNettyModbusClient} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class TcpNettyModbusClientTests {
 
@@ -460,6 +461,20 @@ public class TcpNettyModbusClientTests {
 				is(instanceOf(UserModbusFunction.class)));
 		assertThat("Response function is from junk", resp.getFunction().getCode(),
 				is(equalTo((byte) 0x65)));
+	}
+
+	@Test
+	public void stop_notStarted() throws Exception {
+		// GIVEN
+		NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig("localhost", 502);
+		TcpNettyModbusClient c = new TcpNettyModbusClient(config);
+
+		// WHEN
+		Object result = c.stop().get(5, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Stop completes without error", result, is(nullValue()));
+		assertThat("Not started", c.isStarted(), is(equalTo(false)));
 	}
 
 }

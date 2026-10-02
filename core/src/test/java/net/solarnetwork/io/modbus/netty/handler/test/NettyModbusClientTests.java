@@ -42,6 +42,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -49,6 +50,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -699,6 +701,209 @@ public class NettyModbusClientTests {
 
 		assertThat("Pending messages have been cleaned", pending.isEmpty(), is(true));
 		client.stop().get(5, TimeUnit.SECONDS);
+	}
+
+	/**
+	 * A client whose connection attempts are controlled by the test.
+	 */
+	private static final class TestConnectingNettyModbusClient
+			extends NettyModbusClient<ModbusClientConfig> {
+
+		private final AtomicInteger connectCount = new AtomicInteger();
+		private volatile Supplier<ChannelFuture> connector;
+
+		private TestConnectingNettyModbusClient(ModbusClientConfig config,
+				@Nullable ScheduledExecutorService scheduler) {
+			super(config, scheduler);
+		}
+
+		@Override
+		protected ChannelFuture connect() throws IOException {
+			connectCount.incrementAndGet();
+			return connector.get();
+		}
+
+		private EmbeddedChannel newChannel() {
+			return new EmbeddedChannel(newModbusChannelHandler());
+		}
+
+	}
+
+	private static NettyModbusClientConfig reconnectingConfig(long delaySeconds) {
+		NettyModbusClientConfig config = new NettyModbusClientConfig() {
+
+			@Override
+			public String getDescription() {
+				return "Test Reconnect";
+			}
+		};
+		config.setAutoReconnect(true);
+		config.setAutoReconnectDelaySeconds(delaySeconds);
+		return config;
+	}
+
+	private static void awaitCount(AtomicInteger counter, int expected, long maxWaitMs)
+			throws InterruptedException {
+		final long end = System.currentTimeMillis() + maxWaitMs;
+		while ( counter.get() < expected && System.currentTimeMillis() < end ) {
+			Thread.sleep(20);
+		}
+	}
+
+	@Test
+	public void reconnect_afterConnectionClosed() throws Exception {
+		// GIVEN
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				null);
+		final EmbeddedChannel ch1 = c.newChannel();
+		final EmbeddedChannel ch2 = c.newChannel();
+		try {
+			c.connector = () -> ch1.newSucceededFuture();
+			c.start().get(5, TimeUnit.SECONDS);
+			assertThat("Connected", c.isConnected(), is(equalTo(true)));
+
+			// WHEN
+			c.connector = () -> ch2.newSucceededFuture();
+			ch1.close();
+
+			// THEN
+			assertThat("No longer connected", c.isConnected(), is(equalTo(false)));
+			awaitCount(c.connectCount, 2, 5000);
+			assertThat("Reconnected after connection closed", c.connectCount.get(), is(equalTo(2)));
+			assertThat("Connected again", c.isConnected(), is(equalTo(true)));
+		} finally {
+			c.stop().get(5, TimeUnit.SECONDS);
+		}
+		assertThat("Connection closed by stop", ch2.isOpen(), is(equalTo(false)));
+	}
+
+	@Test
+	public void stop_cancelsScheduledReconnect() throws Exception {
+		// GIVEN
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				null);
+		c.connector = () -> channel.newFailedFuture(new IOException("Not available."));
+		assertThrows(ExecutionException.class, () -> {
+			c.start().get(5, TimeUnit.SECONDS);
+		}, "Connection fails");
+		assertThat("Connection attempted", c.connectCount.get(), is(equalTo(1)));
+
+		// WHEN
+		final long start = System.currentTimeMillis();
+		c.stop().get(5, TimeUnit.SECONDS);
+		final long stopTime = System.currentTimeMillis() - start;
+
+		// wait for when reconnect would have happened
+		Thread.sleep(1500);
+
+		// THEN
+		assertThat("Stop does not wait for scheduled reconnect", stopTime, is(lessThan(900L)));
+		assertThat("Connection not attempted again after stop", c.connectCount.get(), is(equalTo(1)));
+		assertThat("Not started", c.isStarted(), is(equalTo(false)));
+	}
+
+	@Test
+	public void stop_cancelsScheduledReconnect_externalScheduler() throws Exception {
+		// GIVEN
+		final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+		try {
+			TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(
+					reconnectingConfig(1), scheduler);
+			final EmbeddedChannel ch = c.newChannel();
+			c.connector = () -> ch.newSucceededFuture();
+			c.start().get(5, TimeUnit.SECONDS);
+
+			// connection closes, so reconnect is scheduled
+			ch.close();
+			assertThat("Connection attempted", c.connectCount.get(), is(equalTo(1)));
+
+			// WHEN
+			c.stop().get(5, TimeUnit.SECONDS);
+
+			// wait for when reconnect would have happened
+			Thread.sleep(1500);
+
+			// THEN
+			assertThat("Connection not attempted again after stop", c.connectCount.get(),
+					is(equalTo(1)));
+		} finally {
+			scheduler.shutdownNow();
+		}
+	}
+
+	@Test
+	public void stop_whileConnecting() throws Exception {
+		// GIVEN
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				null);
+		final EmbeddedChannel ch = c.newChannel();
+		final io.netty.channel.ChannelPromise connectPromise = ch.newPromise();
+		c.connector = () -> connectPromise;
+		final CompletableFuture<?> startFuture = c.start();
+		assertThat("Connection in progress", startFuture.isDone(), is(equalTo(false)));
+
+		// WHEN
+		c.stop().get(5, TimeUnit.SECONDS);
+		connectPromise.setSuccess();
+
+		// THEN
+		assertThat("Connection that completed after stop is closed", ch.isOpen(), is(equalTo(false)));
+		assertThat("Not connected", c.isConnected(), is(equalTo(false)));
+		assertThat("Start future cancelled", startFuture.isCancelled(), is(equalTo(true)));
+
+		// and no reconnect is attempted for that closed connection
+		Thread.sleep(1500);
+		assertThat("Connection not attempted again after stop", c.connectCount.get(), is(equalTo(1)));
+	}
+
+	@Test
+	public void restart_afterStopWhileReconnectScheduled() throws Exception {
+		// GIVEN
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				null);
+		c.connector = () -> channel.newFailedFuture(new IOException("Not available."));
+		assertThrows(ExecutionException.class, () -> {
+			c.start().get(5, TimeUnit.SECONDS);
+		}, "Connection fails");
+		c.stop().get(5, TimeUnit.SECONDS);
+
+		// WHEN
+		final EmbeddedChannel ch = c.newChannel();
+		c.connector = () -> ch.newSucceededFuture();
+		try {
+			c.start().get(5, TimeUnit.SECONDS);
+
+			// wait for when reconnect from before the stop would have happened
+			Thread.sleep(1500);
+
+			// THEN
+			assertThat("Only one connection attempted after restart", c.connectCount.get(),
+					is(equalTo(2)));
+			assertThat("Connected", c.isConnected(), is(equalTo(true)));
+		} finally {
+			c.stop().get(5, TimeUnit.SECONDS);
+		}
+	}
+
+	@Test
+	public void connectionClosed_failsPendingRequests() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		client.start().get(5, TimeUnit.SECONDS);
+		CompletableFuture<ModbusMessage> f = client.sendAsync(req);
+		assertThat("Request pending", pending.keySet(), hasSize(1));
+
+		// WHEN
+		channel.close();
+
+		// THEN
+		assertThat("Request completed when connection closed", f.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f.get();
+		}, "Request failed");
+		assertThat("Request failed because connection closed", e.getCause(),
+				is(instanceOf(IOException.class)));
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
 	}
 
 }

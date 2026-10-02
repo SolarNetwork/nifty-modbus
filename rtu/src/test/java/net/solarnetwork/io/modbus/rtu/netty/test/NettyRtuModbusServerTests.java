@@ -26,9 +26,16 @@ import static net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage.readIn
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InterruptedIOException;
+import java.io.OutputStream;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
@@ -55,7 +62,7 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * Test cases for the {@link NettyRtuModbusServer} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class NettyRtuModbusServerTests {
 
@@ -184,6 +191,122 @@ public class NettyRtuModbusServerTests {
 						.encodeModbusPayload(expectedResponse);
 		assertThat("Response encoded", byteObjectArray(ByteBufUtil.getBytes(channelResponse)),
 				arrayContaining(byteObjectArray(ByteBufUtil.getBytes(expectedResponse))));
+	}
+
+	/**
+	 * A simulated serial port that can be opened more than once.
+	 */
+	private static final class SimulatedSerialPort implements SerialPort {
+
+		private final AtomicInteger openCount = new AtomicInteger();
+		private volatile boolean open;
+		private volatile boolean disconnected;
+
+		@Override
+		public String getName() {
+			return "Test Port";
+		}
+
+		@Override
+		public void open(SerialParameters parameters) throws IOException {
+			openCount.incrementAndGet();
+			disconnected = false;
+			open = true;
+		}
+
+		@Override
+		public void close() throws IOException {
+			open = false;
+		}
+
+		@Override
+		public boolean isOpen() {
+			return open;
+		}
+
+		@Override
+		public InputStream getInputStream() throws IOException {
+			return new InputStream() {
+
+				@Override
+				public int available() throws IOException {
+					return (disconnected ? -1 : 0);
+				}
+
+				@Override
+				public int read() throws IOException {
+					return -1;
+				}
+
+				@Override
+				public int read(byte[] b, int off, int len) throws IOException {
+					if ( disconnected ) {
+						return -1;
+					}
+					// like a real serial port: wait for the read timeout, then return 0
+					try {
+						Thread.sleep(20);
+					} catch ( InterruptedException e ) {
+						throw new InterruptedIOException();
+					}
+					return (disconnected ? -1 : 0);
+				}
+			};
+		}
+
+		@Override
+		public OutputStream getOutputStream() throws IOException {
+			return new ByteArrayOutputStream();
+		}
+
+		private void awaitClosed() throws InterruptedException {
+			final long end = System.currentTimeMillis() + 5000;
+			while ( open && System.currentTimeMillis() < end ) {
+				Thread.sleep(20);
+			}
+		}
+
+	}
+
+	@Test
+	public void start_stop_start() throws Exception {
+		// GIVEN
+		final SimulatedSerialPort port = new SimulatedSerialPort();
+		server = new NettyRtuModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(port));
+
+		// WHEN
+		server.start();
+		assertThat("Serial port opened", port.isOpen(), is(equalTo(true)));
+		server.stop();
+		assertThat("Serial port closed", port.isOpen(), is(equalTo(false)));
+		server.start();
+
+		// THEN
+		assertThat("Serial port opened again", port.isOpen(), is(equalTo(true)));
+		assertThat("Serial port opened twice", port.openCount.get(), is(equalTo(2)));
+	}
+
+	@Test
+	public void start_afterSerialPortFailure() throws Exception {
+		// GIVEN
+		final SimulatedSerialPort port = new SimulatedSerialPort();
+		server = new NettyRtuModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(port));
+		server.start();
+		assertThat("Serial port opened", port.isOpen(), is(equalTo(true)));
+
+		// serial port fails, which closes the connection
+		port.disconnected = true;
+		port.awaitClosed();
+		assertThat("Serial port closed after failure", port.isOpen(), is(equalTo(false)));
+
+		// WHEN
+		server.start();
+
+		// THEN
+		assertThat("Serial port opened again", port.isOpen(), is(equalTo(true)));
+		assertThat("Serial port opened twice", port.openCount.get(), is(equalTo(2)));
 	}
 
 }

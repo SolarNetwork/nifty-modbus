@@ -61,7 +61,7 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * </p>
  *
  * @author matt
- * @version 1.1
+ * @version 1.2
  */
 public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 
@@ -153,24 +153,33 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 	 * 
 	 * <p>
 	 * Upon return the server will be bound and ready to accept connections on
-	 * the configured port.
+	 * the configured port. The server can be started again after
+	 * {@link #stop()} has been called, or after the serial port has closed
+	 * because of an error.
 	 * </p>
 	 */
 	public synchronized void start() throws IOException {
-		if ( this.channel != null ) {
+		if ( this.channel != null && this.channel.isOpen() ) {
 			return;
 		}
 		try {
-			if ( eventLoopGroup != null && eventLoopGroup.isShuttingDown() ) {
+			// a closed channel left from a failure has shut down, or is about to
+			// shut down, its private group
+			final boolean reopening = (this.channel != null && privateEventLoopGroup);
+			this.channel = null;
+			EventLoopGroup group = this.eventLoopGroup;
+			if ( group == null || group.isShuttingDown() || reopening ) {
 				if ( privateEventLoopGroup ) {
-					eventLoopGroup = defaultEventLoopGroup();
+					group = defaultEventLoopGroup();
+					this.eventLoopGroup = group;
 				} else {
 					throw new IOException("External EventLoopGroup is stopped.");
 				}
 			}
+			final EventLoopGroup channelGroup = group;
 			// @formatter:off
 			Bootstrap bootstrap = new Bootstrap()
-					.group(eventLoopGroup)
+					.group(channelGroup)
 					.channelFactory(this)
 					.remoteAddress(new SerialAddress(device))
 					.handler(new HandlerInitializer());
@@ -182,9 +191,8 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 				@SuppressWarnings("FutureReturnValueIgnored")
 				@Override
 				public void operationComplete(ChannelFuture future) throws Exception {
-					final EventLoopGroup group = eventLoopGroup;
-					if ( group != null && privateEventLoopGroup ) {
-						group.shutdownGracefully();
+					if ( privateEventLoopGroup ) {
+						channelGroup.shutdownGracefully();
 					}
 				}
 			});
@@ -227,13 +235,13 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 	 */
 	@SuppressWarnings("FutureReturnValueIgnored")
 	public synchronized void stop() {
-		if ( privateEventLoopGroup && eventLoopGroup != null ) {
-			eventLoopGroup.shutdownGracefully();
-			eventLoopGroup = null;
-		}
 		if ( channel != null ) {
 			channel.close().awaitUninterruptibly();
 			channel = null;
+		}
+		if ( privateEventLoopGroup && eventLoopGroup != null ) {
+			eventLoopGroup.shutdownGracefully();
+			eventLoopGroup = null;
 		}
 	}
 
