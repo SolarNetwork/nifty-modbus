@@ -320,8 +320,8 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 
 	/*
 	 * Note this is called from the channel's event loop, so must not
-	 * synchronize on this object: stop() waits for the channel to close
-	 * while holding that lock.
+	 * synchronize on this object: stop() waits for the channel to close while
+	 * holding that lock.
 	 */
 	@SuppressWarnings("FutureReturnValueIgnored")
 	private void handleCloseAndScheduleReconnectIfRequired(final int stops, boolean reconnecting) {

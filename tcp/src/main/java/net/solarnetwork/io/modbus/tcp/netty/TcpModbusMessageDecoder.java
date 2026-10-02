@@ -45,14 +45,14 @@ import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessageDecoder.DecoderState
  * that cannot be decoded, for example because it uses an unsupported function,
  * does not prevent the frames that follow it from being decoded. When a frame
  * cannot be decoded a {@link DecoderException} is fired on the channel
- * pipeline, with the reason as its cause, and decoding continues with the
- * next frame.
+ * pipeline, with the reason as its cause, and decoding continues with the next
+ * frame.
  * </p>
  * 
  * <p>
  * A frame header with a length outside the range allowed by Modbus cannot be
- * the start of a frame. When that happens all buffered input is discarded and
- * a {@link CorruptedFrameException} is thrown.
+ * the start of a frame. When that happens all buffered input is discarded and a
+ * {@link CorruptedFrameException} is thrown.
  * </p>
  *
  * @author matt
@@ -91,10 +91,14 @@ public class TcpModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 	/** A mapping of transaction messages to pair requests/responses. */
 	private final ConcurrentMap<Integer, TcpModbusMessage> pendingMessages;
 
-	/** The smallest valid frame length field value: a unit ID and function code. */
+	/**
+	 * The smallest valid frame length field value: a unit ID and function code.
+	 */
 	private static final int MIN_FRAME_LENGTH = 2;
 
-	/** The largest valid frame length field value: a unit ID and 253 byte PDU. */
+	/**
+	 * The largest valid frame length field value: a unit ID and 253 byte PDU.
+	 */
 	private static final int MAX_FRAME_LENGTH = 254;
 
 	private int transactionId;

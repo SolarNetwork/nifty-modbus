@@ -331,8 +331,9 @@ public class NettyRtuModbusServerTests {
 
 		final int unitId = 1;
 		ByteBuf buf = Unpooled.buffer();
-		new RtuModbusMessage(unitId, new BaseModbusMessage(unitId, ModbusFunctionCodes.GET_COMM_EVENT_LOG))
-				.encodeModbusPayload(buf);
+		new RtuModbusMessage(unitId,
+				new BaseModbusMessage(unitId, ModbusFunctionCodes.GET_COMM_EVENT_LOG))
+						.encodeModbusPayload(buf);
 
 		// WHEN
 		server.start();

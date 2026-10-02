@@ -218,7 +218,8 @@ public class NettyTcpModbusServerTests {
 			s.start();
 			NettyTcpModbusServer s2 = new NettyTcpModbusServer(s.getPort());
 			s2.setEventLoopGroupProvider((context, parent) -> {
-				EventLoopGroup group = MultiThreadIoEventLoopGroupFactory.INSTANCE.apply(context, parent);
+				EventLoopGroup group = MultiThreadIoEventLoopGroupFactory.INSTANCE.apply(context,
+						parent);
 				groups.add(group);
 				return group;
 			});

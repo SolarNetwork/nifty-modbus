@@ -269,8 +269,8 @@ public class TcpModbusMessageDecoderTests {
 		return buf;
 	}
 
-	private static void assertReadHoldingsRequest(String msg, TcpModbusMessage message, int transactionId,
-			int address) {
+	private static void assertReadHoldingsRequest(String msg, TcpModbusMessage message,
+			int transactionId, int address) {
 		assertThat(msg + " decoded", message, is(notNullValue()));
 		assertThat(msg + " transaction ID", message.getTransactionId(), is(equalTo(transactionId)));
 		assertThat(msg + " unit ID", message.getUnitId(), is(equalTo(1)));
@@ -324,7 +324,8 @@ public class TcpModbusMessageDecoderTests {
 		assertReadHoldingsRequest("Request after unsupported", channel.readInbound(), 124, 10);
 
 		// as are later requests
-		channel.writeInbound(readBuffer(frame(125, RegistersModbusMessage.readHoldingsRequest(1, 20, 1))));
+		channel.writeInbound(
+				readBuffer(frame(125, RegistersModbusMessage.readHoldingsRequest(1, 20, 1))));
 		assertReadHoldingsRequest("Later request", channel.readInbound(), 125, 20);
 	}
 
@@ -360,8 +361,8 @@ public class TcpModbusMessageDecoderTests {
 
 		// WHEN
 		assertThrows(DecoderException.class, () -> {
-			channel.writeInbound(readBuffer(truncated, frame(2,
-					RegistersModbusMessage.readHoldingsResponse(1, 0, new short[] { 7 }))));
+			channel.writeInbound(readBuffer(truncated,
+					frame(2, RegistersModbusMessage.readHoldingsResponse(1, 0, new short[] { 7 }))));
 		}, "DecoderException raised by frame that cannot be decoded");
 
 		// THEN
