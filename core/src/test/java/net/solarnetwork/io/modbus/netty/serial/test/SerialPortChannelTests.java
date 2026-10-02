@@ -1035,7 +1035,8 @@ public class SerialPortChannelTests {
 			assertThat("Read is blocked waiting for data", blockingReadCount.get(), is(equalTo(1)));
 
 			// WHEN
-			ChannelFuture writeFuture = ch.writeAndFlush(Unpooled.wrappedBuffer(new byte[] { 1, 2, 3, 4 }));
+			ChannelFuture writeFuture = ch
+					.writeAndFlush(Unpooled.wrappedBuffer(new byte[] { 1, 2, 3, 4 }));
 
 			// THEN
 			assertThat("Write completes while read is still blocked",

@@ -356,7 +356,8 @@ public class RtuNettyModbusClient_ServerTests {
 							ModbusMessage res = client
 									.send(RegistersModbusMessage.readHoldingsRequest(1, addr, 1));
 							res.validate();
-							int value = res.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class)
+							int value = res
+									.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class)
 									.dataDecodeUnsigned()[0];
 							if ( value != addr ) {
 								problems.add("Request for " + addr + " got response for " + value);
