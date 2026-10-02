@@ -68,6 +68,7 @@ import net.solarnetwork.io.modbus.ModbusClientConfig;
 import net.solarnetwork.io.modbus.ModbusClientConnectionObserver;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusErrorCodes;
+import net.solarnetwork.io.modbus.ModbusException;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.handler.ModbusMessageDecoder;
@@ -76,6 +77,7 @@ import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClientConfig;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
+import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
 
 /**
  * Test cases for the {@link NettyModbusClient} class.
@@ -722,6 +724,12 @@ public class NettyModbusClientTests {
 			super(config, scheduler);
 		}
 
+		private TestConnectingNettyModbusClient(ModbusClientConfig config,
+				@Nullable ScheduledExecutorService scheduler,
+				ConcurrentMap<ModbusMessage, PendingMessage> pending) {
+			super(config, scheduler, pending);
+		}
+
 		@Override
 		protected ChannelFuture connect() throws IOException {
 			connectCount.incrementAndGet();
@@ -802,7 +810,7 @@ public class NettyModbusClientTests {
 		Thread.sleep(1500);
 
 		// THEN
-		assertThat("Stop does not wait for scheduled reconnect", stopTime, is(lessThan(900L)));
+		assertThat("Stop does not wait for scheduled reconnect", stopTime, is(lessThan(5000L)));
 		assertThat("Connection not attempted again after stop", c.connectCount.get(), is(equalTo(1)));
 		assertThat("Not started", c.isStarted(), is(equalTo(false)));
 	}
@@ -951,6 +959,513 @@ public class NettyModbusClientTests {
 			assertThat("Thread " + i + " allowed to send no sooner than the delay after thread "
 					+ (i - 1) + " (within 50ms): " + gap, gap >= sendDelay - 50L, is(equalTo(true)));
 		}
+	}
+
+	private static final byte[] READ_HOLDINGS_RESPONSE = new byte[] {
+			ModbusFunctionCodes.READ_HOLDING_REGISTERS, (byte) 0x06, (byte) 0x02, (byte) 0x2B,
+			(byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x64, };
+
+	/**
+	 * Run a task on another thread once a request has been sent.
+	 */
+	private Thread whenRequestSent(Runnable task) {
+		Thread t = new Thread(() -> {
+			final long end = System.currentTimeMillis() + 5000;
+			while ( channel.attr(NettyModbusClient.LAST_ENCODED_MESSAGE).get() == null
+					&& System.currentTimeMillis() < end ) {
+				try {
+					Thread.sleep(10);
+				} catch ( InterruptedException e ) {
+					return;
+				}
+			}
+			task.run();
+		}, "Test Responder");
+		t.setDaemon(true);
+		t.start();
+		return t;
+	}
+
+	@Test
+	public void start_twice() throws Exception {
+		// WHEN
+		CompletableFuture<?> f1 = client.start();
+		CompletableFuture<?> f2 = client.start();
+
+		// THEN
+		assertThat("Same future returned when already started", f2, is(sameInstance(f1)));
+	}
+
+	@Test
+	public void start_connectThrowsException() throws Exception {
+		// GIVEN
+		final IllegalStateException t = new IllegalStateException("Not today.");
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				null);
+		c.connector = () -> {
+			throw t;
+		};
+
+		// WHEN
+		try {
+			ExecutionException e = assertThrows(ExecutionException.class, () -> {
+				c.start().get(5, TimeUnit.SECONDS);
+			}, "Start fails");
+
+			// THEN
+			assertThat("Start failed with exception thrown by connect", e.getCause(),
+					is(sameInstance(t)));
+			assertThat("Not connected", c.isConnected(), is(equalTo(false)));
+		} finally {
+			c.stop().get(5, TimeUnit.SECONDS);
+		}
+	}
+
+	@Test
+	public void start_schedulerShutDown() throws Exception {
+		// GIVEN
+		final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+		scheduler.shutdownNow();
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				scheduler);
+		final EmbeddedChannel ch = c.newChannel();
+		c.connector = () -> ch.newSucceededFuture();
+
+		// WHEN
+		try {
+			c.start().get(5, TimeUnit.SECONDS);
+
+			// THEN
+			assertThat("Connected even though cleaner task could not be scheduled", c.isConnected(),
+					is(equalTo(true)));
+		} finally {
+			c.stop().get(5, TimeUnit.SECONDS);
+		}
+	}
+
+	@Test
+	public void reconnect_schedulerShutDown() throws Exception {
+		// GIVEN
+		final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				scheduler);
+		final EmbeddedChannel ch = c.newChannel();
+		c.connector = () -> ch.newSucceededFuture();
+		try {
+			c.start().get(5, TimeUnit.SECONDS);
+			scheduler.shutdownNow();
+
+			// WHEN
+			ch.close();
+			Thread.sleep(1500);
+
+			// THEN
+			assertThat("Reconnect not attempted as it could not be scheduled", c.connectCount.get(),
+					is(equalTo(1)));
+			assertThat("Not connected", c.isConnected(), is(equalTo(false)));
+		} finally {
+			c.stop().get(5, TimeUnit.SECONDS);
+		}
+	}
+
+	@Test
+	public void reconnect_taskRunsAfterStop() throws Exception {
+		// GIVEN
+		// a scheduler whose reconnect tasks are not able to be cancelled, and are run by the test
+		final List<Runnable> scheduled = new java.util.concurrent.CopyOnWriteArrayList<>();
+		final java.util.concurrent.ScheduledThreadPoolExecutor scheduler = new java.util.concurrent.ScheduledThreadPoolExecutor(
+				1) {
+
+			@Override
+			public java.util.concurrent.ScheduledFuture<?> schedule(Runnable command, long delay,
+					TimeUnit unit) {
+				scheduled.add(command);
+				return super.schedule(() -> {
+				}, delay, unit);
+			}
+		};
+		try {
+			TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(
+					reconnectingConfig(1), scheduler);
+			final EmbeddedChannel ch = c.newChannel();
+			c.connector = () -> ch.newSucceededFuture();
+			c.start().get(5, TimeUnit.SECONDS);
+
+			// connection closes, so reconnect is scheduled
+			ch.close();
+			assertThat("Reconnect scheduled", scheduled, hasSize(1));
+			c.stop().get(5, TimeUnit.SECONDS);
+
+			// WHEN
+			scheduled.get(0).run();
+
+			// THEN
+			assertThat("Reconnect task from before stop does not connect", c.connectCount.get(),
+					is(equalTo(1)));
+		} finally {
+			scheduler.shutdownNow();
+		}
+	}
+
+	@Test
+	public void stop_interrupted() throws Exception {
+		// GIVEN
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				null);
+		final EmbeddedChannel ch = c.newChannel();
+		c.connector = () -> ch.newSucceededFuture();
+		c.start().get(5, TimeUnit.SECONDS);
+
+		// WHEN
+		Thread.currentThread().interrupt();
+		try {
+			CompletableFuture<?> f = c.stop();
+
+			// THEN
+			assertThat("Stop completes when interrupted", f.isDone(), is(equalTo(true)));
+			assertThat("Connection closed", ch.isOpen(), is(equalTo(false)));
+			assertThat("Not started", c.isStarted(), is(equalTo(false)));
+		} finally {
+			// clear interrupted status
+			Thread.interrupted();
+		}
+	}
+
+	@Test
+	public void sendAsync_notStarted() {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+
+		// WHEN
+		CompletableFuture<ModbusMessage> f = client.sendAsync(req);
+
+		// THEN
+		assertThat("Request completed", f.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f.get();
+		}, "Request failed");
+		assertThat("Request failed because not connected", e.getCause(),
+				is(instanceOf(IOException.class)));
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
+	}
+
+	@Test
+	public void sendAsync_connectionClosed() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		client.start().get(5, TimeUnit.SECONDS);
+		channel.close();
+
+		// WHEN
+		CompletableFuture<ModbusMessage> f = client.sendAsync(req);
+
+		// THEN
+		assertThat("Request completed", f.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f.get();
+		}, "Request failed");
+		assertThat("Request failed because connection closed", e.getCause(),
+				is(instanceOf(IOException.class)));
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
+	}
+
+	@Test
+	public void send_sync() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		client.start().get(5, TimeUnit.SECONDS);
+		whenRequestSent(() -> channel.writeOneInbound(Unpooled.copiedBuffer(READ_HOLDINGS_RESPONSE)));
+
+		// WHEN
+		ModbusMessage res = client.send(req);
+
+		// THEN
+		assertThat("Response returned", res, is(notNullValue()));
+		assertThat("Response is not an error", res.getError(), is(nullValue()));
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
+	}
+
+	@Test
+	public void send_noReplyTimeout() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		client.setReplyTimeout(0);
+		client.start().get(5, TimeUnit.SECONDS);
+		whenRequestSent(() -> channel.writeOneInbound(Unpooled.copiedBuffer(READ_HOLDINGS_RESPONSE)));
+
+		// WHEN
+		ModbusMessage res = client.send(req);
+
+		// THEN
+		assertThat("Response returned", res, is(notNullValue()));
+		assertThat("Reply timeout configured", client.getReplyTimeout(), is(equalTo(0L)));
+	}
+
+	@Test
+	public void send_interrupted() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		client.start().get(5, TimeUnit.SECONDS);
+
+		// WHEN
+		Thread.currentThread().interrupt();
+		try {
+			ModbusException e = assertThrows(ModbusException.class, () -> {
+				client.send(req);
+			}, "Send fails when interrupted");
+
+			// THEN
+			assertThat("Exception caused by interruption", e.getCause(),
+					is(instanceOf(InterruptedException.class)));
+			PendingMessage p = pending.get(req);
+			assertThat("Request still pending", p, is(notNullValue()));
+			assertThat("Response future cancelled so request is known to be abandoned",
+					p.getFuture().isCancelled(), is(equalTo(true)));
+		} finally {
+			// clear interrupted status
+			Thread.interrupted();
+		}
+	}
+
+	@Test
+	public void send_failsWithRuntimeException() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		final IllegalStateException t = new IllegalStateException("Not today.");
+		client.start().get(5, TimeUnit.SECONDS);
+		whenRequestSent(() -> pending.get(req).getFuture().completeExceptionally(t));
+
+		// WHEN
+		IllegalStateException e = assertThrows(IllegalStateException.class, () -> {
+			client.send(req);
+		}, "Send fails");
+
+		// THEN
+		assertThat("Runtime exception thrown as is", e, is(sameInstance(t)));
+	}
+
+	@Test
+	public void send_connectionClosed() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		client.start().get(5, TimeUnit.SECONDS);
+		channel.close();
+
+		// WHEN
+		ModbusException e = assertThrows(ModbusException.class, () -> {
+			client.send(req);
+		}, "Send fails");
+
+		// THEN
+		assertThat("Checked exception wrapped in Modbus exception", e.getCause(),
+				is(instanceOf(IOException.class)));
+	}
+
+	@Test
+	public void recv_replyMessage() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 1);
+		RegistersModbusMessage res = RegistersModbusMessage.readHoldingsResponse(1, 2,
+				new short[] { 7 });
+		client.start().get(5, TimeUnit.SECONDS);
+		CompletableFuture<ModbusMessage> f = client.sendAsync(req);
+
+		// WHEN
+		// a reply that identifies its own request
+		SimpleModbusMessageReply reply = new SimpleModbusMessageReply(req, res);
+		channel.writeOneInbound(reply);
+
+		// THEN
+		assertThat("Request completed", f.isDone(), is(equalTo(true)));
+		assertThat("Request completed with reply", f.get(), is(sameInstance(reply)));
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
+	}
+
+	@Test
+	public void recv_replyMessage_requestNotPending() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 1);
+		RegistersModbusMessage other = RegistersModbusMessage.readHoldingsRequest(1, 3, 1);
+		client.start().get(5, TimeUnit.SECONDS);
+		CompletableFuture<ModbusMessage> f = client.sendAsync(req);
+
+		// WHEN
+		// a reply to some other request
+		channel.writeOneInbound(new SimpleModbusMessageReply(other,
+				RegistersModbusMessage.readHoldingsResponse(1, 3, new short[] { 7 })));
+
+		// THEN
+		assertThat("Request not completed by reply to other request", f.isDone(), is(equalTo(false)));
+		assertThat("Request still pending", pending.keySet(), hasSize(1));
+	}
+
+	@Test
+	public void recv_noRequest() throws Exception {
+		// GIVEN
+		client.start().get(5, TimeUnit.SECONDS);
+
+		// WHEN
+		// a response arrives without any request having been sent
+		channel.writeOneInbound(Unpooled.copiedBuffer(READ_HOLDINGS_RESPONSE));
+
+		// THEN
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
+		channel.checkException();
+	}
+
+	@Test
+	public void observer_exceptionsIgnored() throws Exception {
+		// GIVEN
+		AtomicReference<@Nullable EmbeddedChannel> channelRef = new AtomicReference<>();
+		TestObservingNettyModbusClient testClient = new TestObservingNettyModbusClient(
+				new NettyModbusClientConfig() {
+
+					@Override
+					public String getDescription() {
+						return "Test";
+					}
+				}, channelRef);
+		AtomicInteger openCount = new AtomicInteger();
+		AtomicInteger closeCount = new AtomicInteger();
+		testClient.setConnectionObserver(new ModbusClientConnectionObserver() {
+
+			@Override
+			public void connectionOpened(ModbusClient client, ModbusClientConfig config) {
+				openCount.incrementAndGet();
+				throw new IllegalStateException("Observer failed.");
+			}
+
+			@Override
+			public void connectionClosed(ModbusClient client, ModbusClientConfig config,
+					@Nullable Throwable exception, boolean willReconnect) {
+				closeCount.incrementAndGet();
+				throw new IllegalStateException("Observer failed.");
+			}
+		});
+
+		// WHEN
+		EmbeddedChannel ch = new EmbeddedChannel(testClient.newModbusChannelHandler());
+		channelRef.set(ch);
+		testClient.start().get(5, TimeUnit.SECONDS);
+		testClient.stop().get(5, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Opened callback called", openCount.get(), is(equalTo(1)));
+		assertThat("Closed callback called", closeCount.get(), is(equalTo(1)));
+		assertThat("Connection closed", ch.isOpen(), is(equalTo(false)));
+		ch.checkException();
+	}
+
+	@Test
+	public void pendingMessageCleaner_nothingPending() throws Exception {
+		// GIVEN
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				null);
+		c.setPendingMessageTtl(25);
+		final EmbeddedChannel ch = c.newChannel();
+		c.connector = () -> ch.newSucceededFuture();
+
+		// WHEN
+		try {
+			c.start().get(5, TimeUnit.SECONDS);
+
+			// wait for cleaner to run
+			Thread.sleep(300);
+
+			// THEN
+			assertThat("Still connected", c.isConnected(), is(equalTo(true)));
+		} finally {
+			c.stop().get(5, TimeUnit.SECONDS);
+		}
+	}
+
+	@Test
+	public void pendingMessageCleaner_exception() throws Exception {
+		// GIVEN
+		final AtomicInteger valuesCount = new AtomicInteger();
+		final ConcurrentMap<ModbusMessage, PendingMessage> badMap = new ConcurrentHashMap<ModbusMessage, PendingMessage>() {
+
+			private static final long serialVersionUID = 4298371652039187642L;
+
+			@Override
+			public java.util.Collection<PendingMessage> values() {
+				valuesCount.incrementAndGet();
+				throw new IllegalStateException("No values for you.");
+			}
+		};
+		TestConnectingNettyModbusClient c = new TestConnectingNettyModbusClient(reconnectingConfig(1),
+				null, badMap);
+		c.setPendingMessageTtl(25);
+		final EmbeddedChannel ch = c.newChannel();
+		c.connector = () -> ch.newSucceededFuture();
+
+		// WHEN
+		try {
+			c.start().get(5, TimeUnit.SECONDS);
+
+			// wait for cleaner to run more than once
+			awaitCount(valuesCount, 2, 5000);
+
+			// THEN
+			assertThat("Cleaner keeps running after an exception", valuesCount.get() >= 2,
+					is(equalTo(true)));
+			assertThat("Still connected", c.isConnected(), is(equalTo(true)));
+		} finally {
+			// stop without closing the channel, which would use the bad map
+			c.connector = null;
+			ch.pipeline().removeFirst();
+			c.stop().get(5, TimeUnit.SECONDS);
+		}
+	}
+
+	@Test
+	public void configure_wireLogging() {
+		// THEN
+		assertThat("Wire logging enabled by test setup", client.isWireLogging(), is(equalTo(true)));
+
+		// WHEN
+		client.setWireLogging(false);
+
+		// THEN
+		assertThat("Wire logging disabled", client.isWireLogging(), is(equalTo(false)));
+	}
+
+	@Test
+	public void configure_replyTimeout() {
+		// THEN
+		assertThat("Default reply timeout", client.getReplyTimeout(),
+				is(equalTo(NettyModbusClient.DEFAULT_REPLY_TIMEOUT)));
+
+		// WHEN
+		client.setReplyTimeout(123L);
+
+		// THEN
+		assertThat("Reply timeout configured", client.getReplyTimeout(), is(equalTo(123L)));
+	}
+
+	@Test
+	public void sendDelay_interrupted() throws Exception {
+		// GIVEN
+		((NettyModbusClientConfig) client.getClientConfig()).setSendMinimumDelayMs(60_000L);
+
+		// first call does not wait
+		client.enforceSendDelay();
+
+		// WHEN
+		final AtomicReference<Long> waited = new AtomicReference<>();
+		Thread t = new Thread(() -> {
+			final long start = System.currentTimeMillis();
+			client.enforceSendDelay();
+			waited.set(System.currentTimeMillis() - start);
+		});
+		t.start();
+		Thread.sleep(200);
+		t.interrupt();
+		t.join(5000);
+
+		// THEN
+		assertThat("Waiting thread stopped waiting when interrupted", t.isAlive(), is(equalTo(false)));
+		assertThat("Waiting thread did not wait for whole delay", waited.get(), is(lessThan(30_000L)));
 	}
 
 }

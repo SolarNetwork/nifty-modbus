@@ -378,4 +378,43 @@ public class RtuNettyModbusClient_ServerTests {
 		}
 	}
 
+	@Test
+	public void start_eventLoopGroupProvider() throws Exception {
+		// GIVEN
+		serialPort = simulatedSerialPort(new CountDownLatch(0));
+		final List<Object> contexts = new ArrayList<>(1);
+		client.setEventLoopGroupProvider((context, parent) -> {
+			contexts.add(context);
+			return net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory.INSTANCE
+					.apply(context, parent);
+		});
+
+		// WHEN
+		client.start().get(5, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Connected using event loop group from provider", client.isConnected(),
+				is(equalTo(true)));
+		assertThat("Provider asked for event loop group", contexts, hasSize(1));
+		assertThat("Provider given the client as context", contexts.get(0) == client, is(equalTo(true)));
+	}
+
+	@Test
+	public void start_stop_start() throws Exception {
+		// GIVEN
+		serialPort = simulatedSerialPort(new CountDownLatch(0));
+
+		// WHEN
+		client.start().get(5, TimeUnit.SECONDS);
+		assertThat("Connected", client.isConnected(), is(equalTo(true)));
+		client.stop().get(15, TimeUnit.SECONDS);
+		assertThat("Not connected after stop", client.isConnected(), is(equalTo(false)));
+		assertThat("Serial port closed", serialPort.isOpen(), is(equalTo(false)));
+		client.start().get(5, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Connected again", client.isConnected(), is(equalTo(true)));
+		assertThat("Serial port open again", serialPort.isOpen(), is(equalTo(true)));
+	}
+
 }

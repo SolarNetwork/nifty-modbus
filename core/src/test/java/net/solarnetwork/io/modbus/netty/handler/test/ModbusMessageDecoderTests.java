@@ -172,4 +172,40 @@ public class ModbusMessageDecoderTests {
 		assertThat("No data (ints)", rmm.dataDecodeUnsigned(), is(nullValue()));
 	}
 
+	@Test
+	public void controller_invalidMessage_discarded() {
+		// GIVEN
+		// read holding registers response with an odd number of data bytes, which is not valid
+		// @formatter:off
+		final byte[] invalid = new byte[] {
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+				(byte)0x03,
+				(byte)0x00,
+				(byte)0x01,
+				(byte)0x02,
+		};
+		final byte[] valid = new byte[] {
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+				(byte)0x02,
+				(byte)0x00,
+				(byte)0x07,
+		};
+		// @formatter:on
+
+		// WHEN
+		boolean result = controllerChannel.writeInbound(Unpooled.copiedBuffer(invalid));
+
+		// THEN
+		assertThat("Invalid message not decoded", result, is(equalTo(false)));
+
+		// invalid message was discarded, so a following message is decoded
+		controllerChannel.writeInbound(Unpooled.copiedBuffer(valid));
+		ModbusMessage msg = controllerChannel.readInbound();
+		assertThat("Following message decoded", msg, is(notNullValue()));
+		RegistersModbusMessage rmm = msg.unwrap(RegistersModbusMessage.class);
+		assertThat("Following message is registers", rmm, is(notNullValue()));
+		assertThat("Following message data",
+				java.util.Arrays.equals(rmm.dataDecodeUnsigned(), new int[] { 7 }), is(equalTo(true)));
+	}
+
 }

@@ -34,6 +34,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -46,7 +48,12 @@ import org.junit.jupiter.api.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.DecoderException;
+import io.netty.util.ReferenceCountUtil;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
@@ -948,6 +955,363 @@ public class RtuModbusExchangeHandlerTests {
 		assertNothingWritten("Next request held back for minimum delay after turnaround delay");
 		advanceTime(100);
 		assertRequestWritten("Next request written once minimum delay has passed", 1, req);
+	}
+
+	/**
+	 * An outbound handler that holds on to writes, so the test controls when
+	 * they complete.
+	 */
+	private static final class WriteCapture extends ChannelOutboundHandlerAdapter {
+
+		private final List<ChannelPromise> promises = new ArrayList<>(2);
+		private @org.jspecify.annotations.Nullable Throwable failure;
+
+		@Override
+		public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise)
+				throws Exception {
+			ReferenceCountUtil.release(msg);
+			if ( failure != null ) {
+				promise.setFailure(failure);
+				return;
+			}
+			promises.add(promise);
+		}
+
+	}
+
+	private void useChannelWithWriteCapture(WriteCapture capture) {
+		channel.finishAndReleaseAll();
+		channel = new EmbeddedChannel(capture, new RtuModbusMessageEncoder(),
+				new RtuModbusMessageDecoder(true), new RtuModbusExchangeHandler(pending,
+						replyTimeout::get, broadcastDelay::get, sendDelay::get));
+	}
+
+	@Test
+	public void construct_defaultBroadcastTurnaroundDelay() {
+		// GIVEN
+		channel.finishAndReleaseAll();
+		channel = new EmbeddedChannel(new RtuModbusMessageEncoder(), new RtuModbusMessageDecoder(true),
+				new RtuModbusExchangeHandler(pending, replyTimeout::get));
+		final ModbusMessage broadcast = RegistersModbusMessage.writeHoldingRequest(0, 100, 9);
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(broadcast);
+		send(req);
+		assertRequestWritten("Broadcast request", 0, broadcast);
+		assertReplyPassedOn("Broadcast reply", broadcast);
+
+		// THEN
+		channel.advanceTimeBy(RtuModbusExchangeHandler.DEFAULT_BROADCAST_TURNAROUND_DELAY - 20,
+				TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+		assertNothingWritten("Next request held back for default turnaround delay");
+		channel.advanceTimeBy(21, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+		assertRequestWritten("Next request", 1, req);
+	}
+
+	@Test
+	public void construct_defaultSendMinimumDelay() {
+		// GIVEN
+		channel.finishAndReleaseAll();
+		channel = new EmbeddedChannel(new RtuModbusMessageEncoder(), new RtuModbusMessageDecoder(true),
+				new RtuModbusExchangeHandler(pending, replyTimeout::get, broadcastDelay::get));
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(req1);
+		send(req2);
+		assertRequestWritten("Request 1", 1, req1);
+		receive(readHoldingsResponseFrame(1, 100, 1));
+
+		// THEN
+		assertReplyPassedOn("Reply 1", req1, 1);
+		assertRequestWritten("Request 2 written without delay", 1, req2);
+	}
+
+	@Test
+	public void noDecoder() {
+		// GIVEN
+		// a pipeline without a decoder to reset
+		channel.finishAndReleaseAll();
+		channel = new EmbeddedChannel(new RtuModbusExchangeHandler(pending, replyTimeout::get));
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+
+		// WHEN
+		send(req);
+
+		// THEN
+		final Object out = channel.readOutbound();
+		assertThat("Request written", out, is(sameInstance(req)));
+	}
+
+	@Test
+	public void write_otherMessage_passedOn() {
+		// GIVEN
+		final ByteBuf data = Unpooled.wrappedBuffer(new byte[] { 1, 2, 3 });
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+
+		// WHEN
+		send(req);
+		channel.writeAndFlush(data);
+
+		// THEN
+		assertRequestWritten("Request", 1, req);
+		final ByteBuf out = channel.readOutbound();
+		assertThat("Other message written, without waiting for outstanding request", out,
+				is(sameInstance(data)));
+		out.release();
+	}
+
+	@Test
+	public void read_otherMessage_passedOn() {
+		// GIVEN
+		final Object other = "not a Modbus message";
+
+		// WHEN
+		channel.writeInbound(other);
+
+		// THEN
+		final Object in = channel.readInbound();
+		assertThat("Other message passed on", in, is(sameInstance(other)));
+	}
+
+	@Test
+	public void write_fails() {
+		// GIVEN
+		final WriteCapture capture = new WriteCapture();
+		final IOException t = new IOException("Write failed.");
+		capture.failure = t;
+		useChannelWithWriteCapture(capture);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f1 = send(req1);
+		capture.failure = null;
+		final CompletableFuture<ModbusMessage> f2 = send(req2);
+
+		// THEN
+		assertThat("Request 1 failed with write exception", failure(f1), is(sameInstance(t)));
+		assertThat("Request 1 no longer pending", pending.containsKey(req1), is(equalTo(false)));
+		assertThat("Request 2 written after failed request", capture.promises, hasSize(1));
+		assertThat("Request 2 outstanding", f2.isDone(), is(equalTo(false)));
+	}
+
+	@Test
+	public void write_completesLater() {
+		// GIVEN
+		final WriteCapture capture = new WriteCapture();
+		useChannelWithWriteCapture(capture);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(req1);
+		send(req2);
+		assertThat("Request 1 being written", capture.promises, hasSize(1));
+		capture.promises.get(0).setSuccess();
+
+		// THEN
+		assertThat("Request 2 held back until reply 1 received", capture.promises, hasSize(1));
+		receive(readHoldingsResponseFrame(1, 100, 1));
+		assertReplyPassedOn("Reply 1", req1, 1);
+		assertThat("Request 2 being written", capture.promises, hasSize(2));
+	}
+
+	@Test
+	public void write_failsLater() {
+		// GIVEN
+		final WriteCapture capture = new WriteCapture();
+		useChannelWithWriteCapture(capture);
+		final IOException t = new IOException("Write failed.");
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f1 = send(req1);
+		send(req2);
+		assertThat("Request 1 being written", capture.promises, hasSize(1));
+		capture.promises.get(0).setFailure(t);
+
+		// THEN
+		assertThat("Request 1 failed with write exception", failure(f1), is(sameInstance(t)));
+		assertThat("Request 2 written after failed request", capture.promises, hasSize(2));
+
+		// and request 1 is not timed out as well
+		expireReplyTimeout();
+		assertThat("Request 1 still failed with write exception", failure(f1), is(sameInstance(t)));
+	}
+
+	@Test
+	public void write_completesAfterTimeout() {
+		// GIVEN
+		final WriteCapture capture = new WriteCapture();
+		useChannelWithWriteCapture(capture);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f1 = send(req1);
+		final CompletableFuture<ModbusMessage> f2 = send(req2);
+		expireReplyTimeout();
+		assertThat("Request 1 failed with timeout", failure(f1),
+				is(instanceOf(ModbusTimeoutException.class)));
+		assertThat("Request 2 being written", capture.promises, hasSize(2));
+
+		// the write of request 1 fails after it has already timed out
+		capture.promises.get(0).tryFailure(new IOException("Write failed."));
+
+		// THEN
+		assertThat("Request 2 not affected by request 1 write result", f2.isDone(), is(equalTo(false)));
+		assertThat("Nothing more written", capture.promises, hasSize(2));
+	}
+
+	@Test
+	public void broadcast_writeCompletesLater() {
+		// GIVEN
+		final WriteCapture capture = new WriteCapture();
+		useChannelWithWriteCapture(capture);
+		final ModbusMessage broadcast = RegistersModbusMessage.writeHoldingRequest(0, 100, 9);
+
+		// WHEN
+		send(broadcast);
+		assertNothingPassedOn("No reply until broadcast has been written");
+		capture.promises.get(0).setSuccess();
+
+		// THEN
+		assertReplyPassedOn("Broadcast reply", broadcast);
+	}
+
+	@Test
+	public void request_abandoned_notPending() {
+		// GIVEN
+		final WriteCapture capture = new WriteCapture();
+		useChannelWithWriteCapture(capture);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(req1);
+		capture.promises.get(0).setSuccess();
+
+		// request 2 written directly, so it is not pending, and then cancelled while queued
+		final ChannelPromise p2 = channel.newPromise();
+		channel.writeAndFlush(req2, p2);
+		p2.cancel(false);
+		receive(readHoldingsResponseFrame(1, 100, 1));
+
+		// THEN
+		assertReplyPassedOn("Reply 1", req1, 1);
+		assertThat("Cancelled request 2 not written", capture.promises, hasSize(1));
+	}
+
+	@Test
+	public void reply_otherImplementation() {
+		// GIVEN
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage res = RegistersModbusMessage.readHoldingsResponse(1, 100, new short[] { 7 });
+
+		// a reply that is neither a SimpleModbusMessageReply nor an RTU message
+		final ModbusMessageReply reply = new ModbusMessageReply() {
+
+			@Override
+			public ModbusMessage getRequest() {
+				return req;
+			}
+
+			@Override
+			public int getUnitId() {
+				return res.getUnitId();
+			}
+
+			@Override
+			public net.solarnetwork.io.modbus.ModbusFunction getFunction() {
+				return res.getFunction();
+			}
+
+			@Override
+			public net.solarnetwork.io.modbus.ModbusError getError() {
+				return null;
+			}
+
+			@Override
+			public boolean isSameAs(ModbusMessage obj) {
+				return obj == this;
+			}
+
+			@SuppressWarnings("unchecked")
+			@Override
+			public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+				return (msgType.isInstance(this) ? (T) this : null);
+			}
+		};
+
+		// WHEN
+		send(req);
+		assertRequestWritten("Request", 1, req);
+		channel.writeInbound(reply);
+
+		// THEN
+		final Object in = channel.readInbound();
+		assertThat("Reply passed on", in, is(sameInstance(reply)));
+	}
+
+	@Test
+	public void exception_decoderExceptionWithoutCause() {
+		// GIVEN
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final DecoderException t = new DecoderException("Bad data.");
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f = send(req);
+		assertRequestWritten("Request", 1, req);
+		channel.pipeline().fireExceptionCaught(t);
+
+		// THEN
+		assertThat("Outstanding request failed with exception", failure(f), is(sameInstance(t)));
+		channel.checkException();
+	}
+
+	@Test
+	public void broadcast_rtuMessageRequest() {
+		// GIVEN
+		// a request that is already an RTU message
+		final RtuModbusMessage broadcast = new RtuModbusMessage(0,
+				RegistersModbusMessage.writeHoldingRequest(0, 100, 9));
+
+		// WHEN
+		send(broadcast);
+
+		// THEN
+		final ByteBuf out = channel.readOutbound();
+		assertThat("Broadcast request written", out, is(notNullValue()));
+		out.release();
+		final ModbusMessageReply reply = assertReplyPassedOn("Broadcast reply", broadcast);
+		assertThat("Broadcast reply uses the RTU request",
+				reply.unwrap(net.solarnetwork.io.modbus.rtu.RtuModbusMessage.class),
+				is(sameInstance(broadcast)));
+	}
+
+	@Test
+	public void reply_toOtherRequest_discarded() {
+		// GIVEN
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage other = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f = send(req);
+		assertRequestWritten("Request", 1, req);
+
+		// a reply that identifies a different request as its own
+		channel.writeInbound(new net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply(other,
+				RegistersModbusMessage.readHoldingsResponse(1, 200, new short[] { 9 })));
+
+		// THEN
+		assertNothingPassedOn("Reply to other request discarded");
+		assertThat("Request still outstanding", f.isDone(), is(equalTo(false)));
 	}
 
 }

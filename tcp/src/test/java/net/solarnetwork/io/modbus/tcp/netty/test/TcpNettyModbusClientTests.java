@@ -599,4 +599,50 @@ public class TcpNettyModbusClientTests {
 		assertThat("Transaction no longer pending", pendingMessages.keySet(), hasSize(0));
 	}
 
+	@Test
+	public void construct_eventLoopGroup() {
+		// GIVEN
+		NettyTcpModbusClientConfig config = new NettyTcpModbusClientConfig("localhost", 502);
+
+		// WHEN
+		TcpNettyModbusClient c = new TcpNettyModbusClient(config, channel.eventLoop(), null);
+
+		// THEN
+		assertThat("Provided client config returned", c.getClientConfig(), is(sameInstance(config)));
+	}
+
+	@Test
+	public void send_recvUnsupportedFunction_requestNoLongerPending() throws Exception {
+		// GIVEN
+		final BaseModbusMessage req = new BaseModbusMessage(1, ModbusFunctionCodes.REPORT_SERVER_ID);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+		final int txId = idSupplier.get();
+
+		// the request is given up on before its response arrives
+		pending.clear();
+		// @formatter:off
+		final byte[] responseData = new byte[] {
+				(byte)(txId >>> 8 & 0xFF),
+				(byte)(txId & 0xFF),
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x05,
+				(byte)0x01,
+				ModbusFunctionCodes.REPORT_SERVER_ID,
+				(byte)0x02,
+				(byte)0xAA,
+				(byte)0xFF,
+		};
+		// @formatter:on
+		channel.writeOneInbound(Unpooled.copiedBuffer(responseData)).sync();
+
+		// THEN
+		assertThat("Request not completed, as it was no longer pending", f.isDone(), is(equalTo(false)));
+		assertThat("Transaction no longer pending", pendingMessages.keySet(), hasSize(0));
+	}
+
 }

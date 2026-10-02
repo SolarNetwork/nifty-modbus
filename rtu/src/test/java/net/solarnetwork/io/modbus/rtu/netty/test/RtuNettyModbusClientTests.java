@@ -786,4 +786,75 @@ public class RtuNettyModbusClientTests {
 		assertRegisters("Response 2", f2, 200, (short) 2);
 	}
 
+	@Test
+	public void construct_eventLoopGroup() {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+
+		// WHEN
+		RtuNettyModbusClient c = new RtuNettyModbusClient(config, channel.eventLoop(),
+				new TestSerialPortProvider(null));
+
+		// THEN
+		assertThat("Provided client config returned", c.getClientConfig(), is(sameInstance(config)));
+	}
+
+	@Test
+	public void start_externalEventLoopGroupStopped() throws Exception {
+		// GIVEN
+		final io.netty.channel.EventLoopGroup group = net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory.INSTANCE
+				.apply(null, false);
+		group.shutdownGracefully(0, 1, TimeUnit.SECONDS).sync();
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		config.setAutoReconnect(false);
+		RtuNettyModbusClient c = new RtuNettyModbusClient(config, group,
+				new TestSerialPortProvider(null));
+
+		// WHEN
+		try {
+			ExecutionException e = assertThrows(ExecutionException.class, () -> {
+				c.start().get(5, TimeUnit.SECONDS);
+			}, "Start fails when external event loop group has been stopped");
+
+			// THEN
+			assertThat("Start failed with IOException", e.getCause(),
+					is(instanceOf(java.io.IOException.class)));
+		} finally {
+			c.stop().get(5, TimeUnit.SECONDS);
+		}
+	}
+
+	@Test
+	public void sendAsync_noReplyTimeout_usesPendingMessageTtl() throws Exception {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+		client.setReplyTimeout(0);
+		client.setPendingMessageTtl(60_000L);
+		channel.freezeTime();
+
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+
+		// WHEN
+		client.start().get();
+		Future<ModbusMessage> f = client.sendAsync(req);
+		channel.advanceTimeBy(59_999L, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+		assertThat("Request outstanding before pending message TTL", f.isDone(), is(equalTo(false)));
+		channel.advanceTimeBy(1L, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+
+		// THEN
+		assertThat("Request completed at pending message TTL", f.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f.get();
+		}, "Request failed");
+		assertThat("Request failed from timeout", e.getCause(),
+				is(instanceOf(ModbusTimeoutException.class)));
+	}
+
 }

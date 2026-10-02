@@ -129,6 +129,14 @@ subprojects {
 			showStackTraces = true
 		}
 		maxHeapSize = '1500m'
+
+		// Pass on system properties that enable optional tests, such as those
+		// that need a serial device, e.g. -Dnifty.modbus.test.jsc.port=/dev/ttyUSB0
+		System.properties.each { k, v ->
+			if ( k.toString().startsWith('nifty.modbus.test.') ) {
+				systemProperty k.toString(), v
+			}
+		}
 	}
 
 	spotless {
