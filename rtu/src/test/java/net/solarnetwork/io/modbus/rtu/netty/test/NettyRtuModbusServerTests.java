@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -357,6 +358,115 @@ public class NettyRtuModbusServerTests {
 						(byte)(crc >>> 8 & 0xFF),
 				})));
 		// @formatter:on
+	}
+
+	private static byte[] requestFrame(int unitId, ModbusMessage req) {
+		final ByteBuf buf = Unpooled.buffer();
+		new RtuModbusMessage(unitId, req).encodeModbusPayload(buf);
+		return ByteBufUtil.getBytes(buf);
+	}
+
+	private static ByteBuf readBuffer(byte[]... data) {
+		// use a buffer with spare capacity, like the one a real channel reads into
+		final ByteBuf buf = Unpooled.buffer(2048);
+		for ( byte[] d : data ) {
+			buf.writeBytes(d);
+		}
+		return buf;
+	}
+
+	private void assertReadInputsResponse(String msg, int unitId, int addr, short[] data) {
+		final ByteBuf response = channel.readOutbound();
+		assertThat(msg + " produced", response, is(notNullValue()));
+		final ByteBuf expected = Unpooled.buffer();
+		new RtuModbusMessage(unitId, readInputsResponse(unitId, addr, data))
+				.encodeModbusPayload(expected);
+		assertThat(msg + " encoded", byteObjectArray(ByteBufUtil.getBytes(response)),
+				arrayContaining(byteObjectArray(ByteBufUtil.getBytes(expected))));
+	}
+
+	@Test
+	public void receive_invalidCrc() throws Exception {
+		// GIVEN
+		server = new TestRtuNettyModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(null), channel);
+		final AtomicInteger handled = new AtomicInteger();
+		final AtomicReference<Throwable> exception = new AtomicReference<>();
+		server.setMessageHandler((msg, sender) -> {
+			handled.incrementAndGet();
+			inputMessageHandler().accept(msg, sender);
+		});
+		server.setExceptionHandler((ex, sender) -> exception.set(ex));
+
+		final byte[] frame = requestFrame(1, RegistersModbusMessage.readInputsRequest(1, 2, 3));
+		frame[frame.length - 1] ^= 0x01;
+
+		// WHEN
+		server.start();
+		channel.writeInbound(readBuffer(frame));
+
+		// THEN
+		assertThat("Request with invalid CRC not passed to message handler", handled.get(),
+				is(equalTo(0)));
+		Object response = channel.readOutbound();
+		assertThat("No response sent for request with invalid CRC", response, is(nullValue()));
+		assertThat("Invalid CRC is not treated as an exception", exception.get(), is(nullValue()));
+	}
+
+	@Test
+	public void receive_corruptedData() throws Exception {
+		// GIVEN
+		server = new TestRtuNettyModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(null), channel);
+		final AtomicInteger handled = new AtomicInteger();
+		server.setMessageHandler((msg, sender) -> {
+			handled.incrementAndGet();
+			inputMessageHandler().accept(msg, sender);
+		});
+
+		// a request whose address was corrupted after the CRC was calculated
+		final byte[] frame = requestFrame(1, RegistersModbusMessage.readInputsRequest(1, 2, 3));
+		frame[3] = (byte) 0x7F;
+
+		// WHEN
+		server.start();
+		channel.writeInbound(readBuffer(frame));
+
+		// THEN
+		assertThat("Corrupted request not passed to message handler", handled.get(), is(equalTo(0)));
+		Object response = channel.readOutbound();
+		assertThat("No response sent for corrupted request", response, is(nullValue()));
+	}
+
+	@Test
+	public void receive_invalidCrc_followingRequestHandled() throws Exception {
+		// GIVEN
+		server = new TestRtuNettyModbusServer("COM1", new BasicSerialParameters(),
+				new TestSerialPortProvider(null), channel);
+		final AtomicInteger handled = new AtomicInteger();
+		server.setMessageHandler((msg, sender) -> {
+			handled.incrementAndGet();
+			inputMessageHandler().accept(msg, sender);
+		});
+
+		final byte[] bad = requestFrame(1, RegistersModbusMessage.readInputsRequest(1, 2, 3));
+		bad[bad.length - 1] ^= 0x01;
+
+		// WHEN
+		server.start();
+		// junk follows the request with the invalid CRC
+		channel.writeInbound(readBuffer(bad, new byte[] { 0x01, 0x04 }));
+		Object none = channel.readOutbound();
+		assertThat("No response sent for request with invalid CRC", none, is(nullValue()));
+
+		for ( int i = 1; i <= 3; i++ ) {
+			channel.writeInbound(
+					readBuffer(requestFrame(1, RegistersModbusMessage.readInputsRequest(1, 10 * i, 2))));
+
+			// THEN
+			assertReadInputsResponse("Response " + i, 1, 10 * i, new short[] { 0, 1 });
+		}
+		assertThat("Only valid requests passed to message handler", handled.get(), is(equalTo(3)));
 	}
 
 }

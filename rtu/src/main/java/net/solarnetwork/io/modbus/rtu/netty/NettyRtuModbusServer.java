@@ -61,6 +61,12 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * provide a response {@link ModbusMessage}, which this server will then encode
  * and send back to the connected client.
  * </p>
+ * 
+ * <p>
+ * A request that fails its CRC check is discarded: it is not passed to the
+ * message handler and no response is sent, as required by the Modbus
+ * specification.
+ * </p>
  *
  * @author matt
  * @version 1.2
@@ -291,6 +297,16 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 		@Override
 		protected void channelRead0(ChannelHandlerContext ctx, ModbusMessage msg) throws Exception {
 			log.debug("Request: {}", msg);
+			if ( msg instanceof RtuModbusMessage && !((RtuModbusMessage) msg).isCrcValid() ) {
+				log.debug("Discarding request with invalid CRC: {}", msg);
+				// the framing can't be trusted, so discard whatever followed the request
+				final RtuModbusMessageDecoder decoder = ctx.pipeline()
+						.get(RtuModbusMessageDecoder.class);
+				if ( decoder != null ) {
+					decoder.reset();
+				}
+				return;
+			}
 			final BiConsumer<ModbusMessage, Consumer<ModbusMessage>> h = getMessageHandler();
 			if ( h == null ) {
 				return;
