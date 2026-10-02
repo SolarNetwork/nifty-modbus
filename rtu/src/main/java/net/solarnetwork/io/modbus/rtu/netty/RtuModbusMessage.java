@@ -36,7 +36,7 @@ import net.solarnetwork.io.modbus.netty.msg.ModbusPayloadEncoder;
  * A RTU-encapsulated Modbus message.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RtuModbusMessage
 		implements net.solarnetwork.io.modbus.rtu.RtuModbusMessage, ModbusPayloadEncoder {
@@ -157,6 +157,9 @@ public class RtuModbusMessage
 	@Nullable
 	@Override
 	public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+		if ( net.solarnetwork.io.modbus.rtu.RtuModbusMessage.class.isAssignableFrom(msgType) ) {
+			return (msgType.isInstance(this) ? (T) this : null);
+		}
 		if ( msgType.isAssignableFrom(body.getClass()) ) {
 			return (T) body;
 		}

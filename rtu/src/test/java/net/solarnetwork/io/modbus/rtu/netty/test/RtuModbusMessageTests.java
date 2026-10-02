@@ -252,6 +252,11 @@ public class RtuModbusMessageTests {
 				is(sameInstance(msg)));
 		assertThat("Can not unwrap as Bits",
 				rtu.unwrap(net.solarnetwork.io.modbus.BitsModbusMessage.class), is(nullValue()));
+		assertThat("Can unwrap as RTU API",
+				rtu.unwrap(net.solarnetwork.io.modbus.rtu.RtuModbusMessage.class),
+				is(sameInstance(rtu)));
+		assertThat("Can unwrap as RTU implementation", rtu.unwrap(RtuModbusMessage.class),
+				is(sameInstance(rtu)));
 	}
 
 	@Test

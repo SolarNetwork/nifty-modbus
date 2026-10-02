@@ -62,6 +62,17 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * spent waiting for previously submitted requests to complete.
  * </p>
  *
+ * <p>
+ * No device responds to a
+ * {@link net.solarnetwork.io.modbus.rtu.RtuModbusMessage#isBroadcast(ModbusMessage)
+ * broadcast} request. The response returned for a broadcast request is a reply
+ * that echoes the request, provided as soon as the request has been sent. That
+ * reply can be identified with
+ * {@link net.solarnetwork.io.modbus.rtu.RtuModbusMessage#isBroadcast(ModbusMessage)}.
+ * The next request is then held back for the
+ * {@link #getBroadcastTurnaroundDelay()}.
+ * </p>
+ *
  * @author matt
  * @version 1.2
  */
@@ -78,6 +89,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 	private final ConcurrentMap<ModbusMessage, PendingMessage> pending;
 	private final boolean privateEventLoopGroup;
 	private final SerialPortProvider serialPortProvider;
+	private volatile long broadcastTurnaroundDelay = RtuModbusExchangeHandler.DEFAULT_BROADCAST_TURNAROUND_DELAY;
 	private @Nullable EventLoopGroup eventLoopGroup;
 	private @Nullable CompletableFuture<?> eventLoopGroupStopFuture;
 
@@ -241,14 +253,44 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		ChannelPipeline pipeline = channel.pipeline();
 		pipeline.addLast(MESSAGE_ENCODER_HANDLER_NAME, new RtuModbusMessageEncoder());
 		pipeline.addLast(MESSAGE_DECODER_HANDLER_NAME, new RtuModbusMessageDecoder(true));
-		pipeline.addLast(EXCHANGE_HANDLER_NAME,
-				new RtuModbusExchangeHandler(pending, this::exchangeTimeout));
+		pipeline.addLast(EXCHANGE_HANDLER_NAME, new RtuModbusExchangeHandler(pending,
+				this::exchangeTimeout, this::getBroadcastTurnaroundDelay));
 		super.initChannel(channel);
 	}
 
 	private long exchangeTimeout() {
 		final long timeout = getReplyTimeout();
 		return (timeout > 0 ? timeout : getPendingMessageTtl());
+	}
+
+	/**
+	 * Get the broadcast turnaround delay.
+	 * 
+	 * @return the time to wait after sending a broadcast request before sending
+	 *         the next request, in milliseconds; defaults to
+	 *         {@link RtuModbusExchangeHandler#DEFAULT_BROADCAST_TURNAROUND_DELAY}
+	 * @since 1.2
+	 */
+	public long getBroadcastTurnaroundDelay() {
+		return broadcastTurnaroundDelay;
+	}
+
+	/**
+	 * Set the broadcast turnaround delay.
+	 * 
+	 * <p>
+	 * No device responds to a broadcast request, so this delay gives them time
+	 * to process a broadcast before the next request is sent.
+	 * </p>
+	 * 
+	 * @param broadcastTurnaroundDelay
+	 *        the time to wait after sending a broadcast request before sending
+	 *        the next request, in milliseconds; anything less than {@literal 1}
+	 *        disables the delay
+	 * @since 1.2
+	 */
+	public void setBroadcastTurnaroundDelay(long broadcastTurnaroundDelay) {
+		this.broadcastTurnaroundDelay = broadcastTurnaroundDelay;
 	}
 
 	private final class HandlerInitializer extends ChannelInitializer<SerialPortChannel> {

@@ -84,6 +84,18 @@ import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
  * a partial response, does not corrupt the next one.
  * </p>
  *
+ * <p>
+ * A
+ * {@link net.solarnetwork.io.modbus.rtu.RtuModbusMessage#isBroadcast(ModbusMessage)
+ * broadcast} request is acted on by every device and none of them respond. Once
+ * a broadcast request has been written, a reply that echoes the request is
+ * passed on in place of the response that will never arrive, so the request
+ * completes without waiting for the reply timeout. The next request is not
+ * written until the broadcast turnaround delay has passed, to give the devices
+ * time to process the broadcast. A request to read that is addressed to the
+ * broadcast unit ID is not a broadcast and is handled like any other request.
+ * </p>
+ *
  * @author matt
  * @version 1.0
  * @since 1.6.0
@@ -92,8 +104,12 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(RtuModbusExchangeHandler.class);
 
+	/** The default broadcast turnaround delay, in milliseconds. */
+	public static final long DEFAULT_BROADCAST_TURNAROUND_DELAY = 100L;
+
 	private final ConcurrentMap<ModbusMessage, PendingMessage> pending;
 	private final LongSupplier replyTimeout;
+	private final LongSupplier broadcastTurnaroundDelay;
 
 	// the following are only accessed from the event loop
 
@@ -103,6 +119,10 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 
 	/**
 	 * Constructor.
+	 *
+	 * <p>
+	 * The {@link #DEFAULT_BROADCAST_TURNAROUND_DELAY} will be used.
+	 * </p>
 	 *
 	 * @param pending
 	 *        the client's map of request messages pending responses
@@ -115,6 +135,27 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 	 */
 	public RtuModbusExchangeHandler(ConcurrentMap<ModbusMessage, PendingMessage> pending,
 			LongSupplier replyTimeout) {
+		this(pending, replyTimeout, () -> DEFAULT_BROADCAST_TURNAROUND_DELAY);
+	}
+
+	/**
+	 * Constructor.
+	 *
+	 * @param pending
+	 *        the client's map of request messages pending responses
+	 * @param replyTimeout
+	 *        supplier of the maximum time to wait for a response after a
+	 *        request is written, in milliseconds; anything less than
+	 *        {@literal 1} disables the timeout
+	 * @param broadcastTurnaroundDelay
+	 *        supplier of the time to wait after a broadcast request is written
+	 *        before writing the next request, in milliseconds; anything less
+	 *        than {@literal 1} disables the delay
+	 * @throws IllegalArgumentException
+	 *         if any argument is {@code null}
+	 */
+	public RtuModbusExchangeHandler(ConcurrentMap<ModbusMessage, PendingMessage> pending,
+			LongSupplier replyTimeout, LongSupplier broadcastTurnaroundDelay) {
 		super();
 		if ( pending == null ) {
 			throw new IllegalArgumentException("The pending argument must not be null.");
@@ -124,6 +165,11 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 			throw new IllegalArgumentException("The replyTimeout argument must not be null.");
 		}
 		this.replyTimeout = replyTimeout;
+		if ( broadcastTurnaroundDelay == null ) {
+			throw new IllegalArgumentException(
+					"The broadcastTurnaroundDelay argument must not be null.");
+		}
+		this.broadcastTurnaroundDelay = broadcastTurnaroundDelay;
 	}
 
 	/**
@@ -133,11 +179,13 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 
 		private final ModbusMessage request;
 		private final ChannelPromise promise;
+		private final boolean broadcast;
 
 		private Exchange(ModbusMessage request, ChannelPromise promise) {
 			super();
 			this.request = request;
 			this.promise = promise;
+			this.broadcast = net.solarnetwork.io.modbus.rtu.RtuModbusMessage.isBroadcast(request);
 		}
 
 	}
@@ -182,13 +230,25 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 					current = null;
 					continue;
 				}
+				if ( next.broadcast ) {
+					broadcastWritten(ctx, next);
+				}
 			} else {
 				f.addListener((ChannelFutureListener) future -> {
-					if ( !future.isSuccess() && current == next ) {
-						finish(ctx, next);
-						writeNext(ctx);
+					if ( current != next ) {
+						return;
 					}
+					if ( !future.isSuccess() ) {
+						finish(ctx, next);
+					} else if ( next.broadcast ) {
+						broadcastWritten(ctx, next);
+					}
+					writeNext(ctx);
 				});
+			}
+			if ( next.broadcast ) {
+				// no response to wait for
+				continue;
 			}
 
 			final long timeout = replyTimeout.getAsLong();
@@ -206,6 +266,32 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 		}
 	}
 
+	/**
+	 * Complete a broadcast request that has been written.
+	 */
+	private void broadcastWritten(ChannelHandlerContext ctx, Exchange exchange) {
+		// no device responds to a broadcast, so reply in their place
+		ctx.channel().attr(NettyModbusClient.LAST_ENCODED_MESSAGE).compareAndSet(exchange.request, null);
+		final ModbusMessage request = exchange.request;
+		ctx.fireChannelRead(
+				new SimpleModbusMessageReply(request, request instanceof RtuModbusMessage ? request
+						: new RtuModbusMessage(request.getUnitId(), request)));
+
+		// give the devices time to process the broadcast before writing anything more
+		final long delay = broadcastTurnaroundDelay.getAsLong();
+		if ( delay < 1 ) {
+			finish(ctx, exchange);
+			return;
+		}
+		currentTimeout = ctx.executor().schedule(() -> {
+			if ( current != exchange ) {
+				return;
+			}
+			finish(ctx, exchange);
+			writeNext(ctx);
+		}, delay, TimeUnit.MILLISECONDS);
+	}
+
 	@SuppressWarnings("ReferenceEquality")
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -216,7 +302,8 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 		final ModbusMessage message = (ModbusMessage) msg;
 		final Exchange exchange = this.current;
 		final ModbusMessageReply reply = message.unwrap(ModbusMessageReply.class);
-		if ( exchange == null || reply == null || reply.getRequest() != exchange.request ) {
+		if ( exchange == null || exchange.broadcast || reply == null
+				|| reply.getRequest() != exchange.request ) {
 			log.debug("Discarding unexpected message {}", message);
 			ReferenceCountUtil.release(msg);
 			return;

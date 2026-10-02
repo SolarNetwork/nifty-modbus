@@ -74,17 +74,20 @@ import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessageEncoder;
 public class RtuModbusExchangeHandlerTests {
 
 	private static final long REPLY_TIMEOUT = 1000L;
+	private static final long BROADCAST_DELAY = 200L;
 
 	private ConcurrentMap<ModbusMessage, PendingMessage> pending;
 	private AtomicLong replyTimeout;
+	private AtomicLong broadcastDelay;
 	private EmbeddedChannel channel;
 
 	@BeforeEach
 	public void setup() {
 		pending = new ConcurrentHashMap<>(8, 0.9f, 2);
 		replyTimeout = new AtomicLong(REPLY_TIMEOUT);
+		broadcastDelay = new AtomicLong(BROADCAST_DELAY);
 		channel = new EmbeddedChannel(new RtuModbusMessageEncoder(), new RtuModbusMessageDecoder(true),
-				new RtuModbusExchangeHandler(pending, replyTimeout::get));
+				new RtuModbusExchangeHandler(pending, replyTimeout::get, broadcastDelay::get));
 	}
 
 	@AfterEach
@@ -597,6 +600,179 @@ public class RtuModbusExchangeHandlerTests {
 		// THEN
 		// exception was handled, not propagated to end of pipeline
 		channel.checkException();
+	}
+
+	private void expireBroadcastDelay() {
+		channel.advanceTimeBy(BROADCAST_DELAY + 1, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+	}
+
+	@Test
+	public void construct_nullBroadcastTurnaroundDelay() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			new RtuModbusExchangeHandler(pending, replyTimeout::get, null);
+		}, "Null broadcastTurnaroundDelay not allowed");
+	}
+
+	@Test
+	public void broadcast_write() {
+		// GIVEN
+		final ModbusMessage broadcast = RegistersModbusMessage.writeHoldingRequest(0, 100, 9);
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f = send(broadcast);
+		send(req);
+
+		// THEN
+		assertRequestWritten("Broadcast request", 0, broadcast);
+
+		// a reply is provided without any response arriving
+		final ModbusMessageReply reply = assertReplyPassedOn("Broadcast reply", broadcast);
+		assertThat("Broadcast reply is not an exception", reply.isException(), is(equalTo(false)));
+		assertThat("Broadcast reply has no error", reply.getError(), is(nullValue()));
+		assertThat("Broadcast reply unit ID", reply.getUnitId(), is(equalTo(0)));
+		assertThat("Broadcast reply can be identified",
+				net.solarnetwork.io.modbus.rtu.RtuModbusMessage.isBroadcast(reply), is(equalTo(true)));
+		net.solarnetwork.io.modbus.rtu.RtuModbusMessage rtuReply = reply
+				.unwrap(net.solarnetwork.io.modbus.rtu.RtuModbusMessage.class);
+		assertThat("Broadcast reply is an RTU message", rtuReply, is(notNullValue()));
+		assertThat("Broadcast reply can be identified as RTU message", rtuReply.isBroadcast(),
+				is(equalTo(true)));
+		assertThat("Broadcast reply CRC is that of the request", rtuReply.isCrcValid(),
+				is(equalTo(true)));
+		assertThat("Broadcast reply function", reply.getFunction(),
+				is(equalTo(ModbusFunctionCode.WriteHoldingRegister)));
+		net.solarnetwork.io.modbus.RegistersModbusMessage reg = reply
+				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+		assertThat("Broadcast reply echoes address", reg.getAddress(), is(equalTo(100)));
+		reply.validate();
+		assertThat("Broadcast request not failed", f.isCompletedExceptionally(), is(equalTo(false)));
+
+		// the next request waits for the turnaround delay
+		assertNothingWritten("Next request held back for turnaround delay");
+		expireBroadcastDelay();
+		assertRequestWritten("Next request", 1, req);
+		receive(readHoldingsResponseFrame(1, 200, 2));
+		final ModbusMessageReply nextReply = assertReplyPassedOn("Next reply", req, 2);
+		assertThat("Reply from a device is not a broadcast",
+				net.solarnetwork.io.modbus.rtu.RtuModbusMessage.isBroadcast(nextReply),
+				is(equalTo(false)));
+		assertThat("Reply from a device is an RTU message that is not a broadcast",
+				nextReply.unwrap(net.solarnetwork.io.modbus.rtu.RtuModbusMessage.class).isBroadcast(),
+				is(equalTo(false)));
+
+		// and the broadcast is never timed out
+		expireReplyTimeout();
+		assertThat("Broadcast request not failed", f.isCompletedExceptionally(), is(equalTo(false)));
+	}
+
+	@Test
+	public void broadcast_write_multiple() {
+		// GIVEN
+		final ModbusMessage broadcast = RegistersModbusMessage.writeHoldingsRequest(0, 100,
+				new short[] { 1, 2, 3 });
+
+		// WHEN
+		send(broadcast);
+
+		// THEN
+		assertRequestWritten("Broadcast request", 0, broadcast);
+		final ModbusMessageReply reply = assertReplyPassedOn("Broadcast reply", broadcast);
+		assertThat("Broadcast reply function", reply.getFunction(),
+				is(equalTo(ModbusFunctionCode.WriteHoldingRegisters)));
+	}
+
+	@Test
+	public void broadcast_noTurnaroundDelay() {
+		// GIVEN
+		broadcastDelay.set(0);
+		final ModbusMessage broadcast = RegistersModbusMessage.writeHoldingRequest(0, 100, 9);
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(broadcast);
+		send(req);
+
+		// THEN
+		assertRequestWritten("Broadcast request", 0, broadcast);
+		assertReplyPassedOn("Broadcast reply", broadcast);
+		assertRequestWritten("Next request written without delay", 1, req);
+	}
+
+	@Test
+	public void broadcast_responseDuringTurnaround_discarded() {
+		// GIVEN
+		final ModbusMessage broadcast = RegistersModbusMessage.writeHoldingRequest(0, 100, 9);
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(broadcast);
+		send(req);
+		assertRequestWritten("Broadcast request", 0, broadcast);
+		assertReplyPassedOn("Broadcast reply", broadcast);
+
+		// a device responds to the broadcast, which it should not
+		receive(frame(0, RegistersModbusMessage.writeHoldingResponse(0, 100, 9)));
+
+		// THEN
+		assertNothingPassedOn("Response to broadcast discarded");
+		assertNothingWritten("Next request still held back for turnaround delay");
+		expireBroadcastDelay();
+		assertRequestWritten("Next request", 1, req);
+		receive(readHoldingsResponseFrame(1, 200, 2));
+		assertReplyPassedOn("Next reply", req, 2);
+	}
+
+	@Test
+	public void broadcast_channelClosedDuringTurnaround() {
+		// GIVEN
+		final ModbusMessage broadcast = RegistersModbusMessage.writeHoldingRequest(0, 100, 9);
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(broadcast);
+		final CompletableFuture<ModbusMessage> f = send(req);
+		assertRequestWritten("Broadcast request", 0, broadcast);
+		assertReplyPassedOn("Broadcast reply", broadcast);
+		channel.close();
+
+		// THEN
+		assertThat("Queued request failed", failure(f), is(instanceOf(IOException.class)));
+		assertNothingWritten("Queued request not sent");
+	}
+
+	@Test
+	public void unitZero_read_notBroadcast() {
+		// GIVEN
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(0, 100, 1);
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f = send(req);
+
+		// THEN
+		assertRequestWritten("Request", 0, req);
+		assertNothingPassedOn("No reply provided for a read");
+		assertThat("Request waiting for response", f.isDone(), is(equalTo(false)));
+
+		// a device that does answer on unit 0 is still supported
+		receive(readHoldingsResponseFrame(0, 100, 7));
+		assertReplyPassedOn("Reply", req, 7);
+	}
+
+	@Test
+	public void unitZero_read_timeout() {
+		// GIVEN
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(0, 100, 1);
+
+		// WHEN
+		final CompletableFuture<ModbusMessage> f = send(req);
+		assertRequestWritten("Request", 0, req);
+		expireReplyTimeout();
+
+		// THEN
+		assertThat("Request failed with timeout", failure(f),
+				is(instanceOf(ModbusTimeoutException.class)));
 	}
 
 }

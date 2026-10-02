@@ -61,6 +61,7 @@ import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.rtu.RtuModbusClientConfig;
 import net.solarnetwork.io.modbus.rtu.netty.NettyRtuModbusClientConfig;
+import net.solarnetwork.io.modbus.rtu.netty.RtuModbusExchangeHandler;
 import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessage;
 import net.solarnetwork.io.modbus.rtu.netty.RtuNettyModbusClient;
 import net.solarnetwork.io.modbus.serial.BasicSerialParameters;
@@ -668,6 +669,75 @@ public class RtuNettyModbusClientTests {
 		// THEN
 		assertThat("Stop completes without error", result, is(nullValue()));
 		assertThat("Not started", c.isStarted(), is(equalTo(false)));
+	}
+
+	@Test
+	public void broadcastTurnaroundDelay_default() {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		RtuNettyModbusClient c = new RtuNettyModbusClient(config, new TestSerialPortProvider(null));
+
+		// THEN
+		assertThat("Default broadcast turnaround delay", c.getBroadcastTurnaroundDelay(),
+				is(equalTo(RtuModbusExchangeHandler.DEFAULT_BROADCAST_TURNAROUND_DELAY)));
+
+		// WHEN
+		c.setBroadcastTurnaroundDelay(250L);
+
+		// THEN
+		assertThat("Configured broadcast turnaround delay", c.getBroadcastTurnaroundDelay(),
+				is(equalTo(250L)));
+	}
+
+	@Test
+	public void send_broadcast() throws Exception {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+		client.setBroadcastTurnaroundDelay(250L);
+
+		RegistersModbusMessage broadcast = RegistersModbusMessage.writeHoldingRequest(0, 100, 9);
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		client.start().get();
+		Future<ModbusMessage> f1 = client.sendAsync(broadcast);
+		Future<ModbusMessage> f2 = client.sendAsync(req);
+
+		// THEN
+		ByteBuf out = channel.readOutbound();
+		assertThat("Broadcast request sent", out, is(notNullValue()));
+		assertThat("Broadcast request addressed to unit 0", out.getByte(0), is(equalTo((byte) 0)));
+		out.release();
+
+		assertThat("Broadcast request completed without a response", f1.isDone(), is(equalTo(true)));
+		ModbusMessage res = f1.get();
+		assertThat("Broadcast response provided", res, is(notNullValue()));
+		assertThat("Broadcast response is not an error", res.getError(), is(nullValue()));
+		assertThat("Broadcast response can be identified",
+				net.solarnetwork.io.modbus.rtu.RtuModbusMessage.isBroadcast(res), is(equalTo(true)));
+		assertThat("Broadcast response can be identified as RTU message",
+				res.unwrap(net.solarnetwork.io.modbus.rtu.RtuModbusMessage.class).isBroadcast(),
+				is(equalTo(true)));
+		assertThat("Broadcast response function", res.getFunction(),
+				is(equalTo(ModbusFunctionCode.WriteHoldingRegister)));
+		assertThat("Only next request pending", pending.keySet(), hasSize(1));
+
+		out = channel.readOutbound();
+		assertThat("Next request not sent before turnaround delay", out, is(nullValue()));
+
+		channel.advanceTimeBy(251, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+
+		out = channel.readOutbound();
+		assertThat("Next request sent after turnaround delay", out, is(notNullValue()));
+		out.release();
+		channel.writeOneInbound(readHoldingsResponseFrame(1, 200, (short) 2)).sync();
+		assertRegisters("Response", f2, 200, (short) 2);
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
 	}
 
 }

@@ -33,19 +33,29 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import net.solarnetwork.io.modbus.ModbusError;
 import net.solarnetwork.io.modbus.ModbusFunction;
+import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusValidationException;
+import net.solarnetwork.io.modbus.UserModbusFunction;
 import net.solarnetwork.io.modbus.rtu.RtuModbusMessage;
 
 /**
  * Test cases for the {@link RtuModbusMessage} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RtuModbusMessageTests {
 
 	private RtuModbusMessage msg(short crc, short computedCrc) {
+		return msg(0, null, crc, computedCrc);
+	}
+
+	private RtuModbusMessage msg(int unitId, ModbusFunction function) {
+		return msg(unitId, function, (short) 0, (short) 0);
+	}
+
+	private RtuModbusMessage msg(int unitId, ModbusFunction function, short crc, short computedCrc) {
 		return new RtuModbusMessage() {
 
 			@Nullable
@@ -61,12 +71,12 @@ public class RtuModbusMessageTests {
 
 			@Override
 			public int getUnitId() {
-				return 0;
+				return unitId;
 			}
 
 			@Override
 			public ModbusFunction getFunction() {
-				return null;
+				return function;
 			}
 
 			@Override
@@ -125,6 +135,105 @@ public class RtuModbusMessageTests {
 		}, "Validation exception thrown when CRC invalid");
 		assertThat("Validation message is CRC mismatch", ex.getMessage(),
 				is(equalTo(format(RtuModbusMessage.CRC_MISMATCH_VALIDATION_MESSAGE, crc, computedCrc))));
+	}
+
+	/**
+	 * A plain message, that is not a {@link RtuModbusMessage}.
+	 */
+	private ModbusMessage plainMsg(int unitId, ModbusFunction function) {
+		return new ModbusMessage() {
+
+			@Nullable
+			@Override
+			public <T extends ModbusMessage> T unwrap(Class<T> msgType) {
+				return null;
+			}
+
+			@Override
+			public boolean isSameAs(@Nullable ModbusMessage obj) {
+				return false;
+			}
+
+			@Override
+			public int getUnitId() {
+				return unitId;
+			}
+
+			@Override
+			public ModbusFunction getFunction() {
+				return function;
+			}
+
+			@Nullable
+			@Override
+			public ModbusError getError() {
+				return null;
+			}
+		};
+	}
+
+	@Test
+	public void broadcastUnitId() {
+		assertThat("Broadcast unit ID", RtuModbusMessage.BROADCAST_UNIT_ID, is(equalTo(0)));
+	}
+
+	@Test
+	public void isBroadcast_writeFunctions() {
+		for ( ModbusFunctionCode fn : new ModbusFunctionCode[] { ModbusFunctionCode.WriteCoil,
+				ModbusFunctionCode.WriteCoils, ModbusFunctionCode.WriteHoldingRegister,
+				ModbusFunctionCode.WriteHoldingRegisters, ModbusFunctionCode.MaskWriteHoldingRegister,
+				ModbusFunctionCode.WriteFileRecord } ) {
+			assertThat(fn + " to unit 0 is a broadcast", msg(0, fn).isBroadcast(), is(equalTo(true)));
+			assertThat(fn + " to unit 1 is not a broadcast", msg(1, fn).isBroadcast(),
+					is(equalTo(false)));
+			assertThat(fn + " to unit 255 is not a broadcast", msg(255, fn).isBroadcast(),
+					is(equalTo(false)));
+		}
+	}
+
+	@Test
+	public void isBroadcast_readFunctions() {
+		for ( ModbusFunctionCode fn : ModbusFunctionCode.values() ) {
+			if ( !fn.isReadFunction() ) {
+				continue;
+			}
+			assertThat(fn + " to unit 0 is not a broadcast, as it needs a response",
+					msg(0, fn).isBroadcast(), is(equalTo(false)));
+			assertThat(fn + " to unit 1 is not a broadcast", msg(1, fn).isBroadcast(),
+					is(equalTo(false)));
+		}
+	}
+
+	@Test
+	public void isBroadcast_readWriteFunction() {
+		assertThat("Read/write to unit 0 is not a broadcast, as it needs a response",
+				msg(0, ModbusFunctionCode.ReadWriteHoldingRegisters).isBroadcast(), is(equalTo(false)));
+	}
+
+	@Test
+	public void isBroadcast_userFunctions() {
+		assertThat("User write function to unit 0 is a broadcast",
+				msg(0, new UserModbusFunction(null, (byte) 0x41, null, false, null)).isBroadcast(),
+				is(equalTo(true)));
+		assertThat("User read function to unit 0 is not a broadcast",
+				msg(0, new UserModbusFunction(null, (byte) 0x42, null, true, null)).isBroadcast(),
+				is(equalTo(false)));
+		assertThat("User write function to unit 1 is not a broadcast",
+				msg(1, new UserModbusFunction(null, (byte) 0x41, null, false, null)).isBroadcast(),
+				is(equalTo(false)));
+	}
+
+	@Test
+	public void isBroadcast_anyMessage() {
+		assertThat("Plain write to unit 0 is a broadcast",
+				RtuModbusMessage.isBroadcast(plainMsg(0, ModbusFunctionCode.WriteHoldingRegister)),
+				is(equalTo(true)));
+		assertThat("Plain write to unit 1 is not a broadcast",
+				RtuModbusMessage.isBroadcast(plainMsg(1, ModbusFunctionCode.WriteHoldingRegister)),
+				is(equalTo(false)));
+		assertThat("Plain read from unit 0 is not a broadcast",
+				RtuModbusMessage.isBroadcast(plainMsg(0, ModbusFunctionCode.ReadHoldingRegisters)),
+				is(equalTo(false)));
 	}
 
 }

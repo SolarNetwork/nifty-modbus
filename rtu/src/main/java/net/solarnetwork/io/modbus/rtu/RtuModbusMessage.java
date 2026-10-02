@@ -22,6 +22,8 @@
 
 package net.solarnetwork.io.modbus.rtu;
 
+import net.solarnetwork.io.modbus.ModbusFunction;
+import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusValidationException;
 
@@ -29,9 +31,16 @@ import net.solarnetwork.io.modbus.ModbusValidationException;
  * RTU encapsulated Modbus message API.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public interface RtuModbusMessage extends ModbusMessage {
+
+	/**
+	 * The unit ID used to address all devices on a serial network.
+	 * 
+	 * @since 1.1
+	 */
+	int BROADCAST_UNIT_ID = 0;
 
 	/**
 	 * A {@link ModbusValidationException} message template.
@@ -80,6 +89,56 @@ public interface RtuModbusMessage extends ModbusMessage {
 		final short provided = getCrc();
 		final short computed = computeCrc();
 		return (provided == computed);
+	}
+
+	/**
+	 * Test if this message is a broadcast.
+	 * 
+	 * @return {@code true} if this message is a broadcast
+	 * @see #isBroadcast(ModbusMessage)
+	 * @since 1.1
+	 */
+	default boolean isBroadcast() {
+		return isBroadcast(this);
+	}
+
+	/**
+	 * Test if a message is a broadcast.
+	 * 
+	 * <p>
+	 * A broadcast is a request to write that is addressed to all devices on a
+	 * serial network, by using the {@link #BROADCAST_UNIT_ID} unit ID. Every
+	 * device acts on a broadcast request and none of them respond to it. A
+	 * request to read, including one that reads and writes, is never a
+	 * broadcast as it requires a response.
+	 * </p>
+	 * 
+	 * <p>
+	 * As no device responds to a broadcast request, a client can provide a
+	 * reply that echoes the request in place of a response. This method returns
+	 * {@code true} for such a reply as well, so it can be used to tell that no
+	 * device actually responded.
+	 * </p>
+	 * 
+	 * <p>
+	 * The message does not have to be a {@link RtuModbusMessage}, so this
+	 * method can be used with any request intended for a serial network, or any
+	 * response received from one.
+	 * </p>
+	 * 
+	 * @param message
+	 *        the message to test
+	 * @return {@code true} if the unit ID of {@code message} is
+	 *         {@link #BROADCAST_UNIT_ID} and its function is one that only
+	 *         writes
+	 * @since 1.1
+	 */
+	static boolean isBroadcast(ModbusMessage message) {
+		if ( message.getUnitId() != BROADCAST_UNIT_ID ) {
+			return false;
+		}
+		final ModbusFunction fn = message.getFunction();
+		return !fn.isReadFunction() && fn.functionCode() != ModbusFunctionCode.ReadWriteHoldingRegisters;
 	}
 
 	@Override
