@@ -72,6 +72,12 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * The next request is then held back for the
  * {@link #getBroadcastTurnaroundDelay()}.
  * </p>
+ * 
+ * <p>
+ * The {@link RtuModbusClientConfig#getSendMinimumDelayMs()} delay is applied
+ * between one request being sent and the next being sent, however long the next
+ * request has been queued for, and does not block the calling thread.
+ * </p>
  *
  * @author matt
  * @version 1.2
@@ -253,9 +259,25 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		ChannelPipeline pipeline = channel.pipeline();
 		pipeline.addLast(MESSAGE_ENCODER_HANDLER_NAME, new RtuModbusMessageEncoder());
 		pipeline.addLast(MESSAGE_DECODER_HANDLER_NAME, new RtuModbusMessageDecoder(true));
-		pipeline.addLast(EXCHANGE_HANDLER_NAME, new RtuModbusExchangeHandler(pending,
-				this::exchangeTimeout, this::getBroadcastTurnaroundDelay));
+		pipeline.addLast(EXCHANGE_HANDLER_NAME,
+				new RtuModbusExchangeHandler(pending, this::exchangeTimeout,
+						this::getBroadcastTurnaroundDelay, clientConfig::getSendMinimumDelayMs));
 		super.initChannel(channel);
+	}
+
+	/**
+	 * Enforce the minimum delay between requests.
+	 * 
+	 * <p>
+	 * This implementation does nothing, because the
+	 * {@link RtuModbusExchangeHandler} enforces the delay between requests
+	 * actually being written to the serial port, without blocking the calling
+	 * thread.
+	 * </p>
+	 */
+	@Override
+	protected void enforceSendDelay() {
+		// nothing to do
 	}
 
 	private long exchangeTimeout() {

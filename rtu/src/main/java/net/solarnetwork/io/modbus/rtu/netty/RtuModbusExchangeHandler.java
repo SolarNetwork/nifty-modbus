@@ -96,6 +96,12 @@ import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
  * broadcast unit ID is not a broadcast and is handled like any other request.
  * </p>
  *
+ * <p>
+ * A minimum delay between requests can be configured. It is measured from when
+ * one request is written to when the next is written, so a request is held back
+ * only for whatever part of the delay has not already passed.
+ * </p>
+ *
  * @author matt
  * @version 1.0
  * @since 1.6.0
@@ -110,12 +116,16 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 	private final ConcurrentMap<ModbusMessage, PendingMessage> pending;
 	private final LongSupplier replyTimeout;
 	private final LongSupplier broadcastTurnaroundDelay;
+	private final LongSupplier sendMinimumDelay;
 
 	// the following are only accessed from the event loop
 
 	private final Queue<Exchange> queue = new ArrayDeque<>(8);
 	private @Nullable Exchange current;
 	private @Nullable Future<?> currentTimeout;
+	private @Nullable Future<?> delayedWrite;
+	private boolean written;
+	private long lastWriteTime;
 
 	/**
 	 * Constructor.
@@ -156,6 +166,32 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 	 */
 	public RtuModbusExchangeHandler(ConcurrentMap<ModbusMessage, PendingMessage> pending,
 			LongSupplier replyTimeout, LongSupplier broadcastTurnaroundDelay) {
+		this(pending, replyTimeout, broadcastTurnaroundDelay, () -> 0L);
+	}
+
+	/**
+	 * Constructor.
+	 *
+	 * @param pending
+	 *        the client's map of request messages pending responses
+	 * @param replyTimeout
+	 *        supplier of the maximum time to wait for a response after a
+	 *        request is written, in milliseconds; anything less than
+	 *        {@literal 1} disables the timeout
+	 * @param broadcastTurnaroundDelay
+	 *        supplier of the time to wait after a broadcast request is written
+	 *        before writing the next request, in milliseconds; anything less
+	 *        than {@literal 1} disables the delay
+	 * @param sendMinimumDelay
+	 *        supplier of the minimum time between writing one request and
+	 *        writing the next, in milliseconds; anything less than {@literal 1}
+	 *        disables the delay
+	 * @throws IllegalArgumentException
+	 *         if any argument is {@code null}
+	 */
+	public RtuModbusExchangeHandler(ConcurrentMap<ModbusMessage, PendingMessage> pending,
+			LongSupplier replyTimeout, LongSupplier broadcastTurnaroundDelay,
+			LongSupplier sendMinimumDelay) {
 		super();
 		if ( pending == null ) {
 			throw new IllegalArgumentException("The pending argument must not be null.");
@@ -170,6 +206,10 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 					"The broadcastTurnaroundDelay argument must not be null.");
 		}
 		this.broadcastTurnaroundDelay = broadcastTurnaroundDelay;
+		if ( sendMinimumDelay == null ) {
+			throw new IllegalArgumentException("The sendMinimumDelay argument must not be null.");
+		}
+		this.sendMinimumDelay = sendMinimumDelay;
 	}
 
 	/**
@@ -206,8 +246,8 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 	 */
 	@SuppressWarnings("FutureReturnValueIgnored")
 	private void writeNext(ChannelHandlerContext ctx) {
-		while ( current == null ) {
-			final Exchange next = queue.poll();
+		while ( current == null && delayedWrite == null ) {
+			final Exchange next = queue.peek();
 			if ( next == null ) {
 				return;
 			}
@@ -215,6 +255,7 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 			if ( next.promise.isDone() || (p != null && p.getFuture().isDone()) ) {
 				// nobody is waiting for the response any more, e.g. caller timed out
 				log.debug("Not sending abandoned request {}", next.request);
+				queue.poll();
 				if ( p != null ) {
 					pending.remove(next.request, p);
 				}
@@ -222,7 +263,20 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 				continue;
 			}
 
+			final long delay = sendDelayRemaining(ctx);
+			if ( delay > 0 ) {
+				// leave the request queued until the minimum delay since the last write has passed
+				delayedWrite = ctx.executor().schedule(() -> {
+					delayedWrite = null;
+					writeNext(ctx);
+				}, delay, TimeUnit.NANOSECONDS);
+				return;
+			}
+
+			queue.poll();
 			current = next;
+			written = true;
+			lastWriteTime = ctx.executor().ticker().nanoTime();
 			resetDecoder(ctx);
 			final ChannelFuture f = ctx.writeAndFlush(next.request, next.promise);
 			if ( f.isDone() ) {
@@ -264,6 +318,20 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 				}, timeout, TimeUnit.MILLISECONDS);
 			}
 		}
+	}
+
+	/**
+	 * Get the time remaining before the next request is allowed to be written.
+	 *
+	 * @return the time remaining, in nanoseconds; not positive if there is none
+	 */
+	private long sendDelayRemaining(ChannelHandlerContext ctx) {
+		final long delay = sendMinimumDelay.getAsLong();
+		if ( delay < 1 || !written ) {
+			return 0;
+		}
+		return TimeUnit.MILLISECONDS.toNanos(delay)
+				- (ctx.executor().ticker().nanoTime() - lastWriteTime);
 	}
 
 	/**
@@ -362,6 +430,11 @@ public class RtuModbusExchangeHandler extends ChannelDuplexHandler {
 	}
 
 	private void failAll(ChannelHandlerContext ctx, Throwable cause) {
+		final Future<?> delayed = this.delayedWrite;
+		if ( delayed != null ) {
+			delayed.cancel(false);
+			delayedWrite = null;
+		}
 		final Exchange exchange = this.current;
 		if ( exchange != null ) {
 			finish(ctx, exchange);

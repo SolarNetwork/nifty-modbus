@@ -125,6 +125,11 @@ public class NettyModbusClientTests {
 			return testChannel.newSucceededFuture();
 		}
 
+		@Override
+		public void enforceSendDelay() {
+			super.enforceSendDelay();
+		}
+
 	}
 
 	private ConcurrentMap<ModbusMessage, PendingMessage> pending;
@@ -904,6 +909,48 @@ public class NettyModbusClientTests {
 		assertThat("Request failed because connection closed", e.getCause(),
 				is(instanceOf(IOException.class)));
 		assertThat("Nothing pending", pending.keySet(), hasSize(0));
+	}
+
+	@Test
+	public void sendDelay_multipleThreads() throws Exception {
+		// GIVEN
+		final long sendDelay = 300L;
+		final int threadCount = 4;
+		((NettyModbusClientConfig) client.getClientConfig()).setSendMinimumDelayMs(sendDelay);
+		final java.util.concurrent.ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+		final java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+		final List<Long> sendTimes = java.util.Collections.synchronizedList(new ArrayList<>());
+
+		// WHEN
+		try {
+			List<Future<?>> tasks = new ArrayList<>(threadCount);
+			for ( int i = 0; i < threadCount; i++ ) {
+				tasks.add(executor.submit(() -> {
+					try {
+						go.await();
+					} catch ( InterruptedException e ) {
+						return;
+					}
+					client.enforceSendDelay();
+					sendTimes.add(System.currentTimeMillis());
+				}));
+			}
+			go.countDown();
+			for ( Future<?> task : tasks ) {
+				task.get(10, TimeUnit.SECONDS);
+			}
+		} finally {
+			executor.shutdownNow();
+		}
+
+		// THEN
+		assertThat("All threads allowed to send", sendTimes, hasSize(threadCount));
+		java.util.Collections.sort(sendTimes);
+		for ( int i = 1; i < threadCount; i++ ) {
+			long gap = sendTimes.get(i) - sendTimes.get(i - 1);
+			assertThat("Thread " + i + " allowed to send no sooner than the delay after thread "
+					+ (i - 1) + " (within 50ms): " + gap, gap >= sendDelay - 50L, is(equalTo(true)));
+		}
 	}
 
 }

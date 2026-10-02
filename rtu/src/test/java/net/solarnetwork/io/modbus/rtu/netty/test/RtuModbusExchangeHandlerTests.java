@@ -79,6 +79,7 @@ public class RtuModbusExchangeHandlerTests {
 	private ConcurrentMap<ModbusMessage, PendingMessage> pending;
 	private AtomicLong replyTimeout;
 	private AtomicLong broadcastDelay;
+	private AtomicLong sendDelay;
 	private EmbeddedChannel channel;
 
 	@BeforeEach
@@ -86,8 +87,10 @@ public class RtuModbusExchangeHandlerTests {
 		pending = new ConcurrentHashMap<>(8, 0.9f, 2);
 		replyTimeout = new AtomicLong(REPLY_TIMEOUT);
 		broadcastDelay = new AtomicLong(BROADCAST_DELAY);
+		sendDelay = new AtomicLong(0);
 		channel = new EmbeddedChannel(new RtuModbusMessageEncoder(), new RtuModbusMessageDecoder(true),
-				new RtuModbusExchangeHandler(pending, replyTimeout::get, broadcastDelay::get));
+				new RtuModbusExchangeHandler(pending, replyTimeout::get, broadcastDelay::get,
+						sendDelay::get));
 	}
 
 	@AfterEach
@@ -773,6 +776,178 @@ public class RtuModbusExchangeHandlerTests {
 		// THEN
 		assertThat("Request failed with timeout", failure(f),
 				is(instanceOf(ModbusTimeoutException.class)));
+	}
+
+	private void advanceTime(long ms) {
+		channel.advanceTimeBy(ms, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+	}
+
+	@Test
+	public void construct_nullSendMinimumDelay() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			new RtuModbusExchangeHandler(pending, replyTimeout::get, broadcastDelay::get, null);
+		}, "Null sendMinimumDelay not allowed");
+	}
+
+	@Test
+	public void sendDelay_betweenWrites() {
+		// GIVEN
+		channel.freezeTime();
+		sendDelay.set(300);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+		final ModbusMessage req3 = RegistersModbusMessage.readHoldingsRequest(1, 300, 1);
+
+		// WHEN
+		send(req1);
+		send(req2);
+		send(req3);
+
+		// THEN
+		assertRequestWritten("First request written without delay", 1, req1);
+
+		// response 1 arrives 100ms after request 1 was written
+		advanceTime(100);
+		receive(readHoldingsResponseFrame(1, 100, 1));
+		assertReplyPassedOn("Reply 1", req1, 1);
+		assertNothingWritten("Request 2 held back for the rest of the delay");
+
+		advanceTime(199);
+		assertNothingWritten("Request 2 still held back 299ms after request 1");
+
+		advanceTime(1);
+		assertRequestWritten("Request 2 written 300ms after request 1", 1, req2);
+
+		// response 2 arrives straight away, and request 3 waits the whole delay
+		receive(readHoldingsResponseFrame(1, 200, 2));
+		assertReplyPassedOn("Reply 2", req2, 2);
+		advanceTime(299);
+		assertNothingWritten("Request 3 held back 299ms after request 2");
+		advanceTime(1);
+		assertRequestWritten("Request 3 written 300ms after request 2", 1, req3);
+	}
+
+	@Test
+	public void sendDelay_alreadyPassed() {
+		// GIVEN
+		channel.freezeTime();
+		sendDelay.set(300);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(req1);
+		send(req2);
+		assertRequestWritten("Request 1", 1, req1);
+
+		// response 1 takes longer than the delay to arrive
+		advanceTime(400);
+		receive(readHoldingsResponseFrame(1, 100, 1));
+
+		// THEN
+		assertReplyPassedOn("Reply 1", req1, 1);
+		assertRequestWritten("Request 2 written as soon as reply 1 received", 1, req2);
+	}
+
+	@Test
+	public void sendDelay_requestSubmittedLater() {
+		// GIVEN
+		channel.freezeTime();
+		sendDelay.set(300);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+		final ModbusMessage req3 = RegistersModbusMessage.readHoldingsRequest(1, 300, 1);
+
+		// WHEN
+		send(req1);
+		assertRequestWritten("Request 1", 1, req1);
+		receive(readHoldingsResponseFrame(1, 100, 1));
+		assertReplyPassedOn("Reply 1", req1, 1);
+
+		// request 2 submitted 100ms after request 1 was written
+		advanceTime(100);
+		send(req2);
+
+		// THEN
+		assertNothingWritten("Request 2 held back for the rest of the delay");
+		advanceTime(200);
+		assertRequestWritten("Request 2 written 300ms after request 1", 1, req2);
+		receive(readHoldingsResponseFrame(1, 200, 2));
+		assertReplyPassedOn("Reply 2", req2, 2);
+
+		// request 3 submitted after the delay has passed
+		advanceTime(500);
+		send(req3);
+		assertRequestWritten("Request 3 written without delay", 1, req3);
+	}
+
+	@Test
+	public void sendDelay_abandonedWhileDelayed() {
+		// GIVEN
+		channel.freezeTime();
+		sendDelay.set(300);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+		final ModbusMessage req3 = RegistersModbusMessage.readHoldingsRequest(1, 300, 1);
+
+		// WHEN
+		send(req1);
+		final CompletableFuture<ModbusMessage> f2 = send(req2);
+		send(req3);
+		assertRequestWritten("Request 1", 1, req1);
+		receive(readHoldingsResponseFrame(1, 100, 1));
+		assertReplyPassedOn("Reply 1", req1, 1);
+
+		// caller gives up on request 2 while it is being held back
+		f2.cancel(true);
+		advanceTime(300);
+
+		// THEN
+		assertRequestWritten("Request 3 written, skipping abandoned request 2", 1, req3);
+		assertNothingWritten("Request 2 never sent");
+	}
+
+	@Test
+	public void sendDelay_channelClosedWhileDelayed() {
+		// GIVEN
+		channel.freezeTime();
+		sendDelay.set(300);
+		final ModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		final ModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(req1);
+		final CompletableFuture<ModbusMessage> f2 = send(req2);
+		assertRequestWritten("Request 1", 1, req1);
+		receive(readHoldingsResponseFrame(1, 100, 1));
+		assertReplyPassedOn("Reply 1", req1, 1);
+		channel.close();
+
+		// THEN
+		assertThat("Held back request failed", failure(f2), is(instanceOf(IOException.class)));
+		assertNothingWritten("Held back request not sent");
+	}
+
+	@Test
+	public void sendDelay_afterBroadcast() {
+		// GIVEN
+		channel.freezeTime();
+		sendDelay.set(BROADCAST_DELAY + 100);
+		final ModbusMessage broadcast = RegistersModbusMessage.writeHoldingRequest(0, 100, 9);
+		final ModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		send(broadcast);
+		send(req);
+		assertRequestWritten("Broadcast request", 0, broadcast);
+		assertReplyPassedOn("Broadcast reply", broadcast);
+
+		// THEN
+		advanceTime(BROADCAST_DELAY);
+		assertNothingWritten("Next request held back for minimum delay after turnaround delay");
+		advanceTime(100);
+		assertRequestWritten("Next request written once minimum delay has passed", 1, req);
 	}
 
 }

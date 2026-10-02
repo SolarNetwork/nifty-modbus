@@ -740,4 +740,50 @@ public class RtuNettyModbusClientTests {
 		assertThat("Nothing pending", pending.keySet(), hasSize(0));
 	}
 
+	@Test
+	public void sendAsync_minimumDelay() throws Exception {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		config.setSendMinimumDelayMs(60_000L);
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+		channel.freezeTime();
+
+		RegistersModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(1, 100, 1);
+		RegistersModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(1, 200, 1);
+
+		// WHEN
+		client.start().get();
+		final long start = System.currentTimeMillis();
+		Future<ModbusMessage> f1 = client.sendAsync(req1);
+		Future<ModbusMessage> f2 = client.sendAsync(req2);
+		final long submitTime = System.currentTimeMillis() - start;
+
+		// THEN
+		assertThat("Calling thread not blocked by the delay", submitTime < 5_000L, is(equalTo(true)));
+
+		ByteBuf out = channel.readOutbound();
+		assertThat("Request 1 sent", out, is(notNullValue()));
+		out.release();
+		channel.writeOneInbound(readHoldingsResponseFrame(1, 100, (short) 1)).sync();
+		assertRegisters("Response 1", f1, 100, (short) 1);
+
+		out = channel.readOutbound();
+		assertThat("Request 2 not sent before minimum delay", out, is(nullValue()));
+
+		channel.advanceTimeBy(59_999L, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+		out = channel.readOutbound();
+		assertThat("Request 2 not sent before minimum delay", out, is(nullValue()));
+
+		channel.advanceTimeBy(1L, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+		out = channel.readOutbound();
+		assertThat("Request 2 sent after minimum delay", out, is(notNullValue()));
+		out.release();
+		channel.writeOneInbound(readHoldingsResponseFrame(1, 200, (short) 2)).sync();
+		assertRegisters("Response 2", f2, 200, (short) 2);
+	}
+
 }

@@ -389,28 +389,36 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 				String.format("Connection to %s is closed.", clientConfig.getDescription())));
 	}
 
-	private void enforceSendDelay() {
+	/**
+	 * Enforce the minimum delay between requests, before a request is sent.
+	 * 
+	 * <p>
+	 * This implementation blocks the calling thread until the
+	 * {@link ModbusClientConfig#getSendMinimumDelayMs()} has passed since the
+	 * previous request was allowed to be sent. Each request is allocated its
+	 * own time to be sent at, so requests from multiple threads are spaced
+	 * apart as well. Extending classes can override this to enforce the delay
+	 * another way.
+	 * </p>
+	 * 
+	 * @since 1.3
+	 */
+	protected void enforceSendDelay() {
 		final long sendMinimumDelayMs = clientConfig.getSendMinimumDelayMs();
 		if ( sendMinimumDelayMs < 1 ) {
 			return;
 		}
-		long now;
-		long expire;
-		long last;
-		do {
-			now = System.currentTimeMillis();
-			last = lastSendDate.get();
-			expire = last + sendMinimumDelayMs;
-			if ( now < expire ) {
-				try {
-					Thread.sleep(expire - now);
-				} catch ( InterruptedException e ) {
-					// stop waiting
-					break;
-				}
+		final long now = System.currentTimeMillis();
+		// claim the next time a request is allowed to be sent
+		final long sendDate = lastSendDate
+				.updateAndGet(last -> Math.max(last + sendMinimumDelayMs, now));
+		if ( sendDate > now ) {
+			try {
+				Thread.sleep(sendDate - now);
+			} catch ( InterruptedException e ) {
+				// stop waiting
 			}
-		} while ( now < expire );
-		lastSendDate.compareAndSet(last, System.currentTimeMillis());
+		}
 	}
 
 	/**
