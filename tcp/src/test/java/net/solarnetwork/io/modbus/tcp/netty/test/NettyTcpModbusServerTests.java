@@ -243,4 +243,70 @@ public class NettyTcpModbusServerTests {
 		}
 	}
 
+	@Test
+	public void start_eventLoopGroupProviderThrowsException() throws IOException {
+		// GIVEN
+		final IllegalStateException t = new IllegalStateException("No groups for you.");
+		NettyTcpModbusServer s = new NettyTcpModbusServer(TcpTestUtils.freePort());
+		s.setEventLoopGroupProvider((context, parent) -> {
+			throw t;
+		});
+
+		// WHEN
+		RuntimeException e = assertThrows(RuntimeException.class, () -> {
+			s.start();
+		}, "Start fails when event loop group cannot be created");
+
+		// THEN
+		assertThat("Exception from provider is cause", e.getCause(), is(sameInstance(t)));
+	}
+
+	@Test
+	public void start_workerEventLoopGroupProviderThrowsException() throws IOException {
+		// GIVEN
+		final IllegalStateException t = new IllegalStateException("No worker group for you.");
+		final List<EventLoopGroup> groups = new ArrayList<>(1);
+		NettyTcpModbusServer s = new NettyTcpModbusServer(TcpTestUtils.freePort());
+		s.setEventLoopGroupProvider((context, parent) -> {
+			if ( !parent ) {
+				throw t;
+			}
+			EventLoopGroup group = MultiThreadIoEventLoopGroupFactory.INSTANCE.apply(context, parent);
+			groups.add(group);
+			return group;
+		});
+		try {
+			// WHEN
+			RuntimeException e = assertThrows(RuntimeException.class, () -> {
+				s.start();
+			}, "Start fails when worker event loop group cannot be created");
+
+			// THEN
+			assertThat("Exception from provider is cause", e.getCause(), is(sameInstance(t)));
+			assertThat("Boss group was created", groups, hasSize(1));
+			assertThat("Boss group shut down after failing to start", groups.get(0).isShuttingDown(),
+					is(equalTo(true)));
+		} finally {
+			for ( EventLoopGroup group : groups ) {
+				group.shutdownGracefully();
+			}
+		}
+	}
+
+	@Test
+	public void start_noPendingMessageTtl() throws IOException {
+		// GIVEN
+		NettyTcpModbusServer s = new NettyTcpModbusServer(TcpTestUtils.freePort());
+		s.setPendingMessageTtl(0);
+		try {
+			// WHEN
+			s.start();
+
+			// THEN
+			assertThat("Pending message TTL disabled", s.getPendingMessageTtl(), is(equalTo(0L)));
+		} finally {
+			s.stop();
+		}
+	}
+
 }

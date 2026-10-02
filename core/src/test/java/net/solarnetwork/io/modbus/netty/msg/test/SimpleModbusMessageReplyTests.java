@@ -262,4 +262,19 @@ public class SimpleModbusMessageReplyTests {
 		assertThat("Delegated exception is returned", mve, is(sameInstance(ex)));
 	}
 
+	@Test
+	public void validate_valid() {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		RegistersModbusMessage res = RegistersModbusMessage.readHoldingsResponse(1, 2,
+				new short[] { 1, 2, 3 });
+		SimpleModbusMessageReply r = new SimpleModbusMessageReply(req, res);
+
+		// WHEN
+		ModbusMessage result = r.validate();
+
+		// THEN
+		assertThat("Validated reply message returned", result, is(sameInstance(res)));
+	}
+
 }

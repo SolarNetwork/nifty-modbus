@@ -68,4 +68,16 @@ public class TcpModbusMessageTests {
 		assertThat("Default protocol ID provided", msg.getProtocolId(), is(equalTo(0)));
 	}
 
+	@Test
+	public void defaultValidate() {
+		// GIVEN
+		TcpModbusMessage msg = msg();
+
+		// WHEN
+		TcpModbusMessage result = msg.validate();
+
+		// THEN
+		assertThat("Default validation returns same instance", result == msg, is(equalTo(true)));
+	}
+
 }

@@ -1270,4 +1270,374 @@ public class SerialPortChannelTests {
 		}
 	}
 
+	@Test
+	public void connect_closedWhileWaiting() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final SerialPort port = simulatedSerialPort(new CountDownLatch(0));
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+		ch.config().setWaitTime(300);
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+
+			// WHEN
+			ChannelFuture connectFuture = ch.connect(remote);
+			ch.close().sync();
+
+			// THEN
+			assertThat("Connect future completes", connectFuture.await(2, TimeUnit.SECONDS),
+					is(equalTo(true)));
+			assertThat("Connect failed because channel closed while waiting", connectFuture.cause(),
+					is(instanceOf(ClosedChannelException.class)));
+			assertThat("Serial port never opened", port.isOpen(), is(equalTo(false)));
+		} finally {
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void connect_invalidAddress() throws Exception {
+		// GIVEN
+		final SerialPortChannel ch = new SerialPortChannel(
+				provider(simulatedSerialPort(new CountDownLatch(0))));
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+
+			// WHEN
+			ChannelFuture connectFuture = ch.connect(new java.net.InetSocketAddress("localhost", 502));
+
+			// THEN
+			assertThat("Connect future completes", connectFuture.await(2, TimeUnit.SECONDS),
+					is(equalTo(true)));
+			assertThat("Connect failed because address is not a serial address", connectFuture.cause(),
+					is(instanceOf(ClassCastException.class)));
+			assertThat("Channel is not active", ch.isActive(), is(equalTo(false)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void connect_cancelled() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final SerialPort port = simulatedSerialPort(new CountDownLatch(0));
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+			final io.netty.channel.ChannelPromise promise = ch.newPromise();
+			promise.cancel(false);
+
+			// WHEN
+			ch.eventLoop().submit(() -> ch.unsafe().connect(remote, null, promise)).sync();
+
+			// THEN
+			assertThat("Serial port not opened for cancelled connect", port.isOpen(),
+					is(equalTo(false)));
+			assertThat("Channel is not active", ch.isActive(), is(equalTo(false)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void connect_inputStreamThrowsException_closeThrowsException() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final IOException t = new IOException("No stream for you.");
+		final AtomicBoolean closed = new AtomicBoolean(false);
+		final SerialPort port = new SerialPort() {
+
+			@Override
+			public String getName() {
+				return "Test Port";
+			}
+
+			@Override
+			public void open(SerialParameters parameters) throws IOException {
+				// nothing
+			}
+
+			@Override
+			public void close() throws IOException {
+				closed.set(true);
+				throw new IOException("Not closing either.");
+			}
+
+			@Override
+			public boolean isOpen() {
+				return !closed.get();
+			}
+
+			@Override
+			public InputStream getInputStream() throws IOException {
+				throw t;
+			}
+
+			@Override
+			public OutputStream getOutputStream() throws IOException {
+				return out;
+			}
+		};
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+
+			// WHEN
+			ChannelFuture connectFuture = ch.connect(remote);
+
+			// THEN
+			assertThat("Connect future completes", connectFuture.await(2, TimeUnit.SECONDS),
+					is(equalTo(true)));
+			assertThat("Connect failed with stream exception, not close exception",
+					connectFuture.cause(), is(sameInstance(t)));
+			assertThat("Serial port close attempted", closed.get(), is(equalTo(true)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void read_dataArrivesAfterClose_discarded() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM-read-after-close");
+		final CountDownLatch reading = new CountDownLatch(1);
+		final CountDownLatch provideData = new CountDownLatch(1);
+		final AtomicBoolean open = new AtomicBoolean(false);
+
+		// a serial port whose read can't be stopped, and returns data after the channel is closed
+		final SerialPort port = new SerialPort() {
+
+			@Override
+			public String getName() {
+				return "Test Port";
+			}
+
+			@Override
+			public void open(SerialParameters parameters) throws IOException {
+				open.set(true);
+			}
+
+			@Override
+			public void close() throws IOException {
+				open.set(false);
+			}
+
+			@Override
+			public boolean isOpen() {
+				return open.get();
+			}
+
+			@Override
+			public InputStream getInputStream() throws IOException {
+				return new InputStream() {
+
+					@Override
+					public int available() throws IOException {
+						return 0;
+					}
+
+					@Override
+					public int read() throws IOException {
+						return -1;
+					}
+
+					@Override
+					public int read(byte[] b, int off, int len) throws IOException {
+						reading.countDown();
+						boolean interrupted = false;
+						while ( true ) {
+							try {
+								provideData.await();
+								break;
+							} catch ( InterruptedException e ) {
+								interrupted = true;
+							}
+						}
+						if ( interrupted ) {
+							Thread.currentThread().interrupt();
+						}
+						b[off] = 1;
+						return 1;
+					}
+				};
+			}
+
+			@Override
+			public OutputStream getOutputStream() throws IOException {
+				return out;
+			}
+		};
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+
+		final AtomicInteger readCount = new AtomicInteger();
+		ch.pipeline().addLast(new SimpleChannelInboundHandler<ByteBuf>() {
+
+			@Override
+			protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
+				readCount.incrementAndGet();
+			}
+		});
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+			assertThat("Reader is reading", reading.await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			final Thread reader = readerThread(remote.name());
+
+			// WHEN
+			ch.close().sync();
+			provideData.countDown();
+			reader.join(2000);
+			ch.eventLoop().submit(() -> {
+				// wait for anything handed over by reader to be processed
+			}).sync();
+
+			// THEN
+			assertThat("Reader thread stopped", reader.isAlive(), is(equalTo(false)));
+			assertThat("Data read after close not passed on", readCount.get(), is(equalTo(0)));
+		} finally {
+			provideData.countDown();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void read_noReadTimeout_disconnected() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final SerialPortChannel ch = new SerialPortChannel(
+				provider(simulatedSerialPort(new CountDownLatch(0))));
+		ch.config().setReadTimeout(0);
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+
+			// WHEN
+			disconnected.set(true);
+
+			// THEN
+			assertThat("Channel closed because serial port disconnected",
+					ch.closeFuture().await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			assertThat("Blocking read not used without a read timeout", blockingReadCount.get(),
+					is(equalTo(0)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void eventLoopShutdown_autoReadDisabled_closesSerialPort() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM-event-loop-shutdown-no-read");
+		final SerialPort port = simulatedSerialPort(new CountDownLatch(0));
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+		ch.config().setAutoRead(false);
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+			final Thread reader = readerThread(remote.name());
+			assertThat("Reader thread started", reader, is(notNullValue()));
+
+			// WHEN
+			// event loop shut down without closing channel, while reader waits to be asked to read
+			eventLoopGroup.shutdownGracefully(0, 1, TimeUnit.SECONDS).sync();
+
+			// THEN
+			reader.join(5000);
+			assertThat("Reader thread stopped", reader.isAlive(), is(equalTo(false)));
+			assertThat("Serial port closed", port.isOpen(), is(equalTo(false)));
+			assertThat("Serial port never read from", availableCount.get(), is(equalTo(0)));
+		} finally {
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void eventLoopShutdown_dataArrives_closesSerialPort() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM-event-loop-shutdown-data");
+		final SerialPort port = simulatedSerialPort(new CountDownLatch(0));
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+
+		// a read timeout far longer than the test, so reader is blocked when event loop shut down
+		simulatedReadTimeout = 60_000;
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+			for ( int i = 0; i < 200 && blockingReadCount.get() < 1; i++ ) {
+				Thread.sleep(10);
+			}
+			final Thread reader = readerThread(remote.name());
+			eventLoopGroup.shutdownGracefully(0, 1, TimeUnit.SECONDS).sync();
+			assertThat("Serial port still open while reader blocked", port.isOpen(), is(equalTo(true)));
+
+			// WHEN
+			pout.write(new byte[] { 1, 2, 3 });
+
+			// THEN
+			reader.join(5000);
+			assertThat("Reader thread stopped", reader.isAlive(), is(equalTo(false)));
+			assertThat("Serial port closed", port.isOpen(), is(equalTo(false)));
+		} finally {
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void eventLoopShutdown_readFails_closesSerialPort() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM-event-loop-shutdown-fail");
+		final AtomicBoolean closeThrown = new AtomicBoolean(false);
+		final SerialPort port = simulatedSerialPort(new CountDownLatch(0), null, null, () -> {
+			closeThrown.set(true);
+			return new IOException("Not closing quietly.");
+		});
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+
+		// a read timeout far longer than the test, so reader is blocked when event loop shut down
+		simulatedReadTimeout = 60_000;
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+			for ( int i = 0; i < 200 && blockingReadCount.get() < 1; i++ ) {
+				Thread.sleep(10);
+			}
+			final Thread reader = readerThread(remote.name());
+			eventLoopGroup.shutdownGracefully(0, 1, TimeUnit.SECONDS).sync();
+
+			// WHEN
+			disconnected.set(true);
+
+			// THEN
+			reader.join(5000);
+			assertThat("Reader thread stopped", reader.isAlive(), is(equalTo(false)));
+			assertThat("Serial port closed", port.isOpen(), is(equalTo(false)));
+			assertThat("Serial port close exception ignored", closeThrown.get(), is(equalTo(true)));
+		} finally {
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
 }

@@ -518,4 +518,165 @@ public class TcpNettyModbusClient_ServerTests {
 				is(equalTo(true)));
 	}
 
+	@Test
+	public void start_eventLoopGroupProvider() throws Exception {
+		// GIVEN
+		server.start();
+		final List<Object> contexts = new ArrayList<>(1);
+		final List<EventLoopGroup> groups = new ArrayList<>(1);
+		TcpNettyModbusClient c = new TcpNettyModbusClient(
+				new NettyTcpModbusClientConfig("127.0.0.1", server.getPort()));
+		c.setEventLoopGroupProvider((context, parent) -> {
+			contexts.add(context);
+			EventLoopGroup group = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
+			groups.add(group);
+			return group;
+		});
+		try {
+			// WHEN
+			c.start().get(10, TimeUnit.SECONDS);
+
+			// THEN
+			assertThat("Connected using event loop group from provider", c.isConnected(),
+					is(equalTo(true)));
+			assertThat("Provider asked for event loop group", contexts, hasSize(1));
+			assertThat("Provider given the client as context", contexts.get(0),
+					is(sameInstance((Object) c)));
+		} finally {
+			c.stop().get(15, TimeUnit.SECONDS);
+		}
+		assertThat("Event loop group from provider shut down on stop", groups.get(0).isShuttingDown(),
+				is(equalTo(true)));
+	}
+
+	/**
+	 * Send raw bytes to the server and return up to 64 bytes of what it sends
+	 * back within a second.
+	 */
+	private byte[] rawExchange(java.net.Socket socket, byte[] data) throws IOException {
+		socket.setSoTimeout(1000);
+		socket.getOutputStream().write(data);
+		socket.getOutputStream().flush();
+		final byte[] buf = new byte[64];
+		int len;
+		try {
+			len = socket.getInputStream().read(buf);
+		} catch ( java.net.SocketTimeoutException e ) {
+			len = 0;
+		}
+		return Arrays.copyOf(buf, Math.max(0, len));
+	}
+
+	// @formatter:off
+	private static final byte[] RAW_INVALID_LENGTH_FRAME = new byte[] {
+			(byte)0x00, (byte)0x01, (byte)0x00, (byte)0x00, (byte)0xFF, (byte)0xFF, (byte)0x01, (byte)0x03,
+	};
+
+	private static final byte[] RAW_READ_HOLDING_REQUEST = new byte[] {
+			(byte)0x00, (byte)0x02, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x06, (byte)0x01, (byte)0x03,
+			(byte)0x00, (byte)0x0A, (byte)0x00, (byte)0x01,
+	};
+
+	private static final byte[] RAW_READ_HOLDING_RESPONSE = new byte[] {
+			(byte)0x00, (byte)0x02, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x05, (byte)0x01, (byte)0x03,
+			(byte)0x02, (byte)0x00, (byte)0x0A,
+	};
+	// @formatter:on
+
+	private void respondWithAddress() {
+		server.setMessageHandler((msg, sender) -> {
+			net.solarnetwork.io.modbus.RegistersModbusMessage reg = msg
+					.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+			sender.accept(RegistersModbusMessage.readHoldingsResponse(msg.getUnitId(), reg.getAddress(),
+					new short[] { (short) reg.getAddress() }));
+		});
+	}
+
+	@Test
+	public void exceptionHandler_corruptedFrame() throws Exception {
+		// GIVEN
+		final List<Throwable> serverExceptions = java.util.Collections
+				.synchronizedList(new ArrayList<>(1));
+		respondWithAddress();
+		server.setExceptionHandler((ex, sender) -> {
+			serverExceptions.add(ex);
+		});
+		server.start();
+
+		try (java.net.Socket socket = new java.net.Socket("127.0.0.1", server.getPort())) {
+			// WHEN
+			byte[] junkResponse = rawExchange(socket, RAW_INVALID_LENGTH_FRAME);
+
+			// THEN
+			assertThat("Nothing sent in response to corrupted frame", junkResponse.length,
+					is(equalTo(0)));
+			assertThat("Exception handler given the exception", serverExceptions, hasSize(1));
+			assertThat("Exception handler given corrupted frame exception", serverExceptions.get(0),
+					is(instanceOf(io.netty.handler.codec.CorruptedFrameException.class)));
+
+			// the corrupted frame was discarded, so the next request is answered
+			byte[] response = rawExchange(socket, RAW_READ_HOLDING_REQUEST);
+			assertThat("Request after corrupted frame answered",
+					Arrays.equals(response, RAW_READ_HOLDING_RESPONSE), is(equalTo(true)));
+		}
+	}
+
+	@Test
+	public void exceptionHandler_corruptedFrame_response() throws Exception {
+		// GIVEN
+		respondWithAddress();
+		server.setExceptionHandler((ex, sender) -> {
+			// respond with a message of our own
+			sender.accept(new BaseModbusMessage(1, ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+					ModbusErrorCode.ServerDeviceFailure.getCode()));
+		});
+		server.start();
+
+		try (java.net.Socket socket = new java.net.Socket("127.0.0.1", server.getPort())) {
+			// WHEN
+			byte[] response = rawExchange(socket, RAW_INVALID_LENGTH_FRAME);
+
+			// THEN
+			assertThat("Response from exception handler sent", response.length, is(equalTo(9)));
+			assertThat("Response is error for function", response[7], is(equalTo((byte) 0x83)));
+			assertThat("Response is error code", response[8],
+					is(equalTo(ModbusErrorCode.ServerDeviceFailure.getCode())));
+		}
+	}
+
+	@Test
+	public void corruptedFrame_noExceptionHandler() throws Exception {
+		// GIVEN
+		respondWithAddress();
+		server.start();
+
+		try (java.net.Socket socket = new java.net.Socket("127.0.0.1", server.getPort())) {
+			// WHEN
+			byte[] junkResponse = rawExchange(socket, RAW_INVALID_LENGTH_FRAME);
+
+			// THEN
+			assertThat("Nothing sent in response to corrupted frame", junkResponse.length,
+					is(equalTo(0)));
+			byte[] response = rawExchange(socket, RAW_READ_HOLDING_REQUEST);
+			assertThat("Request after corrupted frame answered",
+					Arrays.equals(response, RAW_READ_HOLDING_RESPONSE), is(equalTo(true)));
+		}
+	}
+
+	@Test
+	public void clientConnectionListener_noResult() throws Exception {
+		// GIVEN
+		respondWithAddress();
+		server.setClientConnectionListener((address, connected) -> null);
+		server.start();
+
+		// WHEN
+		client.start().get(10, TimeUnit.SECONDS);
+		ModbusMessage res = client.sendAsync(RegistersModbusMessage.readHoldingsRequest(1, 10, 1))
+				.get(10, TimeUnit.SECONDS);
+
+		// THEN
+		assertThat("Connection kept when listener has no opinion", res.getError(), is(nullValue()));
+	}
+
 }

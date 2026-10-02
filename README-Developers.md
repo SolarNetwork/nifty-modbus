@@ -2,6 +2,30 @@
 
 This document has information for developers of Nifty Modbus.
 
+# Running tests
+
+Run all the tests, and generate coverage reports in each project's `build/reports/jacoco/test`
+directory, like this:
+
+```sh
+./gradlew check
+```
+
+Some tests need a serial device, so are skipped unless enabled with a system property:
+
+| Property | Description |
+|:---------|:------------|
+| `nifty.modbus.test.jsc.port` | The name of a serial device for the jSerialComm tests to open, for example `/dev/ttyUSB0` or `COM1`. The device is opened and closed with a range of serial settings, and nothing is written to it. |
+
+For example:
+
+```sh
+./gradlew check -Dnifty.modbus.test.jsc.port=/dev/ttyUSB0
+```
+
+On Linux the pseudo-terminal device `/dev/ptmx` can be used as the serial device if no serial
+hardware is available.
+
 # Publishing to Local Maven repository
 
 You can publish the artifacts to your local Maven repository (e.g. `~/.m2/repository`) like this:
