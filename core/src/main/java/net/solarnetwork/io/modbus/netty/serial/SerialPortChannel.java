@@ -26,18 +26,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.SocketAddress;
+import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import org.jspecify.annotations.Nullable;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.AbstractChannel;
-import io.netty.channel.ChannelConfig;
 import io.netty.channel.ChannelMetadata;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
-import io.netty.channel.RecvByteBufAllocator;
 import io.netty.util.concurrent.SingleThreadEventExecutor;
 import io.netty.util.internal.StringUtil;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
@@ -47,8 +47,35 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 /**
  * Channel for a {@link SerialPortProvider}.
  *
+ * <p>
+ * Reading from the serial port is a blocking operation, so each connected
+ * channel uses a dedicated daemon thread to read from the serial port's
+ * {@link InputStream} and hand the data over to the channel's event loop. This
+ * means the event loop is never blocked waiting for data to arrive, so writes
+ * are not delayed by the serial port's read timeout. Writing is performed
+ * directly on the event loop.
+ * </p>
+ *
+ * <p>
+ * The serial port is expected to follow these {@link InputStream} semantics:
+ * </p>
+ *
+ * <ul>
+ * <li>{@link InputStream#read(byte[], int, int)} returns {@literal 0} if the
+ * configured read timeout expires before any data is available</li>
+ * <li>{@link InputStream#read(byte[], int, int)} returns {@literal -1}, or
+ * either that method or {@link InputStream#available()} throws an exception, if
+ * the serial port is no longer usable, for example the device has been
+ * disconnected; the channel will be closed when this happens</li>
+ * </ul>
+ *
+ * <p>
+ * If the configured read timeout is not greater than {@literal 0} then blocking
+ * reads are not used; the serial port is polled for available data instead.
+ * </p>
+ *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class SerialPortChannel extends AbstractChannel {
 
@@ -56,16 +83,30 @@ public class SerialPortChannel extends AbstractChannel {
 
 	private static final SerialAddress LOCAL_ADDRESS = new SerialAddress("localhost");
 
+	/** The maximum number of bytes to read from the serial port at once. */
+	private static final int READ_BUFFER_SIZE = 1024;
+
+	/**
+	 * The minimum time a read attempt that produces no data is allowed to take,
+	 * so a serial port that does not block for data cannot consume a CPU.
+	 */
+	private static final long IDLE_READ_MIN_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
+
 	private final SerialPortProvider serialPortProvider;
 	private final SerialPortChannelConfig config;
 
-	private boolean open;
-	private @Nullable SerialAddress deviceAddress;
-	private @Nullable SerialPort serialPort;
+	/** Granted by the event loop each time a read is wanted. */
+	private final Semaphore readPermits = new Semaphore(0);
+
+	private volatile boolean open;
+	private volatile @Nullable SerialAddress deviceAddress;
+	private volatile @Nullable SerialPort serialPort;
+
+	// the following are only accessed from the event loop
 
 	private @Nullable InputStream serialPortIn;
 	private @Nullable OutputStream serialPortOut;
-
+	private @Nullable SerialReader reader;
 	private boolean readPending;
 
 	/**
@@ -124,9 +165,37 @@ public class SerialPortChannel extends AbstractChannel {
 		deviceAddress = remote;
 	}
 
+	/**
+	 * Open the serial port and start reading from it.
+	 * 
+	 * @throws Exception
+	 *         if the serial port cannot be opened
+	 */
 	protected void doInit() throws Exception {
-		SerialParameters params = config();
-		serialPort.open(params);
+		final SerialPort p = this.serialPort;
+		if ( p == null || !isOpen() ) {
+			throw new ClosedChannelException();
+		}
+		final SerialParameters params = config();
+		try {
+			p.open(params);
+			final InputStream in = p.getInputStream();
+			serialPortIn = in;
+			serialPortOut = p.getOutputStream();
+
+			final SerialAddress addr = this.deviceAddress;
+			final SerialReader r = new SerialReader(in, params.getReadTimeout() > 0,
+					(addr != null ? addr.name() : p.getName()));
+			reader = r;
+			r.start();
+		} catch ( Exception e ) {
+			try {
+				doDisconnect();
+			} catch ( Exception e2 ) {
+				// ignore, to throw original exception
+			}
+			throw e;
+		}
 	}
 
 	@Override
@@ -158,6 +227,13 @@ public class SerialPortChannel extends AbstractChannel {
 
 	@Override
 	protected void doDisconnect() throws Exception {
+		final SerialReader r = this.reader;
+		if ( r != null ) {
+			reader = null;
+			r.stop();
+		}
+		readPending = false;
+		readPermits.drainPermits();
 		if ( serialPortIn != null ) {
 			try {
 				serialPortIn.close();
@@ -176,9 +252,10 @@ public class SerialPortChannel extends AbstractChannel {
 				serialPortOut = null;
 			}
 		}
-		if ( serialPort != null ) {
+		final SerialPort p = this.serialPort;
+		if ( p != null ) {
 			try {
-				serialPort.close();
+				p.close();
 			} finally {
 				serialPort = null;
 			}
@@ -208,102 +285,54 @@ public class SerialPortChannel extends AbstractChannel {
 			return;
 		}
 		readPending = true;
-		eventLoop().execute(this::doRead);
+		readPermits.release();
 	}
 
-	@Nullable
-	private InputStream serialIn() throws IOException {
-		if ( serialPortIn != null ) {
-			return serialPortIn;
-		}
-		final SerialPort p = this.serialPort;
-		InputStream in = (p != null ? p.getInputStream() : null);
-		this.serialPortIn = in;
-		return in;
-	}
-
-	@SuppressWarnings("deprecation")
-	protected void doRead() {
-		if ( !readPending ) {
-			// We have to check readPending here because the Runnable to read could have been scheduled and later
-			// during the same read loop readPending was set to false.
+	/**
+	 * Handle data read from the serial port.
+	 * 
+	 * <p>
+	 * This must be called on the event loop.
+	 * </p>
+	 * 
+	 * @param source
+	 *        the reader that read the data
+	 * @param data
+	 *        the data
+	 */
+	private void handleRead(SerialReader source, ByteBuf data) {
+		if ( source != this.reader ) {
+			// serial port has been closed since the data was read
+			data.release();
 			return;
 		}
-		// In OIO we should set readPending to false even if the read was not successful so we can schedule
-		// another read on the event loop if no reads are done.
 		readPending = false;
-
-		final ChannelConfig config = config();
 		final ChannelPipeline pipeline = pipeline();
-		final ByteBufAllocator allocator = config.getAllocator();
-		final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
-		allocHandle.reset(config);
+		pipeline.fireChannelRead(data);
+		pipeline.fireChannelReadComplete();
+	}
 
-		ByteBuf byteBuf = null;
-		boolean readData = false;
-		try {
-			byteBuf = allocHandle.allocate(allocator);
-			do {
-				allocHandle.lastBytesRead(doReadBytes(byteBuf));
-				if ( allocHandle.lastBytesRead() <= 0 ) {
-					if ( !byteBuf.isReadable() ) { // nothing was read. release the buffer.
-						byteBuf.release();
-						byteBuf = null;
-					}
-					break;
-				} else {
-					readData = true;
-				}
-
-				final int available = available();
-				if ( available <= 0 ) {
-					break;
-				}
-
-				// Oio collects consecutive read operations into 1 ByteBuf before propagating up the pipeline.
-				if ( !byteBuf.isWritable() ) {
-					final int capacity = byteBuf.capacity();
-					final int maxCapacity = byteBuf.maxCapacity();
-					if ( capacity == maxCapacity ) {
-						allocHandle.incMessagesRead(1);
-						readPending = false;
-						pipeline.fireChannelRead(byteBuf);
-						byteBuf = allocHandle.allocate(allocator);
-					} else {
-						final int writerIndex = byteBuf.writerIndex();
-						if ( writerIndex + available > maxCapacity ) {
-							byteBuf.capacity(maxCapacity);
-						} else {
-							byteBuf.ensureWritable(available);
-						}
-					}
-				}
-			} while ( allocHandle.continueReading() );
-
-			if ( byteBuf != null ) {
-				// It is possible we allocated a buffer because the previous one was not writable, but then didn't use
-				// it because allocHandle.continueReading() returned false.
-				if ( byteBuf.isReadable() ) {
-					readPending = false;
-					pipeline.fireChannelRead(byteBuf);
-				} else {
-					byteBuf.release();
-				}
-				byteBuf = null;
-			}
-
-			if ( readData ) {
-				allocHandle.readComplete();
-				pipeline.fireChannelReadComplete();
-			}
-		} catch ( Throwable t ) {
-			handleReadException(pipeline, byteBuf, t, allocHandle);
-		} finally {
-			if ( (config.isAutoRead() || !readData) && isActive() ) {
-				// Reading 0 bytes could mean there is a SocketTimeout and no data was actually read, so we
-				// should execute read() again because no data may have been read.
-				read();
-			}
+	/**
+	 * Handle a failure to read from the serial port, by closing the channel.
+	 * 
+	 * <p>
+	 * This must be called on the event loop.
+	 * </p>
+	 * 
+	 * @param source
+	 *        the reader that failed
+	 * @param cause
+	 *        the cause of the failure
+	 */
+	private void handleReadFailure(SerialReader source, Throwable cause) {
+		if ( source != this.reader ) {
+			// serial port has been closed already
+			return;
+		}
+		readPending = false;
+		pipeline().fireExceptionCaught(cause);
+		if ( isOpen() ) {
+			unsafe().close(unsafe().voidPromise());
 		}
 	}
 
@@ -330,66 +359,8 @@ public class SerialPortChannel extends AbstractChannel {
 	}
 
 	/**
-	 * Return the number of bytes ready to read from the underlying Socket.
-	 */
-	protected int available() {
-		try {
-			final InputStream in = serialIn();
-			if ( in == null ) {
-				return 0;
-			}
-			return in.available();
-		} catch ( IOException e ) {
-			// TODO: log? ignore
-			return 0;
-		}
-	}
-
-	/**
-	 * Read bytes from the underlying Socket.
-	 *
-	 * @param buf
-	 *        the {@link ByteBuf} into which the read bytes will be written
-	 * @return the number of bytes read. This may return a negative amount if
-	 *         the underlying Socket was closed
-	 * @throws Exception
-	 *         is thrown if an error occurred
-	 */
-	protected int doReadBytes(ByteBuf buf) throws Exception {
-		try {
-			InputStream in = serialIn();
-			if ( in == null ) {
-				return 0;
-			}
-			int avail = in.available();
-			if ( avail > 0 ) {
-				return buf.writeBytes(in, avail);
-			} else if ( config.getReadTimeout() > 0 ) {
-				// use blocking read w/timeout
-				return buf.writeBytes(in, 1);
-			} else {
-				return 0;
-			}
-		} catch ( IOException e ) {
-			// TODO: log? ignore
-			return 0;
-		}
-	}
-
-	@Nullable
-	private OutputStream serialOut() throws IOException {
-		if ( serialPortOut != null ) {
-			return serialPortOut;
-		}
-		final SerialPort p = this.serialPort;
-		OutputStream out = (p != null ? p.getOutputStream() : null);
-		this.serialPortOut = out;
-		return out;
-	}
-
-	/**
 	 * Write the data which is hold by the {@link ByteBuf} to the underlying
-	 * Socket.
+	 * serial port.
 	 *
 	 * @param buf
 	 *        the {@link ByteBuf} which holds the data to transfer
@@ -397,31 +368,118 @@ public class SerialPortChannel extends AbstractChannel {
 	 *         is thrown if an error occurred
 	 */
 	protected void doWriteBytes(ByteBuf buf) throws Exception {
-		final OutputStream out = serialOut();
-		if ( out != null ) {
-			buf.readBytes(out, buf.readableBytes());
+		final OutputStream out = this.serialPortOut;
+		if ( out == null ) {
+			throw new IOException("Serial port is not open.");
 		}
-	}
-
-	@SuppressWarnings("deprecation")
-	private void handleReadException(ChannelPipeline pipeline, ByteBuf byteBuf, Throwable cause,
-			RecvByteBufAllocator.Handle allocHandle) {
-		if ( byteBuf != null ) {
-			if ( byteBuf.isReadable() ) {
-				readPending = false;
-				pipeline.fireChannelRead(byteBuf);
-			} else {
-				byteBuf.release();
-			}
-		}
-		allocHandle.readComplete();
-		pipeline.fireChannelReadComplete();
-		pipeline.fireExceptionCaught(cause);
+		buf.readBytes(out, buf.readableBytes());
 	}
 
 	@Override
 	protected boolean isCompatible(EventLoop loop) {
 		return (loop instanceof SingleThreadEventExecutor);
+	}
+
+	/**
+	 * Task to read from the serial port on a dedicated thread, handing data
+	 * over to the event loop.
+	 * 
+	 * <p>
+	 * One read is performed for each permit granted to {@code readPermits}, so
+	 * the serial port is only read from when the channel wants data.
+	 * </p>
+	 */
+	private final class SerialReader implements Runnable {
+
+		private final InputStream in;
+		private final boolean blocking;
+		private final String name;
+		private final Thread thread;
+		private final byte[] buffer = new byte[READ_BUFFER_SIZE];
+		private volatile boolean stopped;
+
+		private SerialReader(InputStream in, boolean blocking, String name) {
+			super();
+			this.in = in;
+			this.blocking = blocking;
+			this.name = name;
+			this.thread = new Thread(this, "SerialPortChannel-Reader-" + name);
+			this.thread.setDaemon(true);
+		}
+
+		private void start() {
+			thread.start();
+		}
+
+		private void stop() {
+			stopped = true;
+			thread.interrupt();
+		}
+
+		@SuppressWarnings("FutureReturnValueIgnored")
+		@Override
+		public void run() {
+			try {
+				while ( !stopped ) {
+					readPermits.acquire();
+					int len = 0;
+					while ( len == 0 ) {
+						if ( stopped ) {
+							return;
+						}
+						len = read();
+					}
+					if ( len < 0 ) {
+						throw new IOException("Serial port [" + name + "] is no longer available.");
+					}
+					final ByteBuf data = alloc().buffer(len).writeBytes(buffer, 0, len);
+					try {
+						eventLoop().execute(() -> handleRead(this, data));
+					} catch ( RejectedExecutionException e ) {
+						data.release();
+						return;
+					}
+				}
+			} catch ( Throwable t ) {
+				if ( stopped ) {
+					return;
+				}
+				try {
+					eventLoop().execute(() -> handleReadFailure(this, t));
+				} catch ( RejectedExecutionException e ) {
+					// event loop is shut down, nothing more to do
+				}
+			}
+		}
+
+		/**
+		 * Read from the serial port.
+		 * 
+		 * @return the number of bytes read into {@code buffer}, {@literal 0} if
+		 *         no data is available yet, or {@literal -1} if the serial port
+		 *         is no longer available
+		 */
+		private int read() throws IOException, InterruptedException {
+			final long start = System.nanoTime();
+			final int available = in.available();
+			int len;
+			if ( available > 0 ) {
+				len = in.read(buffer, 0, Math.min(available, buffer.length));
+			} else if ( blocking ) {
+				// wait for data, up to the serial port's read timeout
+				len = in.read(buffer, 0, 1);
+			} else {
+				len = (available < 0 ? -1 : 0);
+			}
+			if ( len == 0 ) {
+				final long remaining = IDLE_READ_MIN_NANOS - (System.nanoTime() - start);
+				if ( remaining > 0 ) {
+					TimeUnit.NANOSECONDS.sleep(remaining);
+				}
+			}
+			return len;
+		}
+
 	}
 
 	private final class SerialUnsafe extends AbstractUnsafe {
@@ -430,7 +488,7 @@ public class SerialPortChannel extends AbstractChannel {
 		@Override
 		public void connect(final SocketAddress remoteAddress, final SocketAddress localAddress,
 				final ChannelPromise promise) {
-			if ( !promise.setUncancellable() || !isOpen() ) {
+			if ( !promise.setUncancellable() || !ensureOpen(promise) ) {
 				return;
 			}
 

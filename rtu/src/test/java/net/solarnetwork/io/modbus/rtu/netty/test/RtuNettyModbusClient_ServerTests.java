@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.nullValue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
@@ -63,7 +64,7 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * Test cases for the {@link RtuNettyModbusClient} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RtuNettyModbusClient_ServerTests {
 
@@ -160,6 +161,22 @@ public class RtuNettyModbusClient_ServerTests {
 							return -1;
 						}
 						return in.read();
+					}
+
+					@Override
+					public int read(byte[] b, int off, int len) throws IOException {
+						if ( in.available() < 1 ) {
+							// like a real serial port: wait for the read timeout, then return 0
+							try {
+								Thread.sleep(20);
+							} catch ( InterruptedException e ) {
+								throw new InterruptedIOException();
+							}
+							if ( in.available() < 1 ) {
+								return 0;
+							}
+						}
+						return in.read(b, off, Math.min(len, in.available()));
 					}
 
 				};

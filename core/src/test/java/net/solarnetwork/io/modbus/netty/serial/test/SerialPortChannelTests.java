@@ -25,21 +25,27 @@ package net.solarnetwork.io.modbus.netty.serial.test;
 import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObjectArray;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +54,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
 import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
@@ -60,7 +67,7 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * Test cases for the {@link SerialPortChannel} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class SerialPortChannelTests {
 
@@ -69,12 +76,25 @@ public class SerialPortChannelTests {
 	private PipedOutputStream pout = new PipedOutputStream();
 	private PipedInputStream in;
 
+	/** How long the simulated serial port blocks waiting for data. */
+	private long simulatedReadTimeout;
+
+	/** Flag to simulate the serial port device going away. */
+	private AtomicBoolean disconnected;
+
+	private AtomicInteger availableCount;
+	private AtomicInteger blockingReadCount;
+
 	@BeforeEach
 	public void setup() throws Exception {
 		executor = Executors.newCachedThreadPool();
 		out = new ByteArrayOutputStream();
 		pout = new PipedOutputStream();
 		in = new PipedInputStream(pout);
+		simulatedReadTimeout = 50;
+		disconnected = new AtomicBoolean(false);
+		availableCount = new AtomicInteger();
+		blockingReadCount = new AtomicInteger();
 	}
 
 	@AfterEach
@@ -215,15 +235,18 @@ public class SerialPortChannelTests {
 
 					@Override
 					public int available() throws IOException {
+						availableCount.incrementAndGet();
 						IOException e = (availException != null ? availException.get() : null);
 						if ( e != null ) {
 							throw e;
 						}
+						if ( disconnected.get() ) {
+							return -1;
+						}
 						return in.available();
 					}
 
-					@Override
-					public int read() throws IOException {
+					private void throwReadException() throws IOException {
 						Exception e = (readException != null ? readException.get() : null);
 						if ( e instanceof IOException ) {
 							throw (IOException) e;
@@ -232,10 +255,43 @@ public class SerialPortChannelTests {
 						} else if ( e != null ) {
 							throw new RuntimeException(e);
 						}
+					}
+
+					@Override
+					public int read() throws IOException {
+						throwReadException();
 						if ( in.available() < 1 ) {
 							return -1;
 						}
 						return in.read();
+					}
+
+					@Override
+					public int read(byte[] b, int off, int len) throws IOException {
+						throwReadException();
+						if ( disconnected.get() ) {
+							return -1;
+						}
+						if ( in.available() < 1 ) {
+							// like a real serial port: block until the read timeout, then return 0
+							blockingReadCount.incrementAndGet();
+							final long end = System.currentTimeMillis() + simulatedReadTimeout;
+							while ( in.available() < 1 && !disconnected.get() ) {
+								long remaining = end - System.currentTimeMillis();
+								if ( remaining <= 0 ) {
+									return 0;
+								}
+								try {
+									Thread.sleep(Math.min(remaining, 5));
+								} catch ( InterruptedException e ) {
+									throw new InterruptedIOException();
+								}
+							}
+							if ( disconnected.get() ) {
+								return -1;
+							}
+						}
+						return in.read(b, off, Math.min(len, in.available()));
 					}
 
 					@Override
@@ -697,12 +753,15 @@ public class SerialPortChannelTests {
 
 			// WHEN
 			ch.read();
-			Thread.sleep(200);
+
+			// THEN
+			assertThat("Channel closed because of read failure",
+					ch.closeFuture().await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			assertThat("Channel is no longer active", ch.isActive(), is(equalTo(false)));
 		} finally {
 			ch.close().sync();
 			eventLoopGroup.shutdownGracefully();
 		}
-		// THEN
 		assertThat("Available threw exception", thrown.get(), is(equalTo(true)));
 	}
 
@@ -736,12 +795,15 @@ public class SerialPortChannelTests {
 
 			// WHEN
 			ch.read();
-			Thread.sleep(200);
+
+			// THEN
+			assertThat("Channel closed because of read failure",
+					ch.closeFuture().await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			assertThat("Channel is no longer active", ch.isActive(), is(equalTo(false)));
 		} finally {
 			ch.close().sync();
 			eventLoopGroup.shutdownGracefully();
 		}
-		// THEN
 		assertThat("Read threw exception", thrown.get(), is(equalTo(true)));
 	}
 
@@ -775,12 +837,15 @@ public class SerialPortChannelTests {
 
 			// WHEN
 			ch.read();
-			Thread.sleep(200);
+
+			// THEN
+			assertThat("Channel closed because of read failure",
+					ch.closeFuture().await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			assertThat("Channel is no longer active", ch.isActive(), is(equalTo(false)));
 		} finally {
 			ch.close().sync();
 			eventLoopGroup.shutdownGracefully();
 		}
-		// THEN
 		assertThat("Read threw exception", thrown.get(), is(equalTo(true)));
 	}
 
@@ -816,6 +881,341 @@ public class SerialPortChannelTests {
 		}, "Connect throws exception from channel.open() method.");
 		// THEN
 		assertThat("Open threw exception", thrown.get(), is((true)));
+	}
+
+	private static Thread readerThread(String portName) {
+		for ( Thread t : Thread.getAllStackTraces().keySet() ) {
+			if ( t.getName().equals("SerialPortChannel-Reader-" + portName) ) {
+				return t;
+			}
+		}
+		return null;
+	}
+
+	@Test
+	public void connect_closedChannel() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(0);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.close().sync();
+
+			// WHEN
+			ChannelFuture connectFuture = ch.connect(remote);
+
+			// THEN
+			assertThat("Connect future completes", connectFuture.await(2, TimeUnit.SECONDS),
+					is(equalTo(true)));
+			assertThat("Connect failed", connectFuture.isSuccess(), is(equalTo(false)));
+			assertThat("Connect failed because channel closed", connectFuture.cause(),
+					is(instanceOf(ClosedChannelException.class)));
+		} finally {
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void connect_inputStreamThrowsException() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final IOException t = new IOException("No stream for you.");
+		final SerialPort delegate = simulatedSerialPort(new CountDownLatch(0));
+		final SerialPort port = new SerialPort() {
+
+			@Override
+			public String getName() {
+				return delegate.getName();
+			}
+
+			@Override
+			public void open(SerialParameters parameters) throws IOException {
+				delegate.open(parameters);
+			}
+
+			@Override
+			public void close() throws IOException {
+				delegate.close();
+			}
+
+			@Override
+			public boolean isOpen() {
+				return delegate.isOpen();
+			}
+
+			@Override
+			public InputStream getInputStream() throws IOException {
+				throw t;
+			}
+
+			@Override
+			public OutputStream getOutputStream() throws IOException {
+				return delegate.getOutputStream();
+			}
+		};
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+
+			// WHEN
+			ChannelFuture connectFuture = ch.connect(remote);
+
+			// THEN
+			assertThat("Connect future completes", connectFuture.await(2, TimeUnit.SECONDS),
+					is(equalTo(true)));
+			assertThat("Connect failed with stream exception", connectFuture.cause(),
+					is(sameInstance(t)));
+			assertThat("Serial port closed again", port.isOpen(), is(equalTo(false)));
+			assertThat("Channel is not active", ch.isActive(), is(equalTo(false)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void close_stopsReader() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM-close-stops-reader");
+		final CountDownLatch writeLatch = new CountDownLatch(0);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+
+		// a read timeout far longer than the test, so reader is blocked when closed
+		simulatedReadTimeout = 60_000;
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		Thread reader = null;
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+			reader = readerThread(remote.name());
+			assertThat("Reader thread started", reader, is(notNullValue()));
+			assertThat("Reader thread is daemon", reader.isDaemon(), is(equalTo(true)));
+
+			// WHEN
+			ch.close().sync();
+
+			// THEN
+			reader.join(2000);
+			assertThat("Reader thread stopped", reader.isAlive(), is(equalTo(false)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void write_notDelayedByRead() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(4);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+
+		// a read timeout far longer than the test, so a read is blocked when writing
+		simulatedReadTimeout = 60_000;
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+
+			// wait for reader to be blocked waiting for data
+			for ( int i = 0; i < 200 && blockingReadCount.get() < 1; i++ ) {
+				Thread.sleep(10);
+			}
+			assertThat("Read is blocked waiting for data", blockingReadCount.get(), is(equalTo(1)));
+
+			// WHEN
+			ChannelFuture writeFuture = ch.writeAndFlush(Unpooled.wrappedBuffer(new byte[] { 1, 2, 3, 4 }));
+
+			// THEN
+			assertThat("Write completes while read is still blocked",
+					writeFuture.await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			assertThat("Write succeeded", writeFuture.isSuccess(), is(equalTo(true)));
+			assertThat("Output written", writeLatch.await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			assertThat("Read is still blocked", blockingReadCount.get(), is(equalTo(1)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+		assertThat("Output written", byteObjectArray(out.toByteArray()),
+				is(equalTo(byteObjectArray(new byte[] { 1, 2, 3, 4 }))));
+	}
+
+	@Test
+	public void read_disconnected() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(0);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+
+		final AtomicReference<Throwable> exception = new AtomicReference<>();
+		final CountDownLatch inactiveLatch = new CountDownLatch(1);
+		ch.pipeline().addLast(new ChannelInboundHandlerAdapter() {
+
+			@Override
+			public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+				exception.set(cause);
+			}
+
+			@Override
+			public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+				inactiveLatch.countDown();
+			}
+		});
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+			assertThat("Channel is active", ch.isActive(), is(equalTo(true)));
+
+			// WHEN
+			disconnected.set(true);
+
+			// THEN
+			assertThat("Channel closed because serial port disconnected",
+					ch.closeFuture().await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			assertThat("Channel is no longer active", ch.isActive(), is(equalTo(false)));
+			assertThat("Channel is no longer open", ch.isOpen(), is(equalTo(false)));
+			assertThat("Inactive event fired", inactiveLatch.await(2, TimeUnit.SECONDS),
+					is(equalTo(true)));
+			assertThat("Exception fired for disconnection", exception.get(),
+					is(instanceOf(IOException.class)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void read_disconnected_doesNotSpin() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(0);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+
+			// WHEN
+			disconnected.set(true);
+			ch.closeFuture().await(2, TimeUnit.SECONDS);
+			final int count = availableCount.get();
+			Thread.sleep(200);
+
+			// THEN
+			assertThat("Serial port not read from again after disconnection", availableCount.get(),
+					is(equalTo(count)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+	}
+
+	@Test
+	public void read_noReadTimeout() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(0);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+		ch.config().setReadTimeout(0);
+
+		final CountDownLatch readLatch = new CountDownLatch(5);
+		final ByteArrayOutputStream read = new ByteArrayOutputStream();
+		ch.pipeline().addLast(new SimpleChannelInboundHandler<ByteBuf>() {
+
+			@Override
+			protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
+				int len = msg.readableBytes();
+				msg.readBytes(read, len);
+				for ( int i = 0; i < len; i++ ) {
+					readLatch.countDown();
+				}
+			}
+		});
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+
+			// WHEN
+			Thread.sleep(500);
+			final int idleAvailableCount = availableCount.get();
+			pout.write(new byte[] { 4, 3, 2, 1, 0 });
+
+			// THEN
+			assertThat("Input read", readLatch.await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			assertThat("Serial port polled at a limited rate while idle", idleAvailableCount,
+					is(lessThan(100)));
+			assertThat("Blocking read not used without a read timeout", blockingReadCount.get(),
+					is(equalTo(0)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+		assertThat("Input read", byteObjectArray(read.toByteArray()),
+				is(equalTo(byteObjectArray(new byte[] { 4, 3, 2, 1, 0 }))));
+	}
+
+	@Test
+	public void read_autoReadDisabled() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(0);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+		ch.config().setAutoRead(false);
+
+		final CountDownLatch readLatch = new CountDownLatch(5);
+		final ByteArrayOutputStream read = new ByteArrayOutputStream();
+		ch.pipeline().addLast(new SimpleChannelInboundHandler<ByteBuf>() {
+
+			@Override
+			protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
+				int len = msg.readableBytes();
+				msg.readBytes(read, len);
+				for ( int i = 0; i < len; i++ ) {
+					readLatch.countDown();
+				}
+			}
+		});
+
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+			pout.write(new byte[] { 4, 3, 2, 1, 0 });
+			Thread.sleep(200);
+			assertThat("Serial port not read from until asked", availableCount.get(), is(equalTo(0)));
+			assertThat("Nothing read until asked", read.size(), is(equalTo(0)));
+
+			// WHEN
+			ch.read();
+
+			// THEN
+			assertThat("Input read", readLatch.await(2, TimeUnit.SECONDS), is(equalTo(true)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+		assertThat("Input read", byteObjectArray(read.toByteArray()),
+				is(equalTo(byteObjectArray(new byte[] { 4, 3, 2, 1, 0 }))));
 	}
 
 }
