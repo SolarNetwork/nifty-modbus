@@ -26,13 +26,16 @@ import static net.solarnetwork.io.modbus.test.support.ModbusTestUtils.byteObject
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +46,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.CorruptedFrameException;
 import io.netty.handler.codec.DecoderException;
+import net.solarnetwork.io.modbus.ModbusException;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
@@ -441,6 +445,129 @@ public class TcpModbusMessageDecoderTests {
 				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
 		assertThat("All registers decoded", reg.getCount(), is(equalTo(125)));
 		assertThat("Register data decoded", Arrays.equals(reg.dataDecode(), data), is(equalTo(true)));
+	}
+
+	/**
+	 * A response to a report server ID request, which is not a supported
+	 * function.
+	 */
+	private static byte[] reportServerIdResponse(int transactionId) {
+		return bytes(transactionId >>> 8, transactionId, 0x00, 0x00, 0x00, 0x05, 0x01,
+				ModbusFunctionCodes.REPORT_SERVER_ID, 0x02, 0xAA, 0xFF);
+	}
+
+	@Test
+	public void response_unsupportedFunction_failureHandler() {
+		// GIVEN
+		final List<ModbusMessage> failedRequests = new ArrayList<>(1);
+		final List<Throwable> failures = new ArrayList<>(1);
+		EmbeddedChannel channel = new EmbeddedChannel(
+				new TcpModbusMessageDecoder(true, messages, (request, cause) -> {
+					failedRequests.add(request);
+					failures.add(cause);
+				}));
+
+		final BaseModbusMessage request = new BaseModbusMessage(1, ModbusFunctionCodes.REPORT_SERVER_ID);
+		final TcpModbusMessage req = new TcpModbusMessage(123, request);
+		messages.put(req.getTransactionId(), req);
+
+		// WHEN
+		// response to transaction 123 that cannot be decoded, followed by one that can
+		channel.writeInbound(readBuffer(reportServerIdResponse(123),
+				frame(124, RegistersModbusMessage.readHoldingsResponse(1, 0, new short[] { 7 }))));
+
+		// THEN
+		assertThat("Handler given request whose response could not be decoded", failedRequests,
+				hasSize(1));
+		assertThat("Handler given the request", failedRequests.get(0), is(sameInstance(request)));
+		assertThat("Handler given the reason", failures.get(0),
+				is(instanceOf(TcpModbusUnsupportedFunctionException.class)));
+		TcpModbusUnsupportedFunctionException ufe = (TcpModbusUnsupportedFunctionException) failures
+				.get(0);
+		assertThat("Function code returned on exception", ufe.getCode(),
+				is(equalTo(ModbusFunctionCodes.REPORT_SERVER_ID)));
+		assertThat("Transaction ID returned on exception", ufe.getTransactionId(), is(equalTo(123)));
+		assertThat("Transaction no longer pending", messages.containsKey(123), is(equalTo(false)));
+
+		// no exception raised on the pipeline, and the following response is decoded
+		channel.checkException();
+		TcpModbusMessage msg = channel.readInbound();
+		assertThat("Following response decoded", msg, is(notNullValue()));
+		assertThat("Following response transaction ID", msg.getTransactionId(), is(equalTo(124)));
+	}
+
+	@Test
+	public void response_undecodable_failureHandler() {
+		// GIVEN
+		final List<ModbusMessage> failedRequests = new ArrayList<>(1);
+		final List<Throwable> failures = new ArrayList<>(1);
+		EmbeddedChannel channel = new EmbeddedChannel(
+				new TcpModbusMessageDecoder(true, messages, (request, cause) -> {
+					failedRequests.add(request);
+					failures.add(cause);
+				}));
+
+		final RegistersModbusMessage request = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+		final TcpModbusMessage req = new TcpModbusMessage(1, request);
+		messages.put(req.getTransactionId(), req);
+
+		// read holding registers response claiming 6 bytes of data, in a frame with only 2
+		final byte[] truncated = bytes(0x00, 0x01, 0x00, 0x00, 0x00, 0x05, 0x01,
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS, 0x06, 0x00, 0x01);
+
+		// WHEN
+		channel.writeInbound(readBuffer(truncated));
+
+		// THEN
+		assertThat("Handler given request whose response could not be decoded", failedRequests,
+				hasSize(1));
+		assertThat("Handler given the request", failedRequests.get(0), is(sameInstance(request)));
+		assertThat("Handler given a Modbus exception", failures.get(0),
+				is(instanceOf(ModbusException.class)));
+		assertThat("Modbus exception has the reason as its cause", failures.get(0).getCause(),
+				is(notNullValue()));
+		assertThat("Transaction no longer pending", messages.containsKey(1), is(equalTo(false)));
+		channel.checkException();
+	}
+
+	@Test
+	public void response_unsupportedFunction_failureHandler_noRequest() {
+		// GIVEN
+		final List<ModbusMessage> failedRequests = new ArrayList<>(1);
+		EmbeddedChannel channel = new EmbeddedChannel(new TcpModbusMessageDecoder(true, messages,
+				(request, cause) -> failedRequests.add(request)));
+
+		// WHEN
+		// no request is pending for the transaction
+		DecoderException result = assertThrows(DecoderException.class, () -> {
+			channel.writeInbound(readBuffer(reportServerIdResponse(123)));
+		}, "DecoderException raised when there is no request to fail");
+
+		// THEN
+		assertThat("TcpModbusUnsupportedFunctionException is cause", result.getCause(),
+				is(instanceOf(TcpModbusUnsupportedFunctionException.class)));
+		assertThat("Handler not invoked", failedRequests, hasSize(0));
+	}
+
+	@Test
+	public void response_unsupportedFunction_noFailureHandler() {
+		// GIVEN
+		EmbeddedChannel channel = new EmbeddedChannel(new TcpModbusMessageDecoder(true, messages));
+
+		final TcpModbusMessage req = new TcpModbusMessage(123,
+				new BaseModbusMessage(1, ModbusFunctionCodes.REPORT_SERVER_ID));
+		messages.put(req.getTransactionId(), req);
+
+		// WHEN
+		DecoderException result = assertThrows(DecoderException.class, () -> {
+			channel.writeInbound(readBuffer(reportServerIdResponse(123)));
+		}, "DecoderException raised when there is no failure handler");
+
+		// THEN
+		assertThat("TcpModbusUnsupportedFunctionException is cause", result.getCause(),
+				is(instanceOf(TcpModbusUnsupportedFunctionException.class)));
+		assertThat("Transaction left pending, for whatever handles the exception",
+				messages.containsKey(123), is(equalTo(true)));
 	}
 
 }

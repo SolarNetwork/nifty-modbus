@@ -53,11 +53,14 @@ import io.netty.handler.codec.CorruptedFrameException;
 import net.solarnetwork.io.modbus.ModbusErrorCode;
 import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
+import net.solarnetwork.io.modbus.ModbusException;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
+import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
 import net.solarnetwork.io.modbus.tcp.SimpleTransactionIdSupplier;
 import net.solarnetwork.io.modbus.tcp.TcpModbusClientConfig;
+import net.solarnetwork.io.modbus.tcp.TcpModbusUnsupportedFunctionException;
 import net.solarnetwork.io.modbus.tcp.netty.NettyTcpModbusClientConfig;
 import net.solarnetwork.io.modbus.tcp.netty.TcpModbusMessage;
 import net.solarnetwork.io.modbus.tcp.netty.TcpNettyModbusClient;
@@ -499,6 +502,101 @@ public class TcpNettyModbusClientTests {
 		// THEN
 		assertThat("Stop completes without error", result, is(nullValue()));
 		assertThat("Not started", c.isStarted(), is(equalTo(false)));
+	}
+
+	private static ByteBuf readHoldingsResponseFrame(int txId, int unitId, short... values) {
+		final TcpModbusMessage tcp = new TcpModbusMessage(txId,
+				RegistersModbusMessage.readHoldingsResponse(unitId, 0, values));
+		final ByteBuf buf = Unpooled.buffer(tcp.payloadLength());
+		tcp.encodeModbusPayload(buf);
+		return buf;
+	}
+
+	@Test
+	public void send_recvUnsupportedFunction() throws Exception {
+		// GIVEN
+		// report server ID is a function whose response is not able to be decoded
+		final BaseModbusMessage req = new BaseModbusMessage(1, ModbusFunctionCodes.REPORT_SERVER_ID);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+		final int txId = idSupplier.get();
+		// @formatter:off
+		final byte[] responseData = new byte[] {
+				(byte)(txId >>> 8 & 0xFF),
+				(byte)(txId & 0xFF),
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x05,
+				(byte)0x01,
+				ModbusFunctionCodes.REPORT_SERVER_ID,
+				(byte)0x02,
+				(byte)0xAA,
+				(byte)0xFF,
+		};
+		// @formatter:on
+		channel.writeOneInbound(Unpooled.copiedBuffer(responseData)).sync();
+
+		// THEN
+		assertThat("Request completed as soon as response received", f.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f.get();
+		}, "Request failed");
+		assertThat("Request failed because response function is unsupported", e.getCause(),
+				is(instanceOf(TcpModbusUnsupportedFunctionException.class)));
+		assertThat("Exception is for the transaction",
+				((TcpModbusUnsupportedFunctionException) e.getCause()).getTransactionId(),
+				is(equalTo(txId)));
+		assertThat("Request no longer pending", pending.keySet(), hasSize(0));
+		assertThat("Transaction no longer pending", pendingMessages.keySet(), hasSize(0));
+
+		// the connection carries on working
+		ByteBuf out = channel.readOutbound();
+		out.release();
+		Future<ModbusMessage> f2 = client.sendAsync(RegistersModbusMessage.readHoldingsRequest(1, 0, 1));
+		channel.writeOneInbound(readHoldingsResponseFrame(idSupplier.get(), 1, (short) 7)).sync();
+		assertThat("Next request completed", f2.isDone(), is(equalTo(true)));
+		assertThat("Next response is not an error", f2.get().getError(), is(nullValue()));
+	}
+
+	@Test
+	public void send_recvUndecodable() throws Exception {
+		// GIVEN
+		RegistersModbusMessage req = RegistersModbusMessage.readHoldingsRequest(1, 2, 3);
+
+		// WHEN
+		client.start();
+		Future<ModbusMessage> f = client.sendAsync(req);
+		final int txId = idSupplier.get();
+		// a response claiming 6 bytes of data, in a frame with only 2
+		// @formatter:off
+		final byte[] responseData = new byte[] {
+				(byte)(txId >>> 8 & 0xFF),
+				(byte)(txId & 0xFF),
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x00,
+				(byte)0x05,
+				(byte)0x01,
+				ModbusFunctionCodes.READ_HOLDING_REGISTERS,
+				(byte)0x06,
+				(byte)0x00,
+				(byte)0x01,
+		};
+		// @formatter:on
+		channel.writeOneInbound(Unpooled.copiedBuffer(responseData)).sync();
+
+		// THEN
+		assertThat("Request completed as soon as response received", f.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f.get();
+		}, "Request failed");
+		assertThat("Request failed with a Modbus exception", e.getCause(),
+				is(instanceOf(ModbusException.class)));
+		assertThat("Request no longer pending", pending.keySet(), hasSize(0));
+		assertThat("Transaction no longer pending", pendingMessages.keySet(), hasSize(0));
 	}
 
 }
