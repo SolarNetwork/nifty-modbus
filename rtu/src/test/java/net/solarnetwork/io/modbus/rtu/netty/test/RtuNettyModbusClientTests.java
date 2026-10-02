@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +54,7 @@ import net.solarnetwork.io.modbus.ModbusErrorCodes;
 import net.solarnetwork.io.modbus.ModbusFunctionCode;
 import net.solarnetwork.io.modbus.ModbusFunctionCodes;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.ModbusTimeoutException;
 import net.solarnetwork.io.modbus.ModbusValidationException;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient.PendingMessage;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
@@ -69,7 +71,7 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * Test cases for the {@link RtuNettyModbusClient} class.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RtuNettyModbusClientTests {
 
@@ -554,6 +556,103 @@ public class RtuNettyModbusClientTests {
 		// @formatter:on
 
 		assertThat("Response has been received and processed", f.isDone(), is(equalTo(false)));
+	}
+
+	private static ByteBuf readHoldingsResponseFrame(int unitId, int addr, short... values) {
+		final RtuModbusMessage rtu = new RtuModbusMessage(unitId,
+				RegistersModbusMessage.readHoldingsResponse(unitId, addr, values));
+		final ByteBuf buf = Unpooled.buffer(rtu.payloadLength());
+		rtu.encodeModbusPayload(buf);
+		return buf;
+	}
+
+	private static void assertRegisters(String msg, Future<ModbusMessage> f, int addr, short... values)
+			throws InterruptedException, ExecutionException {
+		assertThat(msg + " received", f.isDone(), is(equalTo(true)));
+		net.solarnetwork.io.modbus.RegistersModbusMessage reg = f.get()
+				.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class);
+		assertThat(msg + " is registers", reg, is(notNullValue()));
+		assertThat(msg + " address", reg.getAddress(), is(equalTo(addr)));
+		assertThat(msg + " data", java.util.Arrays.equals(reg.dataDecode(), values), is(equalTo(true)));
+	}
+
+	@Test
+	public void send_multiple_oneAtATime() throws Exception {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+
+		final int unitId = 1;
+		RegistersModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(unitId, 100, 1);
+		RegistersModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(unitId, 200, 2);
+
+		// WHEN
+		client.start().get();
+		Future<ModbusMessage> f1 = client.sendAsync(req1);
+		Future<ModbusMessage> f2 = client.sendAsync(req2);
+
+		// THEN
+		assertThat("Both requests pending", pending.keySet(), hasSize(2));
+
+		ByteBuf out = channel.readOutbound();
+		assertThat("Request 1 sent", out, is(notNullValue()));
+		out.release();
+		out = channel.readOutbound();
+		assertThat("Request 2 not sent before response 1 received", out, is(nullValue()));
+
+		channel.writeOneInbound(readHoldingsResponseFrame(unitId, 100, (short) 1)).sync();
+		assertRegisters("Response 1", f1, 100, (short) 1);
+		assertThat("Request 2 not completed by response 1", f2.isDone(), is(equalTo(false)));
+
+		out = channel.readOutbound();
+		assertThat("Request 2 sent after response 1 received", out, is(notNullValue()));
+		out.release();
+
+		channel.writeOneInbound(readHoldingsResponseFrame(unitId, 200, (short) 2, (short) 3)).sync();
+		assertRegisters("Response 2", f2, 200, (short) 2, (short) 3);
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
+	}
+
+	@Test
+	public void sendAsync_replyTimeout() throws Exception {
+		// GIVEN
+		NettyRtuModbusClientConfig config = new NettyRtuModbusClientConfig("COM1",
+				new BasicSerialParameters());
+		client = new TestRtuNettyModbusClient(config, channel, pending,
+				new TestSerialPortProvider(null));
+		client.setReplyTimeout(500);
+
+		final int unitId = 1;
+		RegistersModbusMessage req1 = RegistersModbusMessage.readHoldingsRequest(unitId, 100, 1);
+		RegistersModbusMessage req2 = RegistersModbusMessage.readHoldingsRequest(unitId, 200, 1);
+
+		// WHEN
+		client.start().get();
+		Future<ModbusMessage> f1 = client.sendAsync(req1);
+		Future<ModbusMessage> f2 = client.sendAsync(req2);
+		ByteBuf out = channel.readOutbound();
+		assertThat("Request 1 sent", out, is(notNullValue()));
+		out.release();
+
+		channel.advanceTimeBy(501, TimeUnit.MILLISECONDS);
+		channel.runScheduledPendingTasks();
+
+		// THEN
+		assertThat("Request 1 completed", f1.isDone(), is(equalTo(true)));
+		ExecutionException e = assertThrows(ExecutionException.class, () -> {
+			f1.get();
+		}, "Request 1 failed");
+		assertThat("Request 1 failed from timeout", e.getCause(),
+				is(instanceOf(ModbusTimeoutException.class)));
+
+		out = channel.readOutbound();
+		assertThat("Request 2 sent after request 1 timeout", out, is(notNullValue()));
+		out.release();
+		channel.writeOneInbound(readHoldingsResponseFrame(unitId, 200, (short) 2)).sync();
+		assertRegisters("Response 2", f2, 200, (short) 2);
+		assertThat("Nothing pending", pending.keySet(), hasSize(0));
 	}
 
 }

@@ -79,7 +79,7 @@ import net.solarnetwork.io.modbus.netty.msg.RegistersModbusMessage;
  * Test cases for the {@link NettyModbusClient} class.
  *
  * @author matt
- * @version 1.1
+ * @version 1.2
  */
 public class NettyModbusClientTests {
 
@@ -456,6 +456,11 @@ public class NettyModbusClientTests {
 
 		// THEN
 		assertThat("Exception is timeout", e.getCause(), is(instanceOf(TimeoutException.class)));
+
+		PendingMessage p = pending.get(req);
+		assertThat("Request still pending", p, is(notNullValue()));
+		assertThat("Response future cancelled so request is known to be abandoned",
+				p.getFuture().isCancelled(), is(equalTo(true)));
 	}
 
 	@Test

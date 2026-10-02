@@ -67,7 +67,7 @@ import net.solarnetwork.io.modbus.ModbusTimeoutException;
  * @param <C>
  *        the configuration type
  * @author matt
- * @version 1.2
+ * @version 1.3
  */
 public abstract class NettyModbusClient<C extends ModbusClientConfig> implements ModbusClient {
 
@@ -366,6 +366,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			}
 			return f.get();
 		} catch ( InterruptedException e ) {
+			f.cancel(true);
 			log.warn("Interrupted waiting for response to {}", request);
 			throw new ModbusException(format("Interrupted waiting for response to %s.", request), e);
 		} catch ( ExecutionException e ) {
@@ -377,6 +378,7 @@ public abstract class NettyModbusClient<C extends ModbusClientConfig> implements
 			throw new ModbusException(format("Internal exception waiting for response to %s: %s.",
 					request, t.getMessage()), t);
 		} catch ( TimeoutException e ) {
+			f.cancel(true);
 			log.warn("Timeout waiting for response to {}", request);
 			throw new ModbusTimeoutException(format("Timeout waiting for response to %s.", request), e);
 		}

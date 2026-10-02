@@ -23,6 +23,7 @@
 package net.solarnetwork.io.modbus.rtu.netty.test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -35,7 +36,10 @@ import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
@@ -263,6 +267,114 @@ public class RtuNettyModbusClient_ServerTests {
 				0x0003
 		}), is(equalTo(true)));
 		// @formatter:on
+	}
+
+	/**
+	 * Create a simulated serial port with a device attached that responds to
+	 * every read holding registers request with one register, whose value is
+	 * the address requested.
+	 */
+	private SerialPort respondingSerialPort() {
+		final SerialPort delegate = simulatedSerialPort(new CountDownLatch(0));
+		return new SerialPort() {
+
+			private final ByteArrayOutputStream request = new ByteArrayOutputStream();
+
+			@Override
+			public String getName() {
+				return delegate.getName();
+			}
+
+			@Override
+			public void open(SerialParameters parameters) throws IOException {
+				delegate.open(parameters);
+			}
+
+			@Override
+			public void close() throws IOException {
+				delegate.close();
+			}
+
+			@Override
+			public boolean isOpen() {
+				return delegate.isOpen();
+			}
+
+			@Override
+			public InputStream getInputStream() throws IOException {
+				return delegate.getInputStream();
+			}
+
+			@Override
+			public OutputStream getOutputStream() throws IOException {
+				return new OutputStream() {
+
+					@Override
+					public void write(int b) throws IOException {
+						request.write(b);
+						if ( request.size() < 8 ) {
+							return;
+						}
+						final byte[] req = request.toByteArray();
+						request.reset();
+						final int unitId = req[0] & 0xFF;
+						final int addr = ((req[2] & 0xFF) << 8) | (req[3] & 0xFF);
+						final RtuModbusMessage res = new RtuModbusMessage(unitId, RegistersModbusMessage
+								.readHoldingsResponse(unitId, addr, new short[] { (short) addr }));
+						final ByteBuf buf = Unpooled.buffer(res.payloadLength());
+						res.encodeModbusPayload(buf);
+						pout.write(buf.array(), 0, buf.readableBytes());
+					}
+
+				};
+			}
+		};
+	}
+
+	@Test
+	public void send_recv_concurrentThreads() throws Exception {
+		// GIVEN
+		final int threadCount = 4;
+		final int requestCount = 25;
+		serialPort = respondingSerialPort();
+		client.setWireLogging(false);
+		client.setReplyTimeout(5000);
+		client.start().get();
+
+		// WHEN
+		final List<Future<List<String>>> results = new ArrayList<>();
+		for ( int t = 0; t < threadCount; t++ ) {
+			final int base = (t + 1) * 1000;
+			results.add(executor.submit(new Callable<List<String>>() {
+
+				@Override
+				public List<String> call() throws Exception {
+					final List<String> problems = new ArrayList<>();
+					for ( int i = 0; i < requestCount; i++ ) {
+						final int addr = base + i;
+						try {
+							ModbusMessage res = client
+									.send(RegistersModbusMessage.readHoldingsRequest(1, addr, 1));
+							res.validate();
+							int value = res.unwrap(net.solarnetwork.io.modbus.RegistersModbusMessage.class)
+									.dataDecodeUnsigned()[0];
+							if ( value != addr ) {
+								problems.add("Request for " + addr + " got response for " + value);
+							}
+						} catch ( RuntimeException e ) {
+							problems.add("Request for " + addr + " failed: " + e);
+						}
+					}
+					return problems;
+				}
+			}));
+		}
+
+		// THEN
+		for ( Future<List<String>> result : results ) {
+			assertThat("Every request received its own response", result.get(30, TimeUnit.SECONDS),
+					is(empty()));
+		}
 	}
 
 }

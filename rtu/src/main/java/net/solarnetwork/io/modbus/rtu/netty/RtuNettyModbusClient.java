@@ -48,13 +48,33 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
 
 /**
  * RTU implementation of {@link ModbusClient}.
+ * 
+ * <p>
+ * Modbus RTU only supports one outstanding request at a time. This client can
+ * be used by multiple threads: requests are queued and sent one at a time, in
+ * the order they were submitted, each waiting for the response to (or timeout
+ * of) the one before it. See {@link RtuModbusExchangeHandler} for details. The
+ * {@link #getReplyTimeout()} value is used as the maximum time to wait for a
+ * response after a request is sent, falling back to
+ * {@link #getPendingMessageTtl()} if no reply timeout is configured. Note
+ * that when using {@link #send(ModbusMessage)} the reply timeout includes any
+ * time spent waiting for previously submitted requests to complete.
+ * </p>
  *
  * @author matt
- * @version 1.1
+ * @version 1.2
  */
 public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfig>
 		implements ChannelFactory<SerialPortChannel> {
 
+	/**
+	 * The handler name used for the request/response exchange handler.
+	 * 
+	 * @since 1.2
+	 */
+	public static final String EXCHANGE_HANDLER_NAME = "modbusExchange";
+
+	private final ConcurrentMap<ModbusMessage, PendingMessage> pending;
 	private final boolean privateEventLoopGroup;
 	private final SerialPortProvider serialPortProvider;
 	private @Nullable EventLoopGroup eventLoopGroup;
@@ -135,6 +155,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 			ConcurrentMap<ModbusMessage, PendingMessage> pending,
 			@Nullable EventLoopGroup eventLoopGroup, SerialPortProvider serialPortProvider) {
 		super(clientConfig, scheduler, pending);
+		this.pending = pending;
 		if ( eventLoopGroup == null ) {
 			this.privateEventLoopGroup = true;
 		} else {
@@ -219,7 +240,14 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		ChannelPipeline pipeline = channel.pipeline();
 		pipeline.addLast(MESSAGE_ENCODER_HANDLER_NAME, new RtuModbusMessageEncoder());
 		pipeline.addLast(MESSAGE_DECODER_HANDLER_NAME, new RtuModbusMessageDecoder(true));
+		pipeline.addLast(EXCHANGE_HANDLER_NAME,
+				new RtuModbusExchangeHandler(pending, this::exchangeTimeout));
 		super.initChannel(channel);
+	}
+
+	private long exchangeTimeout() {
+		final long timeout = getReplyTimeout();
+		return (timeout > 0 ? timeout : getPendingMessageTtl());
 	}
 
 	private final class HandlerInitializer extends ChannelInitializer<SerialPortChannel> {

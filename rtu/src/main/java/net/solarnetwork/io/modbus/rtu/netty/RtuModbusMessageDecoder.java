@@ -39,7 +39,7 @@ import net.solarnetwork.io.modbus.rtu.netty.RtuModbusMessageDecoder.DecoderState
  * Decoder for RTU Modbus messages.
  *
  * @author matt
- * @version 1.0
+ * @version 1.1
  */
 public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 
@@ -95,15 +95,37 @@ public class RtuModbusMessageDecoder extends ReplayingDecoder<DecoderState> {
 				break;
 
 			case READ_PAYLOAD:
-				readPayload(ctx, in, out);
+				try {
+					readPayload(ctx, in, out);
+				} catch ( RuntimeException e ) {
+					// the rest of the frame can't be found, so discard input to start again
+					in.skipBytes(actualReadableBytes());
+					checkpoint(DecoderState.READ_FIXED_HEADER);
+					throw e;
+				}
 				break;
 
 			case BAD_DATA:
-				// discard input; note because of Replaying readableBytes() must invert from MAX_VALUE
-				in.skipBytes(Integer.MAX_VALUE - in.readableBytes());
+				// discard input
+				in.skipBytes(actualReadableBytes());
 				checkpoint(DecoderState.READ_FIXED_HEADER);
 				break;
 		}
+	}
+
+	/**
+	 * Discard any buffered input and start decoding from the start of a frame.
+	 * 
+	 * <p>
+	 * This must be called from the channel's event loop.
+	 * </p>
+	 * 
+	 * @since 1.1
+	 */
+	public void reset() {
+		final ByteBuf buf = internalBuffer();
+		buf.skipBytes(buf.readableBytes());
+		checkpoint(DecoderState.READ_FIXED_HEADER);
 	}
 
 	private void readFixedHeader(ByteBuf in) {
