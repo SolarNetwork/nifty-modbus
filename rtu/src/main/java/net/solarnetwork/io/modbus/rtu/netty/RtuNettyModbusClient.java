@@ -40,6 +40,7 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import net.solarnetwork.io.modbus.ModbusClient;
 import net.solarnetwork.io.modbus.ModbusMessage;
+import net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory;
 import net.solarnetwork.io.modbus.netty.handler.NettyModbusClient;
 import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
 import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
@@ -173,8 +174,7 @@ public class RtuNettyModbusClient extends NettyModbusClient<RtuModbusClientConfi
 		if ( provider != null ) {
 			return provider.apply(this, false);
 		}
-		return net.solarnetwork.io.modbus.netty.channel.OioEventLoopGroupFactory.INSTANCE.apply(provider,
-				false);
+		return LocalIoEventLoopGroupFactory.INSTANCE.apply(this, false);
 	}
 
 	@Override

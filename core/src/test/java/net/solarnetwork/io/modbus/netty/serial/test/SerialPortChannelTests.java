@@ -57,6 +57,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
+import net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory;
 import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
 import net.solarnetwork.io.modbus.netty.serial.SerialPortChannel;
 import net.solarnetwork.io.modbus.serial.SerialParameters;
@@ -323,8 +324,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(0);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 
@@ -346,8 +346,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(0);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 
@@ -374,8 +373,7 @@ public class SerialPortChannelTests {
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 		ch.config().setWaitTime(200);
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 
@@ -401,8 +399,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(0);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -428,8 +425,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(0);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -455,8 +451,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(1);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -488,8 +483,7 @@ public class SerialPortChannelTests {
 					return new IOException();
 				}, null, null)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -521,8 +515,7 @@ public class SerialPortChannelTests {
 					return new IOException();
 				}, null)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -556,8 +549,7 @@ public class SerialPortChannelTests {
 					return new IOException();
 				})));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -583,8 +575,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(1);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -608,8 +599,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(1);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -638,8 +628,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(8);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -681,8 +670,7 @@ public class SerialPortChannelTests {
 			}
 		});
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -745,8 +733,7 @@ public class SerialPortChannelTests {
 			}
 		});
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -777,8 +764,7 @@ public class SerialPortChannelTests {
 					return new IOException();
 				})));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -819,8 +805,7 @@ public class SerialPortChannelTests {
 					return new RuntimeException();
 				})));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -861,8 +846,7 @@ public class SerialPortChannelTests {
 					return t;
 				}, null, null, null, null, null)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		assertThrows(RuntimeException.class, () -> {
 			try {
 				eventLoopGroup.register(ch).sync();
@@ -899,8 +883,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(0);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.close().sync();
@@ -959,8 +942,7 @@ public class SerialPortChannelTests {
 		};
 		final SerialPortChannel ch = new SerialPortChannel(provider(port));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 
@@ -990,8 +972,7 @@ public class SerialPortChannelTests {
 		// a read timeout far longer than the test, so reader is blocked when closed
 		simulatedReadTimeout = 60_000;
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		Thread reader = null;
 		try {
 			eventLoopGroup.register(ch).sync();
@@ -1022,8 +1003,7 @@ public class SerialPortChannelTests {
 		// a read timeout far longer than the test, so a read is blocked when writing
 		simulatedReadTimeout = 60_000;
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -1074,8 +1054,7 @@ public class SerialPortChannelTests {
 			}
 		});
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -1106,8 +1085,7 @@ public class SerialPortChannelTests {
 		final CountDownLatch writeLatch = new CountDownLatch(0);
 		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -1149,8 +1127,7 @@ public class SerialPortChannelTests {
 			}
 		});
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -1196,8 +1173,7 @@ public class SerialPortChannelTests {
 			}
 		});
 
-		@SuppressWarnings("deprecation")
-		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 		try {
 			eventLoopGroup.register(ch).sync();
 			ch.connect(remote).sync();
@@ -1217,6 +1193,81 @@ public class SerialPortChannelTests {
 		}
 		assertThat("Input read", byteObjectArray(read.toByteArray()),
 				is(equalTo(byteObjectArray(new byte[] { 4, 3, 2, 1, 0 }))));
+	}
+
+	@Test
+	public void read_write_oioEventLoopGroup() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM1");
+		final CountDownLatch writeLatch = new CountDownLatch(4);
+		final SerialPortChannel ch = new SerialPortChannel(provider(simulatedSerialPort(writeLatch)));
+
+		final CountDownLatch readLatch = new CountDownLatch(5);
+		final ByteArrayOutputStream read = new ByteArrayOutputStream();
+		ch.pipeline().addLast(new SimpleChannelInboundHandler<ByteBuf>() {
+
+			@Override
+			protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
+				int len = msg.readableBytes();
+				msg.readBytes(read, len);
+				for ( int i = 0; i < len; i++ ) {
+					readLatch.countDown();
+				}
+			}
+		});
+
+		// the deprecated event loop group used before version 1.6 is still supported
+		@SuppressWarnings("deprecation")
+		final EventLoopGroup eventLoopGroup = new io.netty.channel.oio.OioEventLoopGroup();
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+
+			// WHEN
+			ch.writeAndFlush(Unpooled.wrappedBuffer(new byte[] { 1, 2, 3, 4 }));
+			assertThat("Output written", writeLatch.await(2, TimeUnit.SECONDS), is(equalTo(true)));
+			pout.write(new byte[] { 4, 3, 2, 1, 0 });
+
+			// THEN
+			assertThat("Input read", readLatch.await(2, TimeUnit.SECONDS), is(equalTo(true)));
+		} finally {
+			ch.close().sync();
+			eventLoopGroup.shutdownGracefully();
+		}
+		assertThat("Output written", byteObjectArray(out.toByteArray()),
+				is(equalTo(byteObjectArray(new byte[] { 1, 2, 3, 4 }))));
+		assertThat("Input read", byteObjectArray(read.toByteArray()),
+				is(equalTo(byteObjectArray(new byte[] { 4, 3, 2, 1, 0 }))));
+	}
+
+	@Test
+	public void eventLoopShutdown_closesSerialPort() throws Exception {
+		// GIVEN
+		final SerialAddress remote = new SerialAddress("COM-event-loop-shutdown");
+		final CountDownLatch writeLatch = new CountDownLatch(0);
+		final SerialPort port = simulatedSerialPort(writeLatch);
+		final SerialPortChannel ch = new SerialPortChannel(provider(port));
+
+		final EventLoopGroup eventLoopGroup = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
+		try {
+			eventLoopGroup.register(ch).sync();
+			ch.connect(remote).sync();
+			assertThat("Serial port opened", port.isOpen(), is(equalTo(true)));
+			final Thread reader = readerThread(remote.name());
+			assertThat("Reader thread started", reader, is(notNullValue()));
+
+			// WHEN
+			// event loop shut down without closing channel
+			eventLoopGroup.shutdownGracefully(0, 1, TimeUnit.SECONDS).sync();
+
+			// THEN
+			reader.join(5000);
+			assertThat("Reader thread stopped", reader.isAlive(), is(equalTo(false)));
+			assertThat("Serial port closed", port.isOpen(), is(equalTo(false)));
+			assertThat("Channel is no longer active", ch.isActive(), is(equalTo(false)));
+		} finally {
+			eventLoopGroup.shutdownGracefully();
+		}
 	}
 
 }

@@ -1,5 +1,5 @@
 /* ==================================================================
- * OioEventLoopGroupFactoryTests.java - 12/03/2026 12:04:34 pm
+ * LocalIoEventLoopGroupFactoryTests.java - 12/03/2026 12:08:36 pm
  *
  * Copyright 2026 SolarNetwork.net Dev Team
  *
@@ -23,47 +23,57 @@
 package net.solarnetwork.io.modbus.netty.channel.test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import java.util.function.BiFunction;
 import org.junit.jupiter.api.Test;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory;
 
 /**
- * Test cases for the
- * {@link net.solarnetwork.io.modbus.netty.channel.OioEventLoopGroupFactory}
- * class.
+ * Test cases for the {@link LocalIoEventLoopGroupFactory} class.
  *
  * @author matt
- * @version 1.1
+ * @version 1.0
  */
-@SuppressWarnings("deprecation")
-public class OioEventLoopGroupFactoryTests {
+public class LocalIoEventLoopGroupFactoryTests {
 
 	@Test
 	public void constructed() throws Exception {
 		// WHEN
-		final BiFunction<Object, Boolean, EventLoopGroup> factory = new net.solarnetwork.io.modbus.netty.channel.OioEventLoopGroupFactory();
+		final LocalIoEventLoopGroupFactory factory = new LocalIoEventLoopGroupFactory();
 		final EventLoopGroup result = factory.apply(null, null);
 
 		// THEN
-		assertThat("EventLoopGroup created", result, is(not(nullValue())));
-		assertThat("EventLoopGroup is OioEventLoopGroup", result,
-				is(instanceOf(io.netty.channel.oio.OioEventLoopGroup.class)));
+		try {
+			assertThat("EventLoopGroup created", result, is(not(nullValue())));
+			assertThat("EventLoopGroup is MultiThreadIoEventLoopGroup", result,
+					is(instanceOf(MultiThreadIoEventLoopGroup.class)));
+			assertThat("EventLoopGroup has single thread",
+					((MultiThreadIoEventLoopGroup) result).executorCount(), is(equalTo(1)));
+		} finally {
+			result.shutdownGracefully();
+		}
 	}
 
 	@Test
 	public void staticInstance() throws Exception {
 		// WHEN
-		final EventLoopGroup result = net.solarnetwork.io.modbus.netty.channel.OioEventLoopGroupFactory.INSTANCE
-				.apply(null, null);
+		final EventLoopGroup result = LocalIoEventLoopGroupFactory.INSTANCE.apply(null, null);
 
 		// THEN
-		assertThat("EventLoopGroup created", result, is(not(nullValue())));
-		assertThat("EventLoopGroup is OioEventLoopGroup", result,
-				is(instanceOf(io.netty.channel.oio.OioEventLoopGroup.class)));
+		try {
+			assertThat("EventLoopGroup created", result, is(not(nullValue())));
+			assertThat("EventLoopGroup is MultiThreadIoEventLoopGroup", result,
+					is(instanceOf(MultiThreadIoEventLoopGroup.class)));
+			assertThat("EventLoopGroup has single thread",
+					((MultiThreadIoEventLoopGroup) result).executorCount(), is(equalTo(1)));
+		} finally {
+			result.shutdownGracefully();
+		}
 	}
 
 }

@@ -74,6 +74,15 @@ import net.solarnetwork.io.modbus.serial.SerialPortProvider;
  * reads are not used; the serial port is polled for available data instead.
  * </p>
  *
+ * <p>
+ * Any single-threaded event loop can be used with this channel. As writing to
+ * the serial port blocks the event loop, a dedicated event loop is recommended,
+ * such as one created by
+ * {@link net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory}.
+ * If the event loop is shut down without the channel having been closed, the
+ * serial port is closed.
+ * </p>
+ *
  * @author matt
  * @version 1.1
  */
@@ -91,6 +100,12 @@ public class SerialPortChannel extends AbstractChannel {
 	 * so a serial port that does not block for data cannot consume a CPU.
 	 */
 	private static final long IDLE_READ_MIN_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
+
+	/**
+	 * How often to check the event loop is still running while waiting to be
+	 * asked to read, in milliseconds.
+	 */
+	private static final long EVENT_LOOP_CHECK_MS = 1000L;
 
 	private final SerialPortProvider serialPortProvider;
 	private final SerialPortChannelConfig config;
@@ -421,10 +436,14 @@ public class SerialPortChannel extends AbstractChannel {
 		public void run() {
 			try {
 				while ( !stopped ) {
-					readPermits.acquire();
+					while ( !readPermits.tryAcquire(EVENT_LOOP_CHECK_MS, TimeUnit.MILLISECONDS) ) {
+						if ( abandoned() ) {
+							return;
+						}
+					}
 					int len = 0;
 					while ( len == 0 ) {
-						if ( stopped ) {
+						if ( stopped || abandoned() ) {
 							return;
 						}
 						len = read();
@@ -437,6 +456,7 @@ public class SerialPortChannel extends AbstractChannel {
 						eventLoop().execute(() -> handleRead(this, data));
 					} catch ( RejectedExecutionException e ) {
 						data.release();
+						closeAbandonedSerialPort();
 						return;
 					}
 				}
@@ -447,7 +467,35 @@ public class SerialPortChannel extends AbstractChannel {
 				try {
 					eventLoop().execute(() -> handleReadFailure(this, t));
 				} catch ( RejectedExecutionException e ) {
-					// event loop is shut down, nothing more to do
+					closeAbandonedSerialPort();
+				}
+			}
+		}
+
+		/**
+		 * Test if the event loop has shut down without closing the channel,
+		 * closing the serial port if so.
+		 * 
+		 * @return {@code true} if the event loop has shut down
+		 */
+		private boolean abandoned() {
+			if ( !eventLoop().isShutdown() ) {
+				return false;
+			}
+			closeAbandonedSerialPort();
+			return true;
+		}
+
+		/**
+		 * Close the serial port, because the event loop is no longer able to.
+		 */
+		private void closeAbandonedSerialPort() {
+			final SerialPort p = serialPort;
+			if ( p != null && !stopped ) {
+				try {
+					p.close();
+				} catch ( Exception e ) {
+					// ignore
 				}
 			}
 		}

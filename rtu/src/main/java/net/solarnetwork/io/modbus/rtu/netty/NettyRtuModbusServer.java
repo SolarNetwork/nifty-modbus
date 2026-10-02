@@ -43,6 +43,7 @@ import io.netty.handler.codec.DecoderException;
 import io.netty.handler.logging.LoggingHandler;
 import net.solarnetwork.io.modbus.ModbusMessage;
 import net.solarnetwork.io.modbus.ModbusUnsupportedFunctionException;
+import net.solarnetwork.io.modbus.netty.channel.LocalIoEventLoopGroupFactory;
 import net.solarnetwork.io.modbus.netty.msg.BaseModbusMessage;
 import net.solarnetwork.io.modbus.netty.msg.SimpleModbusMessageReply;
 import net.solarnetwork.io.modbus.netty.serial.SerialAddress;
@@ -136,10 +137,8 @@ public class NettyRtuModbusServer implements ChannelFactory<SerialPortChannel> {
 		this.eventLoopGroup = eventLoopGroup;
 	}
 
-	@SuppressWarnings("deprecation")
 	private static EventLoopGroup defaultEventLoopGroup() {
-		// TODO: need a non-deprecated replacement
-		return new io.netty.channel.oio.OioEventLoopGroup();
+		return LocalIoEventLoopGroupFactory.INSTANCE.apply(null, false);
 	}
 
 	@Override
